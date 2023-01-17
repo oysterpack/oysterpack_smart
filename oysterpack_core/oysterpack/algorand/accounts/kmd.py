@@ -10,7 +10,7 @@ from typing import NewType, Any
 from algosdk import kmd, mnemonic, error
 from algosdk.wallet import Wallet as KmdWallet
 
-from oysterpack.algorand.accounts.account import Mnemonic
+from oysterpack.algorand.accounts.model import Mnemonic
 
 WalletId = NewType('WalletId', str)
 WalletName = NewType('WalletName', str)
@@ -122,4 +122,4 @@ class WalletSession:
 
     def export_master_derivation_key(self) -> Mnemonic:
         mdk = self._wallet.export_master_derivation_key()
-        return mnemonic.from_master_derivation_key(mdk)
+        return Mnemonic.from_word_list(mnemonic.from_master_derivation_key(mdk))

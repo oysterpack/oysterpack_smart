@@ -44,6 +44,11 @@ class Mnemonic:
             raise ValueError('')
 
     def to_master_derivation_key(self):
+        """Converts the word list to the base64 encoded KMD wallet master derivation key"""
         return mnemonic.to_master_derivation_key(str(self))
+
+    def to_private_key(self):
+        """Converts the word list to the base64 encoded account private key"""
+        return mnemonic.to_private_key(str(self))
 
     def __str__(self) -> str:  return ' '.join(self.word_list)

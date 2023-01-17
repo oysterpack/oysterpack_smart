@@ -115,6 +115,8 @@ class WalletSession:
         weakref.finalize(self, self.__del__)
 
     def __del__(self):
+        # If the wallet session creation failed, then the _wallet attributed will not exist.
+        # Thus, check that the _wallet attribute exists before releasing the wallet handle.
         if hasattr(self, '_wallet') and self._wallet.handle:
             self._wallet.release_handle()
 

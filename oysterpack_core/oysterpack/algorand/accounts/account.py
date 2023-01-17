@@ -1,5 +1,7 @@
 """
-Algorand Account
+Algorand Accounts Domain Model
+
+https://developer.algorand.org/docs/get-details/accounts/
 """
 
 from dataclasses import dataclass

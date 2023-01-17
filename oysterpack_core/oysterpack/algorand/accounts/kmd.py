@@ -1,5 +1,7 @@
 """
-Key Management Daemon
+This module is used to KMD wallet-derived Algorand accounts
+
+https://developer.algorand.org/docs/get-details/accounts/create/#wallet-derived-kmd
 """
 import weakref
 from dataclasses import dataclass
@@ -30,7 +32,7 @@ def list_wallets(kmd_client: kmd.KMDClient) -> list[Wallet]:
     return list(map(_to_wallet, kmd_client.list_wallets()))
 
 
-def lookup_wallet(kmd_client: kmd.KMDClient, name: WalletName) -> Wallet | None:
+def get_wallet(kmd_client: kmd.KMDClient, name: WalletName) -> Wallet | None:
     for wallet in list_wallets(kmd_client):
         if wallet.name == name:
             return wallet
@@ -57,7 +59,7 @@ def create_wallet(kmd_client: kmd.KMDClient, name: WalletName, password: WalletP
     :exception WalletAlreadyExistsError: if a wallet with the same name already exists
     """
 
-    if lookup_wallet(kmd_client, name): raise WalletAlreadyExistsError(name)
+    if get_wallet(kmd_client, name): raise WalletAlreadyExistsError(name)
 
     new_wallet = kmd_client.create_wallet(name=name, pswd=password)
     return _to_wallet(new_wallet)
@@ -77,7 +79,7 @@ def recover_wallet(kmd_client: kmd.KMDClient,
     :exception WalletAlreadyExistsError: if a wallet with the same name already exists
     """
 
-    if lookup_wallet(kmd_client, name): raise WalletAlreadyExistsError(name)
+    if get_wallet(kmd_client, name): raise WalletAlreadyExistsError(name)
     recovered_wallet = kmd_client.create_wallet(name=name,
                                                 pswd=password,
                                                 master_deriv_key=master_derivation_key.to_master_derivation_key())
@@ -91,7 +93,7 @@ class WalletSession:
         :exception WalletDoesNotExistError: If the wallet for the specified name does not exist
         """
 
-        if lookup_wallet(kmd_client, name) is None:
+        if get_wallet(kmd_client, name) is None:
             raise WalletDoesNotExistError(name)
 
         self._wallet = KmdWallet(wallet_name=name, wallet_pswd=password, kmd_client=kmd_client)

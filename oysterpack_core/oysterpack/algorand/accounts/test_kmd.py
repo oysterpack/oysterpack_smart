@@ -2,7 +2,7 @@ import unittest
 
 from ulid import ULID
 
-from oysterpack.algorand.accounts.kmd import list_wallets, lookup_wallet, WalletName, WalletPassword, create_wallet, \
+from oysterpack.algorand.accounts.kmd import list_wallets, get_wallet, WalletName, WalletPassword, create_wallet, \
     WalletAlreadyExistsError, recover_wallet, Mnemonic
 from oysterpack.algorand.accounts.test_support import KmdTestSupport
 
@@ -20,7 +20,7 @@ class KmdTest(KmdTestSupport, unittest.TestCase):
         """
         kmd_wallets = list_wallets(self._kmd_client)
         for wallet in kmd_wallets:
-            lookup_result = lookup_wallet(self._kmd_client, wallet.name)
+            lookup_result = get_wallet(self._kmd_client, wallet.name)
             self.assertIsNotNone(lookup_result)
             self.assertEqual(lookup_result, wallet)
 
@@ -30,7 +30,7 @@ class KmdTest(KmdTestSupport, unittest.TestCase):
         :return:
         """
         invalid_wallet_name = str(ULID())
-        result = lookup_wallet(self._kmd_client, WalletName(invalid_wallet_name))
+        result = get_wallet(self._kmd_client, WalletName(invalid_wallet_name))
         self.assertIsNone(result)
 
     def test_create_new_wallet(self):
@@ -39,7 +39,7 @@ class KmdTest(KmdTestSupport, unittest.TestCase):
         new_wallet = create_wallet(self._kmd_client, wallet_name, wallet_password)
 
         self.assertEqual(new_wallet.name, wallet_name)
-        self.assertEqual(new_wallet, lookup_wallet(self._kmd_client, new_wallet.name))
+        self.assertEqual(new_wallet, get_wallet(self._kmd_client, new_wallet.name))
 
         # trying to create a wallet that already exists should raise a WalletAlreadyExistsError
         with self.subTest('wallet already exists'):
@@ -56,7 +56,7 @@ class KmdTest(KmdTestSupport, unittest.TestCase):
                                           Mnemonic.from_word_list(wallet_recovery_mnemonic))
 
         self.assertEqual(recovered_wallet.name, wallet_name)
-        self.assertEqual(recovered_wallet, lookup_wallet(self._kmd_client, recovered_wallet.name))
+        self.assertEqual(recovered_wallet, get_wallet(self._kmd_client, recovered_wallet.name))
 
         # trying to recover a wallet that already exists should raise a WalletAlreadyExistsError
         with self.subTest('wallet already exists'):
@@ -74,7 +74,7 @@ class KmdTest(KmdTestSupport, unittest.TestCase):
                                               Mnemonic.from_word_list(wallet_recovery_mnemonic))
 
             self.assertEqual(recovered_wallet.name, wallet_name)
-            self.assertEqual(recovered_wallet, lookup_wallet(self._kmd_client, recovered_wallet.name))
+            self.assertEqual(recovered_wallet, get_wallet(self._kmd_client, recovered_wallet.name))
 
 
 if __name__ == '__main__':

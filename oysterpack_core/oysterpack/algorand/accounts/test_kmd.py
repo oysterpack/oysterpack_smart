@@ -1,9 +1,11 @@
 import unittest
 
+from algosdk import mnemonic
 from ulid import ULID
 
 from oysterpack.algorand.accounts.kmd import list_wallets, get_wallet, WalletName, WalletPassword, create_wallet, \
-    WalletAlreadyExistsError, recover_wallet, Mnemonic
+    WalletAlreadyExistsError, WalletDoesNotExistError, recover_wallet, Mnemonic, WalletSession, \
+    InvalidWalletPasswordError
 from oysterpack.algorand.accounts.test_support import KmdTestSupport
 
 
@@ -75,6 +77,33 @@ class KmdTest(KmdTestSupport, unittest.TestCase):
 
             self.assertEqual(recovered_wallet.name, wallet_name)
             self.assertEqual(recovered_wallet, get_wallet(self._kmd_client, recovered_wallet.name))
+
+
+class WalletSessionTests(KmdTestSupport, unittest.TestCase):
+
+    def test_create_wallet_session(self):
+        _wallet = super()._create_test_wallet()
+        session = WalletSession(kmd_client=_wallet.kcl,
+                                name=WalletName(_wallet.name),
+                                password=WalletPassword(_wallet.pswd))
+
+        session_mdc_mnemonic = session.export_master_derivation_key()
+        wallet_mdc = self._kmd_client.export_master_derivation_key(handle=_wallet.handle, password=_wallet.pswd)
+        self.assertEqual(session_mdc_mnemonic, mnemonic.from_master_derivation_key(wallet_mdc))
+
+        with self.subTest('with invalid name'):
+            with self.assertRaises(WalletDoesNotExistError):
+                WalletSession(kmd_client=_wallet.kcl,
+                              name=WalletName(str(ULID())),
+                              password=WalletPassword(_wallet.pswd))
+
+        with self.subTest('with invalid password'):
+            with self.assertRaises(InvalidWalletPasswordError) as err:
+                WalletSession(kmd_client=_wallet.kcl,
+                              name=WalletName(_wallet.name),
+                              password=WalletPassword(str(ULID())))
+
+            self.assertEqual(err.exception.name, _wallet.name)
 
 
 if __name__ == '__main__':

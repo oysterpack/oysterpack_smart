@@ -7,7 +7,7 @@ import weakref
 from dataclasses import dataclass
 from typing import NewType, Any
 
-from algosdk import kmd
+from algosdk import kmd, mnemonic, error
 from algosdk.wallet import Wallet as KmdWallet
 
 from oysterpack.algorand.accounts.account import Mnemonic
@@ -86,6 +86,14 @@ def recover_wallet(kmd_client: kmd.KMDClient,
     return _to_wallet(recovered_wallet)
 
 
+@dataclass(slots=True)
+class InvalidWalletPasswordError(Exception):
+    name: WalletName
+
+
+class KmdError(Exception): pass
+
+
 class WalletSession:
 
     def __init__(self, kmd_client: kmd.KMDClient, name: WalletName, password: WalletPassword):
@@ -96,10 +104,20 @@ class WalletSession:
         if get_wallet(kmd_client, name) is None:
             raise WalletDoesNotExistError(name)
 
-        self._wallet = KmdWallet(wallet_name=name, wallet_pswd=password, kmd_client=kmd_client)
+        try:
+            self._wallet = KmdWallet(wallet_name=name, wallet_pswd=password, kmd_client=kmd_client)
+        except error.KMDHTTPError as err:
+            if str(err).find('wrong password') != -1:
+                raise InvalidWalletPasswordError(name)
+            raise KmdError() from err
+
         # register a finalizer to release the wallet handle
         weakref.finalize(self, self.__del__)
 
     def __del__(self):
-        if self._wallet.handle:
+        if hasattr(self, '_wallet') and self._wallet.handle:
             self._wallet.release_handle()
+
+    def export_master_derivation_key(self) -> Mnemonic:
+        mdk = self._wallet.export_master_derivation_key()
+        return mnemonic.from_master_derivation_key(mdk)

@@ -1,5 +1,5 @@
 """
-Algorand Accounts Domain Model
+Algorand account domain model
 
 https://developer.algorand.org/docs/get-details/accounts/
 """

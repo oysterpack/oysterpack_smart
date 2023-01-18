@@ -187,6 +187,45 @@ class WalletSessionTests(KmdTestSupport, unittest.TestCase):
                 session.rename(session.name)
             self.assertEqual(str(err.exception), 'new wallet name cannot be the same as the current wallet name')
 
+    def test_generate_key(self):
+        _wallet = super().create_test_wallet()
+        session = WalletSession(kmd_client=_wallet.kcl,
+                                name=WalletName(_wallet.name),
+                                password=WalletPassword(_wallet.pswd))
+        self.assertEqual(len(session.list_keys()), 0)
+
+        for i in range(1, 6):
+            address = session.generate_key()
+            self.assertEqual(len(session.list_keys()), i)
+            self.assertTrue(address in session.list_keys())
+            self.assertTrue(session.contains_key(address))
+
+    def test_delete_key(self):
+        _wallet = super().create_test_wallet()
+        session = WalletSession(kmd_client=_wallet.kcl,
+                                name=WalletName(_wallet.name),
+                                password=WalletPassword(_wallet.pswd))
+        self.assertEqual(len(session.list_keys()), 0)
+        address = session.generate_key()
+        self.assertTrue(session.contains_key(address))
+        session.delete_key(address)
+        self.assertFalse(session.contains_key(address))
+
+    def test_export_key(self):
+        _wallet = super().create_test_wallet()
+        session = WalletSession(kmd_client=_wallet.kcl,
+                                name=WalletName(_wallet.name),
+                                password=WalletPassword(_wallet.pswd))
+        address = session.generate_key()
+
+        account_mnemonic = session.export_key(address)
+        self.assertIsNotNone(account_mnemonic)
+
+        # import the key into another wallet and verify it maps to the same public address
+        _wallet2 = super().create_test_wallet()
+        address2 = _wallet2.import_key(mnemonic.to_private_key(str(account_mnemonic)))
+        self.assertEqual(address, address2)
+
 
 if __name__ == '__main__':
     unittest.main()

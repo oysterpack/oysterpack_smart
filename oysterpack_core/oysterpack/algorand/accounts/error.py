@@ -50,15 +50,17 @@ def handle_kmd_client_errors(command):
             return command(*args, **kwargs)
         except KMDHTTPError as err:
             if str(err).find('invalid API token') != -1:
-                raise InvalidKmdTokenError from err
+                raise InvalidKmdTokenError() from err
+            if str(err).find('key does not exist in this wallet') != -1:
+                raise KeyNotFoundError() from err
             if str(err).find('Not Found') != -1:
-                raise KmdUrlError from err
+                raise KmdUrlError() from err
             raise
         except URLError as err:
-            raise KmdUrlError from err
+            raise KmdUrlError() from err
         except ValueError as err:
             if str(err).find('unknown url type') != -1:
-                raise KmdUrlError from err
+                raise KmdUrlError() from err
             raise
 
     return wrapped_command

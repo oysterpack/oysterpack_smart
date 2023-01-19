@@ -1,6 +1,8 @@
 import unittest
+from pprint import pprint
 
 from algosdk import mnemonic
+from algosdk.wallet import Wallet
 from ulid import ULID
 
 from oysterpack.algorand.accounts.error import InvalidWalletPasswordError, WalletAlreadyExistsError, \
@@ -113,11 +115,16 @@ class KmdTest(KmdTestSupport, unittest.TestCase):
 
 class WalletSessionTests(KmdTestSupport, unittest.TestCase):
 
+    def _create_test_wallet_session(self, wallet: Wallet | None = None) -> WalletSession:
+        if wallet is None: wallet = super().create_test_wallet()
+        return WalletSession(kmd_client=wallet.kcl,
+                             name=WalletName(wallet.name),
+                             password=WalletPassword(wallet.pswd),
+                             get_auth_addr=self.get_auth_addr())
+
     def test_create_wallet_session(self):
         _wallet = super().create_test_wallet()
-        session = WalletSession(kmd_client=_wallet.kcl,
-                                name=WalletName(_wallet.name),
-                                password=WalletPassword(_wallet.pswd))
+        session = self._create_test_wallet_session(_wallet)
 
         # check that the wallet session that was created was for the specified wallet name
         # The master derivation key is unique per wallet. Thus, check the master derivation key against the key looked
@@ -130,25 +137,25 @@ class WalletSessionTests(KmdTestSupport, unittest.TestCase):
             with self.assertRaises(WalletDoesNotExistError):
                 WalletSession(kmd_client=_wallet.kcl,
                               name=WalletName(str(ULID())),
-                              password=WalletPassword(_wallet.pswd))
+                              password=WalletPassword(_wallet.pswd),
+                              get_auth_addr=self.get_auth_addr())
 
         with self.subTest('with invalid password'):
             with self.assertRaises(InvalidWalletPasswordError):
                 WalletSession(kmd_client=_wallet.kcl,
                               name=WalletName(_wallet.name),
-                              password=WalletPassword(str(ULID())))
+                              password=WalletPassword(str(ULID())),
+                              get_auth_addr=self.get_auth_addr())
 
         with self.subTest('KmdClient raises exception'):
             with self.assertRaises(KmdUrlError):
                 WalletSession(kmd_client=create_kmd_client(url='http://badurl', token=''),
                               name=WalletName(_wallet.name),
-                              password=WalletPassword(_wallet.pswd))
+                              password=WalletPassword(_wallet.pswd),
+                              get_auth_addr=self.get_auth_addr())
 
     def test__del__(self):
-        _wallet = super().create_test_wallet()
-        session = WalletSession(kmd_client=_wallet.kcl,
-                                name=WalletName(_wallet.name),
-                                password=WalletPassword(_wallet.pswd))
+        session = self._create_test_wallet_session()
 
         # when the object finalizer is run, the session handle is released
         session.__del__()
@@ -158,9 +165,7 @@ class WalletSessionTests(KmdTestSupport, unittest.TestCase):
     def test_rename(self):
         # setup
         _wallet = super().create_test_wallet()
-        session = WalletSession(kmd_client=_wallet.kcl,
-                                name=WalletName(_wallet.name),
-                                password=WalletPassword(_wallet.pswd))
+        session = self._create_test_wallet_session(_wallet)
 
         # rename the wallet using a unique name
         new_name = str(ULID())
@@ -170,7 +175,8 @@ class WalletSessionTests(KmdTestSupport, unittest.TestCase):
         # check that a new wallet session with the new name can be created
         session = WalletSession(kmd_client=_wallet.kcl,
                                 name=WalletName(new_name),
-                                password=WalletPassword(_wallet.pswd))
+                                password=WalletPassword(_wallet.pswd),
+                                get_auth_addr=self.get_auth_addr())
         session.list_keys()
 
         with self.subTest('using the name of another existing wallet should fail'):
@@ -188,10 +194,7 @@ class WalletSessionTests(KmdTestSupport, unittest.TestCase):
             self.assertEqual(str(err.exception), 'new wallet name cannot be the same as the current wallet name')
 
     def test_generate_key(self):
-        _wallet = super().create_test_wallet()
-        session = WalletSession(kmd_client=_wallet.kcl,
-                                name=WalletName(_wallet.name),
-                                password=WalletPassword(_wallet.pswd))
+        session = self._create_test_wallet_session()
         self.assertEqual(len(session.list_keys()), 0)
 
         for i in range(1, 6):
@@ -201,10 +204,7 @@ class WalletSessionTests(KmdTestSupport, unittest.TestCase):
             self.assertTrue(session.contains_key(address))
 
     def test_delete_key(self):
-        _wallet = super().create_test_wallet()
-        session = WalletSession(kmd_client=_wallet.kcl,
-                                name=WalletName(_wallet.name),
-                                password=WalletPassword(_wallet.pswd))
+        session = self._create_test_wallet_session()
         self.assertEqual(len(session.list_keys()), 0)
         address = session.generate_key()
         self.assertTrue(session.contains_key(address))
@@ -212,10 +212,7 @@ class WalletSessionTests(KmdTestSupport, unittest.TestCase):
         self.assertFalse(session.contains_key(address))
 
     def test_export_key(self):
-        _wallet = super().create_test_wallet()
-        session = WalletSession(kmd_client=_wallet.kcl,
-                                name=WalletName(_wallet.name),
-                                password=WalletPassword(_wallet.pswd))
+        session = self._create_test_wallet_session()
         address = session.generate_key()
 
         account_mnemonic = session.export_key(address)
@@ -225,6 +222,74 @@ class WalletSessionTests(KmdTestSupport, unittest.TestCase):
         _wallet2 = super().create_test_wallet()
         address2 = _wallet2.import_key(mnemonic.to_private_key(str(account_mnemonic)))
         self.assertEqual(address, address2)
+
+    def test_sign_transaction(self):
+        import algosdk
+        from oysterpack.algorand.accounts.error import KeyNotFoundError
+
+        session = self._create_test_wallet_session()
+        session.generate_key()
+
+        from algosdk.transaction import PaymentTxn
+        for address in session.list_keys():
+            txn = PaymentTxn(sender=address, receiver=address, amt=0, sp=self.algod_client.suggested_params())
+            signed_txn = session.sign_transaction(txn)
+            pprint((signed_txn.get_txid(), signed_txn.dictify()))
+
+        with self.subTest('when signing account does not exist in the wallet'):
+            _, address = algosdk.account.generate_account()
+            txn = PaymentTxn(sender=address, receiver=address, amt=0, sp=self.algod_client.suggested_params())
+            with self.assertRaises(KeyNotFoundError):
+                session.sign_transaction(txn)
+
+    def test_sign_transaction_using_rekeyed_account(self):
+        import algosdk
+        from algosdk.transaction import PaymentTxn, wait_for_confirmation
+        from oysterpack.algorand.accounts.error import KeyNotFoundError
+
+        sandbox_default_wallet = self.sandbox_default_wallet
+        sandbox_default_wallet_session = WalletSession(kmd_client=sandbox_default_wallet.kcl,
+                                                       name=WalletName(sandbox_default_wallet.name),
+                                                       password=WalletPassword(sandbox_default_wallet.pswd),
+                                                       get_auth_addr=self.get_auth_addr())
+
+        # generate an account and rekey it to the first account in the sandbox default wallet
+        private_key, account = algosdk.account.generate_account()
+        rekey_to = sandbox_default_wallet.list_keys()[0]
+        # fund the account
+        txn = PaymentTxn(sender=rekey_to,
+                         receiver=account,
+                         amt=1000000,  # 1 ALGO
+                         sp=self.algod_client.suggested_params())
+        signed_txn = sandbox_default_wallet.sign_transaction(txn)
+        txn_id = self.algod_client.send_transaction(signed_txn)
+        confirmed_txn = wait_for_confirmation(self.algod_client, txn_id, 4)
+        pprint(('funded account', confirmed_txn))
+        # rekey the account
+        txn = PaymentTxn(sender=account,
+                         receiver=account,
+                         amt=0,  # 1 ALGO
+                         sp=self.algod_client.suggested_params(),
+                         rekey_to=rekey_to)
+        signed_txn = txn.sign(private_key)
+        txn_id = self.algod_client.send_transaction(signed_txn)
+        confirmed_txn = wait_for_confirmation(self.algod_client, txn_id, 4)
+        pprint(('rekeyed account', confirmed_txn))
+
+        # send payment from rekeyed account
+        txn = PaymentTxn(sender=account,
+                         receiver=account,
+                         amt=0,  # 1 ALGO
+                         sp=self.algod_client.suggested_params())
+        signed_txn = sandbox_default_wallet_session.sign_transaction(txn)
+        pprint((signed_txn.get_txid(), signed_txn.dictify()))
+
+        with self.subTest('when signing account does not exist in the wallet'):
+            _, address = algosdk.account.generate_account()
+            txn = PaymentTxn(sender=address, receiver=address, amt=0, sp=self.algod_client.suggested_params())
+            session = self._create_test_wallet_session()
+            with self.assertRaises(KeyNotFoundError):
+                session.sign_transaction(txn)
 
 
 if __name__ == '__main__':

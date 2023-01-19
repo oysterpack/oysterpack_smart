@@ -5,7 +5,7 @@ https://developer.algorand.org/docs/get-details/accounts/create/#wallet-derived-
 """
 import weakref
 from dataclasses import dataclass
-from typing import NewType, Any
+from typing import NewType, Any, Callable
 
 import algosdk.error
 from algosdk import kmd, mnemonic
@@ -116,8 +116,12 @@ def recover_wallet(kmd_client: kmd.KMDClient,
 class WalletSession:
 
     @handle_kmd_client_errors
-    def __init__(self, kmd_client: kmd.KMDClient, name: WalletName, password: WalletPassword):
+    def __init__(self, kmd_client: kmd.KMDClient, name: WalletName, password: WalletPassword,
+                 get_auth_addr: Callable[[Address], Address]):
         """
+
+        :param get_auth_addr: used to lookup the authorized address for signing transactions
+
         :exception WalletDoesNotExistError
         :exception InvalidWalletPasswordError
         """
@@ -130,6 +134,8 @@ class WalletSession:
             if str(err).find('wrong password') != -1:
                 raise InvalidWalletPasswordError()
             raise
+
+        self._get_auth_addr = get_auth_addr
 
         # register a finalizer to release the wallet handle
         weakref.finalize(self, self.__del__)
@@ -209,8 +215,11 @@ class WalletSession:
         return Mnemonic.from_word_list(mnemonic.from_private_key(private_key))
 
     @handle_kmd_client_errors
-    def sign_transaction(self, txn: Transaction, signing_address: Address | None = None) -> SignedTransaction:
+    def sign_transaction(self, txn: Transaction) -> SignedTransaction:
         """
+        Knows hot to handle rekeyed accounts. If the transaction sender account has been rekeyed, then the authorized
+        account will be used to sign the transaction.
+
         :param txn:
         :param signing_address: sign the transaction using the private key for the specified address. If not specified,
                                 then the transaction sender is used as the signing address. The use case for this is
@@ -220,11 +229,17 @@ class WalletSession:
         :exception KeyNotFoundError: if the wallet does not contain the transaction signing account
         """
 
-        try:
-            self._wallet.automate_handle()
-            return self._wallet.kcl.sign_transaction(self._wallet.handle,
-                                                     self._wallet.pswd, txn,
-                                                     signing_address=signing_address)
-        except algosdk.error.KMDHTTPError as err:
-            # TODO: handle KeyNotFoundError
-            raise
+        signing_address = self._get_auth_addr(Address(txn.sender))
+        if signing_address == txn.sender:
+            return self._wallet.sign_transaction(txn)
+
+        # The below code should work and is the preferred method, but currently fails
+        # see - https://github.com/algorand/py-algorand-sdk/issues/436
+        # self._wallet.automate_handle()
+        # return self._wallet.kcl.sign_transaction(handle=self._wallet.handle,
+        #                                          password=self._wallet.pswd,
+        #                                          txn=txn,
+        #                                          signing_address=signing_address)
+
+        # this is the workaround for the above issue
+        return txn.sign(self._wallet.export_key(signing_address))

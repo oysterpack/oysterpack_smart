@@ -217,14 +217,8 @@ class WalletSession:
     @handle_kmd_client_errors
     def sign_transaction(self, txn: Transaction) -> SignedTransaction:
         """
-        Knows hot to handle rekeyed accounts. If the transaction sender account has been rekeyed, then the authorized
+        Rekeyed accounts are handled accordingly. If the transaction sender account has been rekeyed, then the authorized
         account will be used to sign the transaction.
-
-        :param txn:
-        :param signing_address: sign the transaction using the private key for the specified address. If not specified,
-                                then the transaction sender is used as the signing address. The use case for this is
-                                rekeyed accounts.
-        :return: signed transaction with sender's signature
 
         :exception KeyNotFoundError: if the wallet does not contain the transaction signing account
         """
@@ -233,6 +227,7 @@ class WalletSession:
         if signing_address == txn.sender:
             return self._wallet.sign_transaction(txn)
 
+        # TODO: waiting on Algorand bug fix
         # The below code should work and is the preferred method, but currently fails
         # see - https://github.com/algorand/py-algorand-sdk/issues/436
         # self._wallet.automate_handle()

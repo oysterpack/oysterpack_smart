@@ -10,10 +10,11 @@ from oysterpack.algorand.accounts.error import InvalidWalletPasswordError, Walle
 from oysterpack.algorand.accounts.kmd import list_wallets, get_wallet, WalletName, WalletPassword, create_wallet, \
     recover_wallet, WalletSession, create_kmd_client
 from oysterpack.algorand.accounts.model import Mnemonic
-from oysterpack.algorand.accounts.test_support import KmdTestSupport
+from oysterpack.algorand.test_support import AlgorandTestSupport
+from oysterpack.algorand.transactions.rekey import rekey_account_transaction
 
 
-class KmdTest(KmdTestSupport, unittest.TestCase):
+class AlgorandTest(AlgorandTestSupport, unittest.TestCase):
 
     def test_create_kmd_client(self):
         # create a wallet using valid connection params
@@ -113,7 +114,7 @@ class KmdTest(KmdTestSupport, unittest.TestCase):
             self.assertEqual(recovered_wallet, get_wallet(self.kmd_client, recovered_wallet.name))
 
 
-class WalletSessionTests(KmdTestSupport, unittest.TestCase):
+class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
 
     def _create_test_wallet_session(self, wallet: Wallet | None = None) -> WalletSession:
         if wallet is None: wallet = super().create_test_wallet()
@@ -243,6 +244,16 @@ class WalletSessionTests(KmdTestSupport, unittest.TestCase):
                 session.sign_transaction(txn)
 
     def test_sign_transaction_using_rekeyed_account(self):
+        """
+        Test Steps
+        ----------
+        1. generate a new account
+        2. use the first account in the sandbox default wallet as the rekey_to account
+        3. fund the new account with ALGO using the rekey_to account
+        4. rekey the account
+        5. sign a new payment transaction for the rekeyed account using a WalletSession for the sandbox default wallet.
+           This checks that the WalletSession can sign transactions for rekeyed accounts.
+        """
         import algosdk
         from algosdk.transaction import PaymentTxn, wait_for_confirmation
         from oysterpack.algorand.accounts.error import KeyNotFoundError
@@ -266,20 +277,17 @@ class WalletSessionTests(KmdTestSupport, unittest.TestCase):
         confirmed_txn = wait_for_confirmation(self.algod_client, txn_id, 4)
         pprint(('funded account', confirmed_txn))
         # rekey the account
-        txn = PaymentTxn(sender=account,
-                         receiver=account,
-                         amt=0,  # 1 ALGO
-                         sp=self.algod_client.suggested_params(),
-                         rekey_to=rekey_to)
+        txn = rekey_account_transaction(account=account, rekey_to=rekey_to, algod_client=self.algod_client)
         signed_txn = txn.sign(private_key)
         txn_id = self.algod_client.send_transaction(signed_txn)
         confirmed_txn = wait_for_confirmation(self.algod_client, txn_id, 4)
         pprint(('rekeyed account', confirmed_txn))
 
-        # send payment from rekeyed account
+        # send payment from account, but sign the transaction with the authorized account
+        # this checks that the WalletSession can sign transactions for rekeyed accounts
         txn = PaymentTxn(sender=account,
                          receiver=account,
-                         amt=0,  # 1 ALGO
+                         amt=0,
                          sp=self.algod_client.suggested_params())
         signed_txn = sandbox_default_wallet_session.sign_transaction(txn)
         pprint((signed_txn.get_txid(), signed_txn.dictify()))

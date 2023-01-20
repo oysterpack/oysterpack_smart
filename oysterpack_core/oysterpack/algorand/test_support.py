@@ -28,7 +28,7 @@ def local_algod_client() -> AlgodClient:
     return AlgodClient(algod_token=token, algod_address=address)
 
 
-class KmdTestSupport:
+class AlgorandTestSupport:
     kmd_client: kmd.KMDClient = local_kmd_client()
     algod_client: AlgodClient = local_algod_client()
 

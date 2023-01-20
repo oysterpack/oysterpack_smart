@@ -7,8 +7,8 @@ import weakref
 from dataclasses import dataclass
 from typing import NewType, Any, Callable
 
-import algosdk.error
 from algosdk import kmd, mnemonic
+from algosdk.error import KMDHTTPError
 from algosdk.transaction import Transaction, SignedTransaction
 from algosdk.wallet import Wallet as KmdWallet
 
@@ -130,7 +130,7 @@ class WalletSession:
 
         try:
             self._wallet = KmdWallet(wallet_name=name, wallet_pswd=password, kmd_client=kmd_client)
-        except algosdk.error.KMDHTTPError as err:
+        except KMDHTTPError as err:
             if str(err).find('wrong password') != -1:
                 raise InvalidWalletPasswordError()
             raise
@@ -230,11 +230,14 @@ class WalletSession:
         # TODO: waiting on Algorand bug fix
         # The below code should work and is the preferred method, but currently fails
         # see - https://github.com/algorand/py-algorand-sdk/issues/436
-        # self._wallet.automate_handle()
-        # return self._wallet.kcl.sign_transaction(handle=self._wallet.handle,
-        #                                          password=self._wallet.pswd,
-        #                                          txn=txn,
-        #                                          signing_address=signing_address)
-
-        # this is the workaround for the above issue
-        return txn.sign(self._wallet.export_key(signing_address))
+        try:
+            self._wallet.automate_handle()
+            return self._wallet.kcl.sign_transaction(handle=self._wallet.handle,
+                                                     password=self._wallet.pswd,
+                                                     txn=txn,
+                                                     signing_address=signing_address)
+        except KMDHTTPError as err:
+            if str(err).index('could not decode request body') != -1:
+                # the workaround for the above issue is to export the key and sign the transaction on the client side
+                return txn.sign(self._wallet.export_key(signing_address))
+            raise

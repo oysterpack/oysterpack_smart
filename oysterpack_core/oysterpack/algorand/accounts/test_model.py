@@ -3,10 +3,10 @@ import unittest
 from algosdk import mnemonic, account
 
 from oysterpack.algorand.accounts.model import Mnemonic
-from oysterpack.algorand.accounts.test_support import KmdTestSupport
+from oysterpack.algorand.test_support import AlgorandTestSupport
 
 
-class AccountModelTestCase(KmdTestSupport, unittest.TestCase):
+class AccountModelTestCase(AlgorandTestSupport, unittest.TestCase):
 
     def test_valid_mnemonic(self):
         word_list = lambda: map(str, range(25))

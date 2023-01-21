@@ -11,7 +11,8 @@ from oysterpack.algorand.accounts.kmd import list_wallets, get_wallet, WalletNam
     recover_wallet, WalletSession, create_kmd_client
 from oysterpack.algorand.accounts.model import Mnemonic
 from oysterpack.algorand.test_support import AlgorandTestSupport
-from oysterpack.algorand.transactions.rekey import rekey_account_transaction
+from oysterpack.algorand.transactions import payment
+from oysterpack.algorand.transactions.rekey import rekey
 
 
 class AlgorandTest(AlgorandTestSupport, unittest.TestCase):
@@ -267,17 +268,23 @@ class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
         # generate an account and rekey it to the first account in the sandbox default wallet
         private_key, account = algosdk.account.generate_account()
         rekey_to = sandbox_default_wallet.list_keys()[0]
+
         # fund the account
-        txn = PaymentTxn(sender=rekey_to,
-                         receiver=account,
-                         amt=1000000,  # 1 ALGO
-                         sp=self.algod_client.suggested_params())
+        txn = payment.transfer_algo(
+            sender=rekey_to,
+            receiver=account,
+            amount=1000000,
+            suggested_params=self.algod_client.suggested_params
+        )
+
         signed_txn = sandbox_default_wallet.sign_transaction(txn)
         txn_id = self.algod_client.send_transaction(signed_txn)
         confirmed_txn = wait_for_confirmation(self.algod_client, txn_id, 4)
         pprint(('funded account', confirmed_txn))
         # rekey the account
-        txn = rekey_account_transaction(account=account, rekey_to=rekey_to, algod_client=self.algod_client)
+        txn = rekey(account=account,
+                    rekey_to=rekey_to,
+                    suggested_params=self.algod_client.suggested_params)
         signed_txn = txn.sign(private_key)
         txn_id = self.algod_client.send_transaction(signed_txn)
         confirmed_txn = wait_for_confirmation(self.algod_client, txn_id, 4)

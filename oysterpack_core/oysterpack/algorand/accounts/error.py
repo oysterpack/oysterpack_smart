@@ -49,17 +49,17 @@ def handle_kmd_client_errors(command):
             # check the KMD client connection by retrieving the list of wallets from the KMD server
             return command(*args, **kwargs)
         except KMDHTTPError as err:
-            if str(err).find('invalid API token') != -1:
+            if 'invalid API token' in str(err):
                 raise InvalidKmdTokenError() from err
-            if str(err).find('key does not exist in this wallet') != -1:
+            if 'key does not exist in this wallet' in str(err):
                 raise KeyNotFoundError() from err
-            if str(err).find('Not Found') != -1:
+            if 'Not Found' in str(err):
                 raise KmdUrlError() from err
             raise
         except URLError as err:
             raise KmdUrlError() from err
         except ValueError as err:
-            if str(err).find('unknown url type') != -1:
+            if 'unknown url type' in str(err):
                 raise KmdUrlError() from err
             raise
 

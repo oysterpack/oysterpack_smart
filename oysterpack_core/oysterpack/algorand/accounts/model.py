@@ -13,6 +13,8 @@ from algosdk import mnemonic
 # https://developer.algorand.org/docs/get-details/accounts/#transformation-public-key-to-algorand-address
 Address = NewType("Address", str)
 
+AssetID = NewType('AssetID', int)
+
 
 @dataclass(slots=True)
 class Mnemonic:

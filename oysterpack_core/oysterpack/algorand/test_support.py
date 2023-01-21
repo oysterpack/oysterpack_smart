@@ -10,7 +10,7 @@ from algosdk import kmd, wallet
 from algosdk.v2client.algod import AlgodClient
 from ulid import ULID
 
-from oysterpack.algorand.accounts.account import get_auth_address
+from oysterpack.algorand.accounts import get_auth_address
 from oysterpack.algorand.accounts.model import Address
 
 

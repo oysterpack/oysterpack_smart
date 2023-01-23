@@ -3,13 +3,13 @@ import unittest
 from algosdk.account import generate_account
 from algosdk.transaction import wait_for_confirmation
 
-from tests.algorand.test_support import AlgorandTestSupport
 from oysterpack.algorand.transactions.account import close_account
 from oysterpack.algorand.transactions.payment import transfer_algo
+from tests.algorand.test_support import AlgorandTestSupport
 
 
 class CloseAccountTestCase(AlgorandTestSupport, unittest.TestCase):
-    def test_something(self):
+    def test_close_account(self):
         account = self.sandbox_default_wallet.list_keys()[0]
         private_key, account2 = generate_account()
 

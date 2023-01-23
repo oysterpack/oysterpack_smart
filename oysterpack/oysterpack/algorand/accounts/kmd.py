@@ -115,8 +115,13 @@ def recover_wallet(kmd_client: kmd.KMDClient,
 class WalletSession:
 
     @handle_kmd_client_errors
-    def __init__(self, kmd_client: kmd.KMDClient, name: WalletName, password: WalletPassword,
-                 get_auth_addr: Callable[[Address], Address]):
+    def __init__(
+            self,
+            kmd_client: kmd.KMDClient,
+            name: WalletName,
+            password: WalletPassword,
+            get_auth_addr: Callable[[Address], Address]
+    ):
         """
 
         :param get_auth_addr: used to lookup the authorized address for signing transactions

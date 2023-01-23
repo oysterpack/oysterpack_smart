@@ -81,7 +81,7 @@ pycparser = "*"
 name = "coverage"
 version = "7.0.5"
 description = "Code coverage measurement for Python"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=3.7"
 files = [
@@ -310,4 +310,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "4f3939803708d49ae05234e410a8d09e1a39ff379662a7728ca6ff79789606a0"
+content-hash = "fab4c5e6e14e0c1cf27dcedc4eee498ce2fb9a5777b12deb80f973f8ef9f2934"

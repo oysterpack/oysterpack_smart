@@ -3,7 +3,6 @@ This module is used to manage KMD wallet-derived Algorand accounts
 
 https://developer.algorand.org/docs/get-details/accounts/create/#wallet-derived-kmd
 """
-import weakref
 from dataclasses import dataclass
 from typing import NewType, Any, Callable
 
@@ -14,7 +13,7 @@ from algosdk.wallet import Wallet as KmdWallet
 
 from oysterpack.algorand.accounts.error import handle_kmd_client_errors, InvalidWalletPasswordError, \
     DuplicateWalletNameError, WalletAlreadyExistsError, WalletDoesNotExistError
-from oysterpack.algorand.accounts.model import Mnemonic, Address
+from oysterpack.algorand.model import Mnemonic, Address
 
 WalletId = NewType('WalletId', str)
 WalletName = NewType('WalletName', str)
@@ -136,9 +135,6 @@ class WalletSession:
             raise
 
         self._get_auth_addr = get_auth_addr
-
-        # register a finalizer to release the wallet handle
-        weakref.finalize(self, self.__del__)
 
     def __del__(self):
         """

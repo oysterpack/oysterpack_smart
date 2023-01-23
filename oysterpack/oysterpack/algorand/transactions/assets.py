@@ -1,7 +1,7 @@
 import algosdk.account
 from algosdk.transaction import AssetOptInTxn, AssetTransferTxn, AssetCreateTxn, AssetUpdateTxn, AssetCloseOutTxn
 
-from oysterpack.algorand.accounts.model import Address, AssetID
+from oysterpack.algorand.model import Address, AssetID
 from oysterpack.algorand.transactions import GetSuggestedParams, create_lease
 
 

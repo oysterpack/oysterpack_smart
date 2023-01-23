@@ -6,7 +6,7 @@ from algosdk.encoding import base64
 from algosdk.transaction import wait_for_confirmation
 
 from oysterpack.algorand.accounts import Address, get_asset_holding
-from oysterpack.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestSupport
 from oysterpack.algorand.transactions import assets
 
 
@@ -124,9 +124,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         # check that the transaction had a lease set
         self.assertTrue(len(tx_info['txn']['txn']['lx']) > 0)
 
-        account_info = self.algod_client.account_info(account)
-        account_asset_ids = [asset['asset-id'] for asset in account_info['assets']]
-        self.assertTrue(asset_id in account_asset_ids)
+        self.assertIsNotNone(get_asset_holding(account, asset_id, self.algod_client))
 
     def test_transfer(self):
         asset_id, manager = self.create_test_asset()
@@ -164,7 +162,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         txn = assets.opt_in(account=account, asset_id=asset_id, suggested_params=self.algod_client.suggested_params)
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
-        wait_for_confirmation(algod_client=self.algod_client, txid=txid, wait_rounds=4)
+        wait_for_confirmation(algod_client=self.algod_client, txid=txid)
         self.assertIsNotNone(get_asset_holding(account, asset_id, self.algod_client))
 
         # close out
@@ -175,7 +173,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
-        wait_for_confirmation(algod_client=self.algod_client, txid=txid, wait_rounds=4)
+        wait_for_confirmation(algod_client=self.algod_client, txid=txid)
 
         # check that the account no longer holds the asset
         self.assertIsNone(get_asset_holding(account, asset_id, self.algod_client))

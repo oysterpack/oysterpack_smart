@@ -9,8 +9,8 @@ from oysterpack.algorand.accounts.error import InvalidWalletPasswordError, Walle
     WalletDoesNotExistError, KmdUrlError, InvalidKmdTokenError, DuplicateWalletNameError
 from oysterpack.algorand.accounts.kmd import list_wallets, get_wallet, WalletName, WalletPassword, create_wallet, \
     recover_wallet, WalletSession, create_kmd_client
-from oysterpack.algorand.accounts.model import Mnemonic
-from oysterpack.algorand.test_support import AlgorandTestSupport
+from oysterpack.algorand.model import Mnemonic
+from tests.algorand.test_support import AlgorandTestSupport
 from oysterpack.algorand.transactions import payment
 from oysterpack.algorand.transactions.rekey import rekey
 

@@ -11,7 +11,7 @@ from algosdk.v2client.algod import AlgodClient
 from ulid import ULID
 
 from oysterpack.algorand.accounts import get_auth_address
-from oysterpack.algorand.accounts.model import Address
+from oysterpack.algorand.model import Address
 
 
 def local_kmd_client() -> kmd.KMDClient:

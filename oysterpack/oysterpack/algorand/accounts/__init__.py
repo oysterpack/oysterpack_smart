@@ -3,7 +3,7 @@ from typing import Any
 from algosdk.v2client.algod import AlgodClient
 from algosdk.v2client.models.asset_holding import AssetHolding
 
-from oysterpack.algorand.accounts.model import Address, AssetID
+from oysterpack.algorand.model import Address, AssetID
 
 
 def get_auth_address(address: Address, algod_client: AlgodClient) -> Address:

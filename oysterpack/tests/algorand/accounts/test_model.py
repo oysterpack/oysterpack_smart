@@ -2,8 +2,8 @@ import unittest
 
 from algosdk import mnemonic, account
 
-from oysterpack.algorand.accounts.model import Mnemonic
-from oysterpack.algorand.test_support import AlgorandTestSupport
+from oysterpack.algorand.model import Mnemonic
+from tests.algorand.test_support import AlgorandTestSupport
 
 
 class AccountModelTestCase(AlgorandTestSupport, unittest.TestCase):

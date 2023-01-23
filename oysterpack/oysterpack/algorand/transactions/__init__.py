@@ -1,3 +1,7 @@
+"""
+Provides support to create Algorand transactions.
+"""
+
 import functools
 from typing import Callable
 

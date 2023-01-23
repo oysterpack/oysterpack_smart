@@ -2,7 +2,7 @@ import unittest
 
 import algosdk
 
-from oysterpack.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestSupport
 from oysterpack.algorand.transactions.payment import transfer_algo, MicroAlgos
 
 

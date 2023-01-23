@@ -1,5 +1,5 @@
 """
-Algorand account domain model
+Algorand domain model
 
 https://developer.algorand.org/docs/get-details/accounts/
 """
@@ -14,6 +14,10 @@ from algosdk import mnemonic
 Address = NewType("Address", str)
 
 AssetID = NewType('AssetID', int)
+
+AppID = NewType('AppID', int)
+
+BoxKey = NewType('BoxKey', bytes)
 
 
 @dataclass(slots=True)

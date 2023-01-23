@@ -15,6 +15,10 @@ from ulid import ULID
 
 
 def create_lease() -> bytes:
+    """
+    Generates a unique lease, which can be used to set the transaction lease
+    :return:
+    """
     return str(ULID().to_uuid()).replace('-', '').encode()
 
 

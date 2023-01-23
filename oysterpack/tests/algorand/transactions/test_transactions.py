@@ -2,8 +2,8 @@ import unittest
 
 from algosdk.constants import MIN_TXN_FEE
 
-from tests.algorand.test_support import AlgorandTestSupport
 from oysterpack.algorand.transactions import GetSuggestedParamsFactory, suggested_params_with_min_flat_flee
+from tests.algorand.test_support import AlgorandTestSupport
 
 
 class TransactionsTestCase(AlgorandTestSupport, unittest.TestCase):

@@ -7,10 +7,11 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-coverage = "^7.0.5"
 py-algorand-sdk = "^2.0.0"
 python-ulid = "^1.1.0"
 
+[tool.poetry.group.dev.dependencies]
+coverage = "^7.0.5"
 
 [build-system]
 requires = ["poetry-core"]

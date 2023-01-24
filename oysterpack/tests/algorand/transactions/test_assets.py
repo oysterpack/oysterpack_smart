@@ -6,8 +6,8 @@ from algosdk.encoding import base64
 from algosdk.transaction import wait_for_confirmation
 
 from oysterpack.algorand.accounts import Address, get_asset_holding
-from tests.algorand.test_support import AlgorandTestSupport
 from oysterpack.algorand.transactions import assets
+from tests.algorand.test_support import AlgorandTestSupport
 
 
 class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
@@ -117,6 +117,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
     def test_opt_in(self):
         asset_id, _manager = self.create_test_asset()
         account = self.sandbox_default_wallet.list_keys()[1]
+        print(account)
         txn = assets.opt_in(account=account, asset_id=asset_id, suggested_params=self.algod_client.suggested_params)
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)

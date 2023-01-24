@@ -1,9 +1,7 @@
-from typing import Any
-
+import algosdk.error
 from algosdk.v2client.algod import AlgodClient
-from algosdk.v2client.models.asset_holding import AssetHolding
 
-from oysterpack.algorand.model import Address, AssetID
+from oysterpack.algorand.model import Address, AssetID, AssetHolding
 
 
 def get_auth_address(address: Address, algod_client: AlgodClient) -> Address:
@@ -20,21 +18,14 @@ def get_auth_address(address: Address, algod_client: AlgodClient) -> Address:
 
 def get_asset_holdings(address: Address, algod_client: AlgodClient) -> list[AssetHolding]:
     account_info = algod_client.account_info(address)
-
-    def to_asset_holding(data: dict[str, Any]) -> AssetHolding:
-        return AssetHolding(
-            amount=data['amount'],
-            asset_id=data['asset-id'],
-            creator=data['creator'],
-            is_frozen=data['is-frozen']
-        )
-
-    return [to_asset_holding(asset_holding) for asset_holding in account_info['assets']]
+    return [AssetHolding.from_data(asset_holding) for asset_holding in account_info['assets']]
 
 
 def get_asset_holding(address: Address, asset_id: AssetID, algod_client: AlgodClient) -> AssetHolding | None:
-    for asset_holding in get_asset_holdings(address, algod_client):
-        if asset_holding.asset_id == asset_id:
-            return asset_holding
-
-    return None
+    try:
+        data = algod_client.account_asset_info(address=address, asset_id=asset_id)['asset-holding']
+    except algosdk.error.AlgodHTTPError as err:
+        if err.code == 404: return None
+        raise
+    else:
+        return AssetHolding.from_data(data)

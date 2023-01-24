@@ -5,8 +5,9 @@ https://developer.algorand.org/docs/get-details/accounts/
 """
 
 from dataclasses import dataclass
-from typing import NewType
+from typing import NewType, Self, Any
 
+import algosdk.encoding
 from algosdk import mnemonic
 
 # Algorand account address. The address is 58 characters long
@@ -15,9 +16,36 @@ Address = NewType("Address", str)
 
 AssetID = NewType('AssetID', int)
 
-AppID = NewType('AppID', int)
-
 BoxKey = NewType('BoxKey', bytes)
+
+
+class AppID(int):
+    def to_address(self) -> Address:
+        """
+        Generates the smart contract's Algorand address from its app ID
+        """
+
+        app_id_checksum = algosdk.encoding.checksum(b'appID' + self.to_bytes(8, 'big'))
+        return algosdk.encoding.encode_address(app_id_checksum)
+
+
+@dataclass(slots=True)
+class AssetHolding:
+    amount: int
+    asset_id: AssetID
+    is_frozen: bool
+
+    @classmethod
+    def from_data(cls: Self, data: dict[str, Any]) -> Self:
+        """
+        :param data: required keys: 'amount','asset-id, 'is-frozen'
+        :return:
+        """
+        return cls(
+            amount=data['amount'],
+            asset_id=data['asset-id'],
+            is_frozen=data['is-frozen']
+        )
 
 
 @dataclass(slots=True)

@@ -10,7 +10,6 @@ def create(
         suggested_params: GetSuggestedParams,
         unit_name: str,
         asset_name: str,
-        url: str,
         total_base_units: int,
         decimals: int = 0,
         manager: Address | None = None,
@@ -18,7 +17,8 @@ def create(
         freeze: Address | None = None,
         clawback: Address | None = None,
         default_frozen: bool = False,
-        metadata_hash: bytes | None = None
+        metadata_hash: bytes | None = None,
+        url: str = None,
 ) -> AssetCreateTxn:
     return AssetCreateTxn(
         sender=sender,

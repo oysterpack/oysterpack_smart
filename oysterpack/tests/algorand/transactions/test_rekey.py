@@ -28,36 +28,44 @@ class RekeyTestCase(AlgorandTestSupport, unittest.TestCase):
         rekey_to = self.sandbox_default_wallet.list_keys()[0]
 
         # fund the account
-        txn = PaymentTxn(sender=rekey_to,
-                         receiver=account,
-                         amt=1000000,  # 1 ALGO
-                         sp=self.algod_client.suggested_params())
+        txn = PaymentTxn(
+            sender=rekey_to,
+            receiver=account,
+            amt=1000000,  # 1 ALGO
+            sp=self.algod_client.suggested_params(),
+        )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txn_id = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txn_id, 4)
 
         # rekey
-        txn = rekey(account=account,
-                    rekey_to=rekey_to,
-                    suggested_params=self.algod_client.suggested_params)
+        txn = rekey(
+            account=account,
+            rekey_to=rekey_to,
+            suggested_params=self.algod_client.suggested_params,
+        )
         signed_txn = txn.sign(private_key)
         txn_id = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txn_id, 4)
 
         # confirm that the account has been rekeyed
-        self.assertEqual(get_auth_address(address=account, algod_client=self.algod_client),
-                         rekey_to)
+        self.assertEqual(
+            get_auth_address(address=account, algod_client=self.algod_client), rekey_to
+        )
 
         # revoke the rekeyed account
-        txn = rekey_back(account=account, suggested_params=self.algod_client.suggested_params)
+        txn = rekey_back(
+            account=account, suggested_params=self.algod_client.suggested_params
+        )
         signed_txn = txn.sign(self.sandbox_default_wallet.export_key(rekey_to))
         txn_id = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txn_id, 4)
 
         # confirm that the rekeyed account has been revoked
-        self.assertEqual(get_auth_address(address=account, algod_client=self.algod_client),
-                         account)
+        self.assertEqual(
+            get_auth_address(address=account, algod_client=self.algod_client), account
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

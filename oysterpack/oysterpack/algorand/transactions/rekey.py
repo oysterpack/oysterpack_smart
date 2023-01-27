@@ -5,9 +5,7 @@ from oysterpack.algorand.transactions import GetSuggestedParams
 
 
 def rekey(
-        account: Address,
-        rekey_to: Address,
-        suggested_params: GetSuggestedParams
+    account: Address, rekey_to: Address, suggested_params: GetSuggestedParams
 ) -> PaymentTxn:
     """
     Creates a transaction to rekey the account to the specified authorized account.
@@ -20,7 +18,7 @@ def rekey(
         receiver=account,
         amt=0,
         rekey_to=rekey_to,
-        sp=suggested_params()
+        sp=suggested_params(),
     )
 
 

@@ -1,6 +1,9 @@
 import unittest
 
-from algosdk.atomic_transaction_composer import AtomicTransactionComposer, TransactionWithSigner
+from algosdk.atomic_transaction_composer import (
+    AtomicTransactionComposer,
+    TransactionWithSigner,
+)
 from algosdk.transaction import SignedTransaction
 
 from oysterpack.algorand.accounts.kmd import WalletSession, WalletName, WalletPassword
@@ -10,7 +13,6 @@ from tests.algorand.test_support import AlgorandTestSupport
 
 
 class WalletTransactionSignerTestCase(AlgorandTestSupport, unittest.TestCase):
-
     def test_with_atomic_transaction_composer(self):
         account1 = self.sandbox_default_wallet.list_keys()[0]
         account2 = self.sandbox_default_wallet.list_keys()[1]
@@ -18,15 +20,25 @@ class WalletTransactionSignerTestCase(AlgorandTestSupport, unittest.TestCase):
 
         suggested_params = self.algod_client.suggested_params
 
-        txn1 = transfer_algo(suggested_params=suggested_params, sender=account1, receiver=account2, amount=100000)
-        txn2 = transfer_algo(suggested_params=suggested_params, sender=account1, receiver=account3, amount=100000)
+        txn1 = transfer_algo(
+            suggested_params=suggested_params,
+            sender=account1,
+            receiver=account2,
+            amount=100000,
+        )
+        txn2 = transfer_algo(
+            suggested_params=suggested_params,
+            sender=account1,
+            receiver=account3,
+            amount=100000,
+        )
 
         txn_signer = WalletTransactionSigner(
             WalletSession(
                 kmd_client=self.kmd_client,
                 name=WalletName(self.sandbox_default_wallet.name),
                 password=WalletPassword(self.sandbox_default_wallet.pswd),
-                get_auth_addr=self.get_auth_addr()
+                get_auth_addr=self.get_auth_addr(),
             )
         )
 
@@ -42,15 +54,25 @@ class WalletTransactionSignerTestCase(AlgorandTestSupport, unittest.TestCase):
 
         suggested_params = self.algod_client.suggested_params
 
-        txn1 = transfer_algo(suggested_params=suggested_params, sender=account1, receiver=account2, amount=100000)
-        txn2 = transfer_algo(suggested_params=suggested_params, sender=account1, receiver=account3, amount=100000)
+        txn1 = transfer_algo(
+            suggested_params=suggested_params,
+            sender=account1,
+            receiver=account2,
+            amount=100000,
+        )
+        txn2 = transfer_algo(
+            suggested_params=suggested_params,
+            sender=account1,
+            receiver=account3,
+            amount=100000,
+        )
 
         txn_signer = WalletTransactionSigner(
             WalletSession(
                 kmd_client=self.kmd_client,
                 name=WalletName(self.sandbox_default_wallet.name),
                 password=WalletPassword(self.sandbox_default_wallet.pswd),
-                get_auth_addr=self.get_auth_addr()
+                get_auth_addr=self.get_auth_addr(),
             )
         )
 
@@ -64,7 +86,7 @@ class WalletTransactionSignerTestCase(AlgorandTestSupport, unittest.TestCase):
         for txn, signed_txn in zip(txns, signed_txns):
             self.assertEqual(txn, signed_txn.transaction)
 
-        with self.subTest('sign a sublist of the transactions'):
+        with self.subTest("sign a sublist of the transactions"):
             txns = [txn1, txn2]
             indexes = [1]
             signed_txns = txn_signer.sign_transactions(txns, indexes)
@@ -72,5 +94,5 @@ class WalletTransactionSignerTestCase(AlgorandTestSupport, unittest.TestCase):
             self.assertEqual(signed_txns[0].transaction, txn2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

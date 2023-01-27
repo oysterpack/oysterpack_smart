@@ -21,5 +21,7 @@ def configure_logging(level: int = logging.WARNING):
 
     """
     logging.Formatter.converter = time.gmtime
-    logging.basicConfig(format=f'%(asctime)s [%(levelname)s] [%(name)s] %(message)s', level=level)
+    logging.basicConfig(
+        format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s", level=level
+    )
     logging.captureWarnings(True)

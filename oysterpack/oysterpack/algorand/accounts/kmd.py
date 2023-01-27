@@ -11,13 +11,18 @@ from algosdk.error import KMDHTTPError
 from algosdk.transaction import Transaction, SignedTransaction
 from algosdk.wallet import Wallet as KmdWallet
 
-from oysterpack.algorand.accounts.error import handle_kmd_client_errors, InvalidWalletPasswordError, \
-    DuplicateWalletNameError, WalletAlreadyExistsError, WalletDoesNotExistError
+from oysterpack.algorand.accounts.error import (
+    handle_kmd_client_errors,
+    InvalidWalletPasswordError,
+    DuplicateWalletNameError,
+    WalletAlreadyExistsError,
+    WalletDoesNotExistError,
+)
 from oysterpack.algorand.model import Mnemonic, Address
 
-WalletId = NewType('WalletId', str)
-WalletName = NewType('WalletName', str)
-WalletPassword = NewType('WalletPassword', str)
+WalletId = NewType("WalletId", str)
+WalletName = NewType("WalletName", str)
+WalletPassword = NewType("WalletPassword", str)
 
 
 @dataclass(slots=True)
@@ -28,10 +33,12 @@ class Wallet:
 
 def _to_wallet(data: dict[str, Any]) -> Wallet:
     """Internal helper function convert wallet info returned by the KMD client into a typed Wallet"""
-    return Wallet(WalletId(data['id']), WalletName(data['name']))
+    return Wallet(WalletId(data["id"]), WalletName(data["name"]))
 
 
-def create_kmd_client(url: str, token: str, check_connection: bool = True) -> kmd.KMDClient:
+def create_kmd_client(
+    url: str, token: str, check_connection: bool = True
+) -> kmd.KMDClient:
     """
     Creates a KMD client instance that is configured to connect to the specified URL using the specified API token.
 
@@ -46,13 +53,14 @@ def create_kmd_client(url: str, token: str, check_connection: bool = True) -> km
     """
 
     client = kmd.KMDClient(kmd_address=url, kmd_token=token)
-    if check_connection: check_kmd_client(client)
+    if check_connection:
+        check_kmd_client(client)
     return client
 
 
 @handle_kmd_client_errors
 def check_kmd_client(client: kmd.KMDClient) -> None:
-    """ raises a KmdClientError if the KMD client fails to connect to the KMD server
+    """raises a KmdClientError if the KMD client fails to connect to the KMD server
 
     :exception InvalidKmdTokenError: if the KMD API token is invalid
     :exception InvalidKmdUrlError: if the client fails to connect to the server because of a bad URL
@@ -73,23 +81,28 @@ def get_wallet(kmd_client: kmd.KMDClient, name: WalletName) -> Wallet | None:
     return None
 
 
-def create_wallet(kmd_client: kmd.KMDClient, name: WalletName, password: WalletPassword) -> Wallet:
+def create_wallet(
+    kmd_client: kmd.KMDClient, name: WalletName, password: WalletPassword
+) -> Wallet:
     """
     Creates a new wallet using the specified name and password.
 
     :exception WalletAlreadyExistsError: if a wallet with the same name already exists
     """
 
-    if get_wallet(kmd_client, name): raise WalletAlreadyExistsError()
+    if get_wallet(kmd_client, name):
+        raise WalletAlreadyExistsError()
 
     new_wallet = kmd_client.create_wallet(name=name, pswd=password)
     return _to_wallet(new_wallet)
 
 
-def recover_wallet(kmd_client: kmd.KMDClient,
-                   name: WalletName,
-                   password: WalletPassword,
-                   master_derivation_key: Mnemonic) -> Wallet:
+def recover_wallet(
+    kmd_client: kmd.KMDClient,
+    name: WalletName,
+    password: WalletPassword,
+    master_derivation_key: Mnemonic,
+) -> Wallet:
     """
     Tries to recover a wallet using the specified master derivation key mnemonic.
     The recovered wallet will be empty. Keys will need to be regenerated.
@@ -105,22 +118,24 @@ def recover_wallet(kmd_client: kmd.KMDClient,
     :exception WalletAlreadyExistsError: if a wallet with the same name already exists
     """
 
-    if get_wallet(kmd_client, name): raise WalletAlreadyExistsError()
-    recovered_wallet = kmd_client.create_wallet(name=name,
-                                                pswd=password,
-                                                master_deriv_key=master_derivation_key.to_master_derivation_key())
+    if get_wallet(kmd_client, name):
+        raise WalletAlreadyExistsError()
+    recovered_wallet = kmd_client.create_wallet(
+        name=name,
+        pswd=password,
+        master_deriv_key=master_derivation_key.to_master_derivation_key(),
+    )
     return _to_wallet(recovered_wallet)
 
 
 class WalletSession:
-
     @handle_kmd_client_errors
     def __init__(
-            self,
-            kmd_client: kmd.KMDClient,
-            name: WalletName,
-            password: WalletPassword,
-            get_auth_addr: Callable[[Address], Address]
+        self,
+        kmd_client: kmd.KMDClient,
+        name: WalletName,
+        password: WalletPassword,
+        get_auth_addr: Callable[[Address], Address],
     ):
         """
 
@@ -130,12 +145,15 @@ class WalletSession:
         :exception InvalidWalletPasswordError
         """
 
-        if get_wallet(kmd_client, name) is None: raise WalletDoesNotExistError()
+        if get_wallet(kmd_client, name) is None:
+            raise WalletDoesNotExistError()
 
         try:
-            self._wallet = KmdWallet(wallet_name=name, wallet_pswd=password, kmd_client=kmd_client)
+            self._wallet = KmdWallet(
+                wallet_name=name, wallet_pswd=password, kmd_client=kmd_client
+            )
         except KMDHTTPError as err:
-            if str(err).find('wrong password') != -1:
+            if str(err).find("wrong password") != -1:
                 raise InvalidWalletPasswordError()
             raise
 
@@ -149,7 +167,7 @@ class WalletSession:
 
         # If the wallet session creation failed, then the _wallet attributed will not exist.
         # Thus, check that the _wallet attribute exists before releasing the wallet handle.
-        if hasattr(self, '_wallet') and self._wallet.handle:
+        if hasattr(self, "_wallet") and self._wallet.handle:
             self._wallet.release_handle()
 
     @property
@@ -177,10 +195,14 @@ class WalletSession:
         """
 
         new_name = WalletName(new_name.strip())
-        if not new_name: raise ValueError('wallet name cannot be blank')
+        if not new_name:
+            raise ValueError("wallet name cannot be blank")
         if new_name == self._wallet.name:
-            raise ValueError('new wallet name cannot be the same as the current wallet name')
-        if get_wallet(self._wallet.kcl, new_name): raise DuplicateWalletNameError()
+            raise ValueError(
+                "new wallet name cannot be the same as the current wallet name"
+            )
+        if get_wallet(self._wallet.kcl, new_name):
+            raise DuplicateWalletNameError()
 
         self._wallet.rename(new_name)
 
@@ -233,12 +255,14 @@ class WalletSession:
         # see - https://github.com/algorand/py-algorand-sdk/issues/436
         try:
             self._wallet.automate_handle()
-            return self._wallet.kcl.sign_transaction(handle=self._wallet.handle,
-                                                     password=self._wallet.pswd,
-                                                     txn=txn,
-                                                     signing_address=signing_address)
+            return self._wallet.kcl.sign_transaction(
+                handle=self._wallet.handle,
+                password=self._wallet.pswd,
+                txn=txn,
+                signing_address=signing_address,
+            )
         except KMDHTTPError as err:
-            if str(err).index('could not decode request body') != -1:
+            if str(err).index("could not decode request body") != -1:
                 # the workaround for the above issue is to export the key and sign the transaction on the client side
                 return txn.sign(self._wallet.export_key(signing_address))
             raise

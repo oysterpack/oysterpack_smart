@@ -3,39 +3,36 @@ Unit tests depend on a local sandbox running.
 """
 
 import functools
-import os
-from typing import Callable
+from typing import Callable, Final
 
 from algosdk import kmd, wallet
 from algosdk.v2client.algod import AlgodClient
+from beaker import sandbox
 from ulid import ULID
 
 from oysterpack.algorand.accounts import get_auth_address
 from oysterpack.algorand.model import Address
 
 
-def local_kmd_client() -> kmd.KMDClient:
-    # sandbox KMD instance
-    token = os.environ.setdefault('KMD_TOKEN', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
-    address = os.environ.setdefault('KMD_ADDRESS', 'http://127.0.0.1:4002')
-    return kmd.KMDClient(kmd_token=token, kmd_address=address)
+def sandbox_kmd_client() -> kmd.KMDClient:
+    return kmd.KMDClient(
+        kmd_token=sandbox.kmd.DEFAULT_KMD_TOKEN,
+        kmd_address=sandbox.kmd.DEFAULT_KMD_ADDRESS,
+    )
 
 
-def local_algod_client() -> AlgodClient:
-    # sandbox algod instance
-    token = os.environ.setdefault('ALGOD_TOKEN', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
-    address = os.environ.setdefault('ALGOD_ADDRESS', 'http://127.0.0.1:4001')
-    return AlgodClient(algod_token=token, algod_address=address)
+def get_sandbox_default_wallet() -> wallet.Wallet:
+    return wallet.Wallet(
+        wallet_name=sandbox.kmd.DEFAULT_KMD_WALLET_NAME,
+        wallet_pswd=sandbox.kmd.DEFAULT_KMD_WALLET_PASSWORD,
+        kmd_client=sandbox_kmd_client(),
+    )
 
 
 class AlgorandTestSupport:
-    kmd_client: kmd.KMDClient = local_kmd_client()
-    algod_client: AlgodClient = local_algod_client()
-
-    SANDBOX_DEFAULT_WALLET_NAME = 'unencrypted-default-wallet'
-    sandbox_default_wallet = wallet.Wallet(wallet_name=SANDBOX_DEFAULT_WALLET_NAME,
-                                           wallet_pswd='',
-                                           kmd_client=local_kmd_client())
+    kmd_client: Final[kmd.KMDClient] = sandbox_kmd_client()
+    algod_client: Final[AlgodClient] = sandbox.get_algod_client()
+    sandbox_default_wallet: Final[wallet.Wallet] = get_sandbox_default_wallet()
 
     def get_auth_addr(self) -> Callable[[Address], Address]:
         return functools.partial(get_auth_address, algod_client=self.algod_client)
@@ -44,4 +41,8 @@ class AlgorandTestSupport:
         """Creates a new emptu wallet and returns a Wallet for testing purposes"""
         wallet_name = wallet_password = str(ULID())
         self.kmd_client.create_wallet(name=wallet_name, pswd=wallet_password)
-        return wallet.Wallet(wallet_name=wallet_name, wallet_pswd=wallet_password, kmd_client=self.kmd_client)
+        return wallet.Wallet(
+            wallet_name=wallet_name,
+            wallet_pswd=wallet_password,
+            kmd_client=self.kmd_client,
+        )

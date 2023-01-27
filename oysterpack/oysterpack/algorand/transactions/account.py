@@ -5,9 +5,7 @@ from oysterpack.algorand.transactions import GetSuggestedParams
 
 
 def close_account(
-        *, account: Address,
-        close_to: Address,
-        suggested_params: GetSuggestedParams
+    *, account: Address, close_to: Address, suggested_params: GetSuggestedParams
 ) -> PaymentTxn:
     """
     Closing an account means removing it from the Algorand ledger.
@@ -27,5 +25,5 @@ def close_account(
         receiver=close_to,
         close_remainder_to=close_to,
         amt=0,
-        sp=suggested_params()
+        sp=suggested_params(),
     )

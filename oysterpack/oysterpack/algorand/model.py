@@ -14,9 +14,9 @@ from algosdk import mnemonic
 # https://developer.algorand.org/docs/get-details/accounts/#transformation-public-key-to-algorand-address
 Address = NewType("Address", str)
 
-AssetID = NewType('AssetID', int)
+AssetID = NewType("AssetID", int)
 
-BoxKey = NewType('BoxKey', bytes)
+BoxKey = NewType("BoxKey", bytes)
 
 
 class AppID(int):
@@ -25,7 +25,7 @@ class AppID(int):
         Generates the smart contract's Algorand address from its app ID
         """
 
-        app_id_checksum = algosdk.encoding.checksum(b'appID' + self.to_bytes(8, 'big'))
+        app_id_checksum = algosdk.encoding.checksum(b"appID" + self.to_bytes(8, "big"))
         return algosdk.encoding.encode_address(app_id_checksum)
 
 
@@ -35,16 +35,17 @@ class AssetHolding:
     asset_id: AssetID
     is_frozen: bool
 
+    # TODO: https://github.com/python/mypy/issues/14167 remove mypy ignore once mypy support Self
     @classmethod
-    def from_data(cls: Self, data: dict[str, Any]) -> Self:
+    def from_data(cls, data: dict[str, Any]) -> Self:  # type: ignore
         """
         :param data: required keys: 'amount','asset-id, 'is-frozen'
         :return:
         """
         return cls(
-            amount=data['amount'],
-            asset_id=data['asset-id'],
-            is_frozen=data['is-frozen']
+            amount=data["amount"],
+            asset_id=data["asset-id"],
+            is_frozen=data["is-frozen"],
         )
 
 
@@ -58,14 +59,35 @@ class Mnemonic:
     """
 
     word_list: tuple[
-        str, str, str, str, str,
-        str, str, str, str, str,
-        str, str, str, str, str,
-        str, str, str, str, str,
-        str, str, str, str, str]
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+    ]
 
     @classmethod
-    def from_word_list(cls, word_list: str) -> 'Mnemonic':
+    def from_word_list(cls, word_list: str) -> "Mnemonic":
         return cls(tuple(word_list.strip().split()))  # type: ignore
 
     def __post_init__(self):
@@ -75,7 +97,7 @@ class Mnemonic:
         :exception ValueError: if the mnemonic does not consist of 25 words
         """
         if len(self.word_list) != 25:
-            raise ValueError('')
+            raise ValueError("")
 
     def to_master_derivation_key(self):
         """Converts the word list to the base64 encoded KMD wallet master derivation key"""
@@ -85,4 +107,5 @@ class Mnemonic:
         """Converts the word list to the base64 encoded account private key"""
         return mnemonic.to_private_key(str(self))
 
-    def __str__(self) -> str:  return ' '.join(self.word_list)
+    def __str__(self) -> str:
+        return " ".join(self.word_list)

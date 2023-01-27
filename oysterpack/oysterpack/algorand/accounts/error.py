@@ -3,33 +3,40 @@ from urllib.error import URLError
 from algosdk.error import KMDHTTPError
 
 
-class WalletAlreadyExistsError(Exception): pass
+class WalletAlreadyExistsError(Exception):
+    pass
 
 
-class WalletDoesNotExistError(Exception): pass
+class WalletDoesNotExistError(Exception):
+    pass
 
 
 class KmdClientError(Exception):
     """KMD client base exception"""
 
 
-class InvalidKmdTokenError(KmdClientError): pass
+class InvalidKmdTokenError(KmdClientError):
+    pass
 
 
-class KmdUrlError(KmdClientError): pass
+class KmdUrlError(KmdClientError):
+    pass
 
 
 class WalletSessionError(Exception):
     """Base exception class for WalletSession errors"""
 
 
-class InvalidWalletPasswordError(WalletSessionError): pass
+class InvalidWalletPasswordError(WalletSessionError):
+    pass
 
 
-class DuplicateWalletNameError(WalletSessionError): pass
+class DuplicateWalletNameError(WalletSessionError):
+    pass
 
 
-class KeyNotFoundError(WalletSessionError): pass
+class KeyNotFoundError(WalletSessionError):
+    pass
 
 
 def handle_kmd_client_errors(command):
@@ -49,17 +56,17 @@ def handle_kmd_client_errors(command):
             # check the KMD client connection by retrieving the list of wallets from the KMD server
             return command(*args, **kwargs)
         except KMDHTTPError as err:
-            if 'invalid API token' in str(err):
+            if "invalid API token" in str(err):
                 raise InvalidKmdTokenError() from err
-            if 'key does not exist in this wallet' in str(err):
+            if "key does not exist in this wallet" in str(err):
                 raise KeyNotFoundError() from err
-            if 'Not Found' in str(err):
+            if "Not Found" in str(err):
                 raise KmdUrlError() from err
             raise
         except URLError as err:
             raise KmdUrlError() from err
         except ValueError as err:
-            if 'unknown url type' in str(err):
+            if "unknown url type" in str(err):
                 raise KmdUrlError() from err
             raise
 

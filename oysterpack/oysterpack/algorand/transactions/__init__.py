@@ -8,10 +8,9 @@ from typing import Callable
 from algosdk.constants import MIN_TXN_FEE
 from algosdk.transaction import SuggestedParams
 from algosdk.v2client.algod import AlgodClient
+from ulid import ULID
 
 GetSuggestedParams = Callable[[], SuggestedParams]
-
-from ulid import ULID
 
 
 def create_lease() -> bytes:
@@ -19,7 +18,7 @@ def create_lease() -> bytes:
     Generates a unique lease, which can be used to set the transaction lease
     :return:
     """
-    return str(ULID().to_uuid()).replace('-', '').encode()
+    return str(ULID().to_uuid()).replace("-", "").encode()
 
 
 def suggested_params_with_min_flat_flee(algod_client: AlgodClient) -> SuggestedParams:
@@ -30,7 +29,6 @@ def suggested_params_with_min_flat_flee(algod_client: AlgodClient) -> SuggestedP
 
 
 class GetSuggestedParamsFactory:
-
     @staticmethod
     def create_with_min_flat_fee(algod_client: AlgodClient) -> GetSuggestedParams:
         """

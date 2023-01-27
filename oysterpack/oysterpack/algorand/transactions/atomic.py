@@ -1,5 +1,10 @@
 from algosdk.atomic_transaction_composer import TransactionSigner
-from algosdk.transaction import Transaction, SignedTransaction
+from algosdk.transaction import (
+    Transaction,
+    SignedTransaction,
+    LogicSigTransaction,
+    MultisigTransaction,
+)
 
 from oysterpack.algorand.accounts.kmd import WalletSession
 
@@ -12,7 +17,9 @@ class WalletTransactionSigner(TransactionSigner):
     def __init__(self, wallet: WalletSession):
         self.__wallet = wallet
 
-    def sign_transactions(self, txn_group: list[Transaction], indexes: list[int]) -> list[SignedTransaction]:
+    def sign_transactions(
+        self, txn_group: list[Transaction], indexes: list[int]
+    ) -> list[SignedTransaction | LogicSigTransaction | MultisigTransaction]:
         """
 
         :param txn_group:

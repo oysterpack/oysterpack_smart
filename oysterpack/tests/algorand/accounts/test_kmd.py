@@ -24,9 +24,9 @@ from oysterpack.algorand.accounts.kmd import (
     create_kmd_client,
 )
 from oysterpack.algorand.model import Mnemonic
-from tests.algorand.test_support import AlgorandTestSupport
 from oysterpack.algorand.transactions import payment
 from oysterpack.algorand.transactions.rekey import rekey
+from tests.algorand.test_support import AlgorandTestSupport
 
 
 class AlgorandTest(AlgorandTestSupport, unittest.TestCase):
@@ -345,8 +345,8 @@ class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
 
         signed_txn = sandbox_default_wallet.sign_transaction(txn)
         txn_id = self.algod_client.send_transaction(signed_txn)
-        confirmed_txn = wait_for_confirmation(self.algod_client, txn_id, 4)
-        pprint(("funded account", confirmed_txn))
+        wait_for_confirmation(self.algod_client, txn_id, 4)
+
         # rekey the account
         txn = rekey(
             account=account,
@@ -355,8 +355,7 @@ class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
         )
         signed_txn = txn.sign(private_key)
         txn_id = self.algod_client.send_transaction(signed_txn)
-        confirmed_txn = wait_for_confirmation(self.algod_client, txn_id, 4)
-        pprint(("rekeyed account", confirmed_txn))
+        wait_for_confirmation(self.algod_client, txn_id, 4)
 
         # send payment from account, but sign the transaction with the authorized account
         # this checks that the WalletSession can sign transactions for rekeyed accounts
@@ -366,8 +365,7 @@ class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
             amt=0,
             sp=self.algod_client.suggested_params(),
         )
-        signed_txn = sandbox_default_wallet_session.sign_transaction(txn)
-        pprint((signed_txn.get_txid(), signed_txn.dictify()))
+        sandbox_default_wallet_session.sign_transaction(txn)
 
         with self.subTest("when signing account does not exist in the wallet"):
             _, address = algosdk.account.generate_account()

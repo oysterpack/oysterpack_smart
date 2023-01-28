@@ -1,3 +1,5 @@
+import functools
+from typing import Callable, Any
 from urllib.error import URLError
 
 from algosdk.error import KMDHTTPError
@@ -39,7 +41,7 @@ class KeyNotFoundError(WalletSessionError):
     pass
 
 
-def handle_kmd_client_errors(command):
+def handle_kmd_client_errors(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator function that is used to handle the below exceptions by trying to map them to KmdClientError exceptions.
     If the exceptions cannot be mapped, then they are simply re-raised.
@@ -51,10 +53,11 @@ def handle_kmd_client_errors(command):
     - urllib.error.URLError - raises an InvalidKmdUrlError
     """
 
-    def wrapped_command(*args, **kwargs):
+    @functools.wraps(func)
+    def wrapped_func(*args, **kwargs):
         try:
             # check the KMD client connection by retrieving the list of wallets from the KMD server
-            return command(*args, **kwargs)
+            return func(*args, **kwargs)
         except KMDHTTPError as err:
             if "invalid API token" in str(err):
                 raise InvalidKmdTokenError() from err
@@ -70,4 +73,4 @@ def handle_kmd_client_errors(command):
                 raise KmdUrlError() from err
             raise
 
-    return wrapped_command
+    return wrapped_func

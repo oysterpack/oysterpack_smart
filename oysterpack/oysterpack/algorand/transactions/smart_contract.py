@@ -28,7 +28,7 @@ def base64_decode_int_arg(arg: str | bytes) -> int:
     """
     Decodes an int arg that was encoded for an application call.
     """
-    return int.from_bytes(base64.b64decode(arg), byteorder="big")
+    return int.from_bytes(base64.b64decode(arg))
 
 
 def base64_decode_str_arg(arg: str | bytes) -> str:

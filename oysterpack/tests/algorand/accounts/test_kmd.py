@@ -1,5 +1,4 @@
 import unittest
-from pprint import pprint
 
 from algosdk import mnemonic
 from algosdk.wallet import Wallet
@@ -70,7 +69,7 @@ class AlgorandTest(AlgorandTestSupport, unittest.TestCase):
 
     def test_all_wallets(self):
         kmd_wallets = list_wallets(self.kmd_client)
-        print(kmd_wallets)
+        self.assertTrue(len(kmd_wallets) > 0)
 
     def test_lookup_wallet_exists(self):
         """
@@ -294,8 +293,7 @@ class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
                 amt=0,
                 sp=self.algod_client.suggested_params(),
             )
-            signed_txn = session.sign_transaction(txn)
-            pprint((signed_txn.get_txid(), signed_txn.dictify()))
+            session.sign_transaction(txn)
 
         with self.subTest("when signing account does not exist in the wallet"):
             _, address = algosdk.account.generate_account()

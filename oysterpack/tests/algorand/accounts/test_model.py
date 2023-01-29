@@ -37,8 +37,7 @@ class AccountModelTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(test_wallet_mnemonic.to_master_derivation_key(), mdc)
 
     def test_to_private_key(self):
-        sk, pk = account.generate_account()
-        print(sk, pk)
+        sk, _pk = account.generate_account()
         sk_mnemonic = Mnemonic.from_word_list(mnemonic.from_private_key(sk))
         self.assertEqual(sk_mnemonic.to_private_key(), sk)
 

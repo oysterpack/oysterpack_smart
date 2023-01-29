@@ -1,5 +1,4 @@
 import unittest
-from pprint import pp
 
 from algosdk.account import generate_account
 from algosdk.encoding import base64
@@ -82,14 +81,12 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         tx_info = wait_for_confirmation(
             algod_client=self.algod_client, txid=txid, wait_rounds=4
         )
-        pp(tx_info)
         # check that the transaction had a lease set
         self.assertTrue(len(tx_info["txn"]["txn"]["lx"]) > 0)
 
         # check that the asset was created
         asset_id = tx_info["asset-index"]
         asset_info = self.algod_client.asset_info(asset_id)
-        pp(asset_info)
         # check the asset config params were set correct
         self.assertEqual(
             asset_info["params"]["metadata-hash"],
@@ -109,7 +106,6 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
 
         # check that the sender account has the asset listed as created
         sender_info = self.algod_client.account_info(sender)
-        pp(sender_info)
         account_created_asset_ids = [
             asset["index"] for asset in sender_info["created-assets"]
         ]
@@ -150,7 +146,6 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
     def test_opt_in(self):
         asset_id, _manager = self.create_test_asset()
         account = self.sandbox_default_wallet.list_keys()[1]
-        print(account)
         txn = assets.opt_in(
             account=account,
             asset_id=asset_id,
@@ -196,7 +191,6 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertTrue(len(tx_info["txn"]["txn"]["lx"]) > 0)
 
         account_info = self.algod_client.account_info(account)
-        pp(account_info)
         asset_balance = [
             asset["amount"]
             for asset in account_info["assets"]

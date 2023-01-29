@@ -14,3 +14,6 @@ check:
 	flake8 tests
 	mypy oysterpack
 	mypy tests
+
+pydoc:
+	poetry run python -m pydoc -b

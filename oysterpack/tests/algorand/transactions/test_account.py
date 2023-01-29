@@ -38,7 +38,7 @@ class CloseAccountTestCase(AlgorandTestSupport, unittest.TestCase):
         tx_info = wait_for_confirmation(algod_client=self.algod_client, txid=txid)
         # check that the account was closed to the specified account
         self.assertEqual(tx_info["txn"]["txn"]["close"], account)
-        self.assertEqual(tx_info["txn"]["txn"]["rcv"], account)
+        self.assertFalse(hasattr(tx_info["txn"]["txn"], "rcv"))
         # check that the closed account has a zero ALGO balance
         account2_info = self.algod_client.account_info(account2)
         self.assertEqual(account2_info["amount"], 0)

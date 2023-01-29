@@ -5,7 +5,7 @@ from oysterpack.algorand.model import Address, AssetID
 
 def transfer(*, receiver: Address, asset_id: AssetID, amount: int) -> list[pyteal.Expr]:
     """
-    Transfers the specified amount of the asset from the smart contract to the receiver.
+    Creates an asset transfer inner transaction
 
     If sender is not None, then the sender address must be rekeyed to the smart contract address.
     """
@@ -28,7 +28,9 @@ def transfer(*, receiver: Address, asset_id: AssetID, amount: int) -> list[pytea
 
 def optin(asset_id: AssetID) -> list[pyteal.Expr]:
     """
-    Optin the smart conract into an asset.
+    Creates an inner transaction to opt-in the smart conract into an asset.
+
+    NOTE: the contract must be pre-funded with ALGO to cover the contract's min-balance
     """
     return [
         pyteal.InnerTxnBuilder.Begin(),

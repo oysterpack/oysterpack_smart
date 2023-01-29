@@ -1,4 +1,5 @@
 from algosdk.transaction import PaymentTxn
+from algosdk.constants import ZERO_ADDRESS
 
 from oysterpack.algorand.accounts import Address
 from oysterpack.algorand.transactions import GetSuggestedParams
@@ -22,7 +23,7 @@ def close_account(
 
     return PaymentTxn(
         sender=account,
-        receiver=close_to,
+        receiver=ZERO_ADDRESS,
         close_remainder_to=close_to,
         amt=0,
         sp=suggested_params(),

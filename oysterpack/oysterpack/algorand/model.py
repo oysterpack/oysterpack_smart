@@ -97,13 +97,13 @@ class Mnemonic:
         :exception ValueError: if the mnemonic does not consist of 25 words
         """
         if len(self.word_list) != 25:
-            raise ValueError("")
+            raise ValueError("mnemonic must consist of 25 words")
 
-    def to_master_derivation_key(self):
+    def to_master_derivation_key(self) -> str:
         """Converts the word list to the base64 encoded KMD wallet master derivation key"""
         return mnemonic.to_master_derivation_key(str(self))
 
-    def to_private_key(self):
+    def to_private_key(self) -> str:
         """Converts the word list to the base64 encoded account private key"""
         return mnemonic.to_private_key(str(self))
 

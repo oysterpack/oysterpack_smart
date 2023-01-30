@@ -2,6 +2,7 @@ pre-commit: format check test
 
 test:
 	coverage run -m unittest
+	coverage html
 	coverage report
 
 format:

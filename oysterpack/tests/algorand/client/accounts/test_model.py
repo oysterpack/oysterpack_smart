@@ -3,7 +3,7 @@ from typing import Iterable
 
 from algosdk import mnemonic, account
 
-from oysterpack.algorand.model import Mnemonic
+from oysterpack.algorand.client.model import Mnemonic
 from tests.algorand.test_support import AlgorandTestSupport
 
 

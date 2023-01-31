@@ -3,8 +3,8 @@ import unittest
 from algosdk.account import generate_account
 from algosdk.transaction import wait_for_confirmation
 
-from oysterpack.algorand.transactions.account import close_account
-from oysterpack.algorand.transactions.payment import transfer_algo
+from oysterpack.algorand.client.transactions.account import close_account
+from oysterpack.algorand.client.transactions.payment import transfer_algo
 from tests.algorand.test_support import AlgorandTestSupport
 
 

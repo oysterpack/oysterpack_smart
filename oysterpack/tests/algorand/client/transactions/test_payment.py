@@ -3,7 +3,7 @@ import unittest
 import algosdk
 
 from tests.algorand.test_support import AlgorandTestSupport
-from oysterpack.algorand.transactions.payment import transfer_algo, MicroAlgos
+from oysterpack.algorand.client.transactions.payment import transfer_algo, MicroAlgos
 
 
 class PaymentTestCase(AlgorandTestSupport, unittest.TestCase):

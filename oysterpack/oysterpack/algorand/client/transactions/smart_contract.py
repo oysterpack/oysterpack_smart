@@ -13,8 +13,8 @@ from algosdk.transaction import (
     ApplicationNoOpTxn,
 )
 
-from oysterpack.algorand.model import Address, AppID, AssetID, BoxKey
-from oysterpack.algorand.transactions import GetSuggestedParams, create_lease
+from oysterpack.algorand.client.model import Address, AppID, AssetID, BoxKey
+from oysterpack.algorand.client.transactions import GetSuggestedParams, create_lease
 
 
 def base64_encode_arg(arg: bytes | bytearray | str | int) -> bytes:

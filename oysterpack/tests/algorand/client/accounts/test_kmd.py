@@ -4,7 +4,7 @@ from algosdk import mnemonic
 from algosdk.wallet import Wallet
 from ulid import ULID
 
-from oysterpack.algorand.accounts.error import (
+from oysterpack.algorand.client.accounts.error import (
     InvalidWalletPasswordError,
     WalletAlreadyExistsError,
     WalletDoesNotExistError,
@@ -12,7 +12,7 @@ from oysterpack.algorand.accounts.error import (
     InvalidKmdTokenError,
     DuplicateWalletNameError,
 )
-from oysterpack.algorand.accounts.kmd import (
+from oysterpack.algorand.client.accounts.kmd import (
     list_wallets,
     get_wallet,
     WalletName,
@@ -22,9 +22,9 @@ from oysterpack.algorand.accounts.kmd import (
     WalletSession,
     create_kmd_client,
 )
-from oysterpack.algorand.model import Mnemonic
-from oysterpack.algorand.transactions import payment
-from oysterpack.algorand.transactions.rekey import rekey
+from oysterpack.algorand.client.model import Mnemonic
+from oysterpack.algorand.client.transactions import payment
+from oysterpack.algorand.client.transactions.rekey import rekey
 from tests.algorand.test_support import AlgorandTestSupport
 
 
@@ -279,7 +279,7 @@ class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
 
     def test_sign_transaction(self):
         import algosdk
-        from oysterpack.algorand.accounts.error import KeyNotFoundError
+        from oysterpack.algorand.client.accounts.error import KeyNotFoundError
 
         session = self._create_test_wallet_session()
         session.generate_key()
@@ -319,7 +319,7 @@ class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
         """
         import algosdk
         from algosdk.transaction import PaymentTxn, wait_for_confirmation
-        from oysterpack.algorand.accounts.error import KeyNotFoundError
+        from oysterpack.algorand.client.accounts.error import KeyNotFoundError
 
         sandbox_default_wallet = self.sandbox_default_wallet
         sandbox_default_wallet_session = WalletSession(

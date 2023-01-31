@@ -6,9 +6,13 @@ from algosdk.atomic_transaction_composer import (
 )
 from algosdk.transaction import SignedTransaction
 
-from oysterpack.algorand.accounts.kmd import WalletSession, WalletName, WalletPassword
-from oysterpack.algorand.transactions.atomic import WalletTransactionSigner
-from oysterpack.algorand.transactions.payment import transfer_algo
+from oysterpack.algorand.client.accounts.kmd import (
+    WalletSession,
+    WalletName,
+    WalletPassword,
+)
+from oysterpack.algorand.client.accounts.kmd import WalletTransactionSigner
+from oysterpack.algorand.client.transactions.payment import transfer_algo
 from tests.algorand.test_support import AlgorandTestSupport
 
 

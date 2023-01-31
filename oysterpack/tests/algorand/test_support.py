@@ -10,8 +10,8 @@ from algosdk.v2client.algod import AlgodClient
 from beaker import sandbox
 from ulid import ULID
 
-from oysterpack.algorand.accounts import get_auth_address
-from oysterpack.algorand.model import Address
+from oysterpack.algorand.client.accounts import get_auth_address
+from oysterpack.algorand.client.model import Address
 
 
 def sandbox_kmd_client() -> kmd.KMDClient:

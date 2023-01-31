@@ -5,7 +5,7 @@ from algosdk.account import generate_account
 from algosdk.encoding import decode_address
 from nacl.exceptions import CryptoError
 
-from oysterpack.algorand.accounts.private_key import (
+from oysterpack.algorand.client.accounts.private_key import (
     AlgoPrivateKey,
     signing_address_to_verify_key,
     encryption_address_to_public_key,

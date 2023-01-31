@@ -1,7 +1,7 @@
 import base64
 import unittest
 
-from oysterpack.algorand.transactions.smart_contract import (
+from oysterpack.algorand.client.transactions.smart_contract import (
     base64_encode_arg,
     base64_decode_int_arg,
     base64_decode_str_arg,

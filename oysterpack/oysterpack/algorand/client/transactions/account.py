@@ -1,8 +1,8 @@
 from algosdk.transaction import PaymentTxn
 from algosdk.constants import ZERO_ADDRESS
 
-from oysterpack.algorand.accounts import Address
-from oysterpack.algorand.transactions import GetSuggestedParams
+from oysterpack.algorand.client.accounts import Address
+from oysterpack.algorand.client.transactions import GetSuggestedParams
 
 
 def close_account(

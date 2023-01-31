@@ -7,18 +7,24 @@ from dataclasses import dataclass
 from typing import NewType, Any, Callable
 
 from algosdk import kmd, mnemonic
+from algosdk.atomic_transaction_composer import TransactionSigner
 from algosdk.error import KMDHTTPError
-from algosdk.transaction import Transaction, SignedTransaction
+from algosdk.transaction import (
+    Transaction,
+    SignedTransaction,
+    LogicSigTransaction,
+    MultisigTransaction,
+)
 from algosdk.wallet import Wallet as KmdWallet
 
-from oysterpack.algorand.accounts.error import (
+from oysterpack.algorand.client.accounts.error import (
     handle_kmd_client_errors,
     InvalidWalletPasswordError,
     DuplicateWalletNameError,
     WalletAlreadyExistsError,
     WalletDoesNotExistError,
 )
-from oysterpack.algorand.model import Mnemonic, Address
+from oysterpack.algorand.client.model import Mnemonic, Address
 
 WalletId = NewType("WalletId", str)
 WalletName = NewType("WalletName", str)
@@ -266,3 +272,24 @@ class WalletSession:
                 # the workaround for the above issue is to export the key and sign the transaction on the client side
                 return txn.sign(self._wallet.export_key(signing_address))
             raise
+
+
+class WalletTransactionSigner(TransactionSigner):
+    """
+    Signs the transaction using a KMD wallet session
+    """
+
+    def __init__(self, wallet: WalletSession):
+        self.__wallet = wallet
+
+    def sign_transactions(
+        self, txn_group: list[Transaction], indexes: list[int]
+    ) -> list[SignedTransaction | LogicSigTransaction | MultisigTransaction]:
+        """
+
+        :param txn_group:
+        :param indexes: array of indexes in the atomic transaction group that should be signed
+        :return:
+        """
+
+        return [self.__wallet.sign_transaction(txn_group[i]) for i in indexes]

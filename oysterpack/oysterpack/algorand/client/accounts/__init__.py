@@ -1,7 +1,7 @@
 import algosdk.error
 from algosdk.v2client.algod import AlgodClient
 
-from oysterpack.algorand.model import Address, AssetID, AssetHolding
+from oysterpack.algorand.client.model import Address, AssetID, AssetHolding
 
 
 def get_auth_address(address: Address, algod_client: AlgodClient) -> Address:

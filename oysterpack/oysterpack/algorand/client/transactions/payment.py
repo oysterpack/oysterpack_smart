@@ -2,8 +2,8 @@ from typing import NewType
 
 from algosdk.transaction import PaymentTxn
 
-from oysterpack.algorand.accounts import Address
-from oysterpack.algorand.transactions import GetSuggestedParams, create_lease
+from oysterpack.algorand.client.accounts import Address
+from oysterpack.algorand.client.transactions import GetSuggestedParams, create_lease
 
 MicroAlgos = NewType("MicroAlgos", int)
 

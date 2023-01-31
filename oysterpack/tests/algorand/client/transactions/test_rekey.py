@@ -1,8 +1,8 @@
 import unittest
 
-from oysterpack.algorand.accounts import Address, get_auth_address
+from oysterpack.algorand.client.accounts import Address, get_auth_address
 from tests.algorand.test_support import AlgorandTestSupport
-from oysterpack.algorand.transactions.rekey import rekey, rekey_back
+from oysterpack.algorand.client.transactions.rekey import rekey, rekey_back
 
 
 class RekeyTestCase(AlgorandTestSupport, unittest.TestCase):

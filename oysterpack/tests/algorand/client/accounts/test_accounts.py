@@ -3,8 +3,8 @@ import unittest
 from algosdk.account import generate_account
 from algosdk.transaction import wait_for_confirmation
 
-from oysterpack.algorand.accounts import get_asset_holdings, get_asset_holding
-from oysterpack.algorand.transactions import assets
+from oysterpack.algorand.client.accounts import get_asset_holdings, get_asset_holding
+from oysterpack.algorand.client.transactions import assets
 from tests.algorand.test_support import AlgorandTestSupport
 
 

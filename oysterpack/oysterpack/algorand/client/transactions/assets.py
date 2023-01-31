@@ -7,8 +7,8 @@ from algosdk.transaction import (
     AssetCloseOutTxn,
 )
 
-from oysterpack.algorand.model import Address, AssetID
-from oysterpack.algorand.transactions import GetSuggestedParams, create_lease
+from oysterpack.algorand.client.model import Address, AssetID
+from oysterpack.algorand.client.transactions import GetSuggestedParams, create_lease
 
 
 def create(

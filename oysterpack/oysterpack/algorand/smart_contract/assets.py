@@ -1,6 +1,6 @@
 import pyteal
 
-from oysterpack.algorand.model import Address, AssetID
+from oysterpack.algorand.client.model import Address, AssetID
 
 
 def transfer(*, receiver: Address, asset_id: AssetID, amount: int) -> list[pyteal.Expr]:

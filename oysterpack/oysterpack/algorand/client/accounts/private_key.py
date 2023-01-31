@@ -8,7 +8,7 @@ from nacl.public import PrivateKey, Box, PublicKey
 from nacl.signing import SigningKey, SignedMessage, VerifyKey
 from nacl.utils import EncryptedMessage
 
-from oysterpack.algorand.model import Address, Mnemonic
+from oysterpack.algorand.client.model import Address, Mnemonic
 
 EncryptionAddress = NewType("EncryptionAddress", Address)
 SigningAddress = NewType("SigningAddress", Address)
@@ -38,7 +38,7 @@ class AlgoPrivateKey(PrivateKey):
         elif type(algo_private_key) is Mnemonic:
             super().__init__(
                 base64.b64decode(algo_private_key.to_private_key())[
-                : constants.key_len_bytes
+                    : constants.key_len_bytes
                 ]
             )
         else:

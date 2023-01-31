@@ -38,7 +38,7 @@ def base64_decode_str_arg(arg: str | bytes) -> str:
     return base64.b64decode(arg).decode()
 
 
-def create_smart_contract(
+def create(
     *,
     sender: Address,
     suggested_params: GetSuggestedParams,
@@ -73,7 +73,7 @@ def create_smart_contract(
     )
 
 
-def update_smart_contract(
+def update(
     *,
     sender: Address,
     suggested_params: GetSuggestedParams,
@@ -97,7 +97,7 @@ def update_smart_contract(
     )
 
 
-def delete_smart_contract(
+def delete(
     *,
     sender: Address,
     suggested_params: GetSuggestedParams,
@@ -113,7 +113,7 @@ def delete_smart_contract(
     )
 
 
-def optin_smart_contract(
+def optin(
     *,
     sender: Address,
     suggested_params: GetSuggestedParams,
@@ -134,7 +134,7 @@ def optin_smart_contract(
     )
 
 
-def close_out_smart_contract(
+def close_out(
     *,
     sender: Address,
     suggested_params: GetSuggestedParams,
@@ -155,7 +155,7 @@ def close_out_smart_contract(
     )
 
 
-def force_close_out_smart_contract(
+def clear_state(
     *,
     sender: Address,
     suggested_params: GetSuggestedParams,

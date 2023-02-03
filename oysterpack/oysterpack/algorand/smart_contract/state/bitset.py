@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from copy import copy
 
 from beaker import AccountStateValue, ApplicationStateValue
@@ -5,7 +6,38 @@ from pyteal import Int, TealType, Expr
 from pyteal.ast import abi
 
 
-class ApplicationBitSet(ApplicationStateValue):
+class BitSetState(ABC):
+    @abstractmethod
+    def set_bits(self, mask: abi.Uint64) -> Expr:
+        """
+        Sets all bits specified in the mask.
+        :param mask: bit mask
+        :return: updated bitset mask
+        """
+
+    @abstractmethod
+    def clear_bits(self, mask: abi.Uint64) -> Expr:
+        """
+        Clears all bits specified in the mask.
+        :param mask: bit mask
+        :return: updated bitset mask
+        """
+
+    @abstractmethod
+    def clear(self) -> Expr:
+        """
+        Clears all bits.
+        """
+
+    @abstractmethod
+    def contains(self, mask: abi.Uint64) -> Expr:
+        """
+        :param mask: bit mask
+        :return: Int(1) if all bits in the mask are set. Otherwise, Int(0)
+        """
+
+
+class ApplicationBitSet(ApplicationStateValue, BitSetState):
     """
     BitSet with 64 bits
     """
@@ -33,7 +65,7 @@ class ApplicationBitSet(ApplicationStateValue):
         return (self.get() & mask.get()) == mask.get()
 
 
-class AccountBitSet(AccountStateValue):
+class AccountBitSet(AccountStateValue, BitSetState):
     """
     BitSet with 64 bits
     """

@@ -6,8 +6,10 @@ import functools
 from typing import Callable, Final
 
 from algosdk import kmd, wallet
+from algosdk.atomic_transaction_composer import TransactionSigner
 from algosdk.v2client.algod import AlgodClient
-from beaker import sandbox
+from beaker import sandbox, Application
+from beaker.client import ApplicationClient
 from ulid import ULID
 
 from oysterpack.algorand.client.accounts import get_auth_address
@@ -26,6 +28,24 @@ def get_sandbox_default_wallet() -> wallet.Wallet:
         wallet_name=sandbox.kmd.DEFAULT_KMD_WALLET_NAME,
         wallet_pswd=sandbox.kmd.DEFAULT_KMD_WALLET_PASSWORD,
         kmd_client=sandbox_kmd_client(),
+    )
+
+
+def sandbox_application_client(
+    app: Application,
+    sender: Address | None = None,
+    signer: TransactionSigner | None = None,
+) -> ApplicationClient:
+    """
+    :param app: Application instance
+    :return: ApplicationClient using the default sandbox wallet account as the sender and signer
+    """
+    account = sandbox.get_accounts().pop()
+    return ApplicationClient(
+        client=sandbox.get_algod_client(),
+        app=app,
+        sender=sender if sender else account.address,
+        signer=signer if signer else account.signer,
     )
 
 

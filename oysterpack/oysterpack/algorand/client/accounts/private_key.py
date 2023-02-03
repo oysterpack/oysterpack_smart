@@ -10,7 +10,10 @@ from nacl.utils import EncryptedMessage
 
 from oysterpack.algorand.client.model import Address, Mnemonic
 
+# public box encryption key encoded as a base32 address
 EncryptionAddress = NewType("EncryptionAddress", Address)
+
+# public signing key encoded as a base32 address
 SigningAddress = NewType("SigningAddress", Address)
 
 
@@ -19,7 +22,8 @@ class AlgoPrivateKey(PrivateKey):
     Algorand private key can be used to sign and encrypt messages.
 
     Messages are encrypted using box encryption using the recipient's encryption address.
-    The encrypted message can only be decrypted by the intended recipient using its private key.
+    The encrypted message can only be decrypted by the intended recipient using its private key
+    and the senser's public EncryptionAddress.
     """
 
     def __init__(self, algo_private_key: str | bytes | Mnemonic):
@@ -58,7 +62,7 @@ class AlgoPrivateKey(PrivateKey):
         """
         EncryptionAddress is derived from the Algorand account's private key.
 
-        :return: public encryption key encoded as an Algorand address
+        :return: base32 encoded public encryption key
         """
         return EncryptionAddress(encode_address(bytes(self.public_key)))
 
@@ -69,7 +73,9 @@ class AlgoPrivateKey(PrivateKey):
     @property
     def signing_address(self) -> SigningAddress:
         """
-        :return: public signing address encoded as an Algorand address
+        Signing address is the same as the Algorand address, which corresponds to the Algorand account public key.
+
+        :return: base32 encoded public signing address
         """
         return SigningAddress(encode_address(bytes(self.signing_key.verify_key)))
 
@@ -93,7 +99,7 @@ def signing_address_to_verify_key(address: SigningAddress) -> VerifyKey:
     return VerifyKey(decode_address(address))
 
 
-def verify_message(message: bytes, signature: bytes, signer: Address) -> bool:
+def verify_message(message: bytes, signature: bytes, signer: SigningAddress) -> bool:
     """
     :return: True if the message has a valid signature
     """

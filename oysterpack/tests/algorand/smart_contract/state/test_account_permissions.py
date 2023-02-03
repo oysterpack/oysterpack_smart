@@ -24,7 +24,7 @@ class AccountPermissionsManager(Application):
 
     @external(authorize=Authorize.only(Global.creator_address()))
     def grant(
-            self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
+        self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
     ) -> Expr:
         account_permissions = self.account_permissions[account.address()]
         return Seq(
@@ -34,7 +34,7 @@ class AccountPermissionsManager(Application):
 
     @external(authorize=Authorize.only(Global.creator_address()))
     def revoke(
-            self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
+        self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
     ) -> Expr:
         account_permissions = self.account_permissions[account.address()]
         return Seq(
@@ -48,7 +48,7 @@ class AccountPermissionsManager(Application):
 
     @external(read_only=True)
     def contains(
-            self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
+        self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
     ) -> Expr:
         return output.set(
             If(
@@ -201,7 +201,7 @@ class AccountPermissionsTestCase(unittest.TestCase):
         self.owner_client.call(
             AccountPermissionsManager.grant,
             account=self.user.address,
-            permissions=self.PERM_0 | self.PERM_63
+            permissions=self.PERM_0 | self.PERM_63,
         )
         result = self.owner_client.call(
             AccountPermissionsManager.grant,

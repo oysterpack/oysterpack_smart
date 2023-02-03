@@ -12,14 +12,13 @@ class Foo(Application):
 
 
 class AppIdTestCase(unittest.TestCase):
-
     def test_to_address(self):
         account = sandbox.get_accounts().pop()
         app_client = ApplicationClient(
             client=sandbox.get_algod_client(),
             app=Foo(),
             sender=account.address,
-            signer=account.signer
+            signer=account.signer,
         )
 
         app_id, app_addess, _tx_id = app_client.create()
@@ -27,5 +26,5 @@ class AppIdTestCase(unittest.TestCase):
         self.assertEqual(app_id.to_address(), app_addess)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

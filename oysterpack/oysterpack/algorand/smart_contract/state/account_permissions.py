@@ -3,10 +3,10 @@ from copy import copy
 from pyteal import Expr
 from pyteal.ast import abi
 
-from oysterpack.algorand.smart_contract.state.bitset import BitSet
+from oysterpack.algorand.smart_contract.state.bitset import AccountBitSet
 
 
-class AccountPermissions(BitSet):
+class AccountPermissions(AccountBitSet):
     """
     Permissions are represented as a bit set.
     Thus, this provides 64 permissions for applications, which should be sufficient for most cases.

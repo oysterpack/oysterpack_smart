@@ -11,8 +11,9 @@ from pyteal.ast import abi
 
 from oysterpack.algorand.smart_contract.state.account_permissions import (
     AccountPermissions,
-    decode_permissions_bits,
 )
+
+from oysterpack.algorand.smart_contract.state.bitset import decode_bit_mask
 
 
 class AccountPermissionsManager(Application):
@@ -213,16 +214,16 @@ class AccountPermissionsTestCase(unittest.TestCase):
 
 class HelperFunctionsTestCast(unittest.TestCase):
     def test_decode_permissions(self):
-        self.assertEqual(set(), decode_permissions_bits(0))
-        self.assertEqual({0}, decode_permissions_bits(0 | 1))
-        self.assertEqual({0, 1, 2, 4}, decode_permissions_bits(0 | 1 | 23))
-        self.assertEqual({0, 1, 2, 3, 4, 5}, decode_permissions_bits(0 | 1 | 23 | 63))
+        self.assertEqual(set(), decode_bit_mask(0))
+        self.assertEqual({0}, decode_bit_mask(0 | 1))
+        self.assertEqual({0, 1, 2, 4}, decode_bit_mask(0 | 1 | 23))
+        self.assertEqual({0, 1, 2, 3, 4, 5}, decode_bit_mask(0 | 1 | 23 | 63))
 
         with self.assertRaises(AssertionError):
-            decode_permissions_bits(-1)
+            decode_bit_mask(-1)
 
         with self.assertRaises(AssertionError):
-            decode_permissions_bits(1 << 63 + 1)
+            decode_bit_mask(1 << 63 + 1)
 
 
 if __name__ == "__main__":

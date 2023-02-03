@@ -5,7 +5,7 @@ from beaker import Application, Authorize, sandbox
 from beaker.client import ApplicationClient
 from beaker.decorators import external, opt_in, delete
 from beaker.sandbox.kmd import SandboxAccount
-from pyteal import Global, Expr, Seq, Approve, And
+from pyteal import Global, Expr, Seq, Approve, App, If, Int
 from pyteal.ast import abi
 
 from oysterpack.algorand.smart_contract.state.account_permissions import (
@@ -48,9 +48,11 @@ class AccountPermissionsManager(Application):
     def contains(
         self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
     ) -> Expr:
-        app_account = self.account_permissions[account.address()]
-        result = And(app_account.exists(), app_account.contains(permissions))
-        return output.set(result)
+        return If(
+            App.optedIn(account.address(), Global.current_application_id()),
+            output.set(self.account_permissions[account.address()].contains(permissions)),
+            output.set(Int(0))
+        )
 
     @delete(authorize=Authorize.only(Global.creator_address()))
     def delete(self) -> Expr:
@@ -105,8 +107,9 @@ class AccountPermissionsTestCase(unittest.TestCase):
         result = self.owner_client.call(
             AccountPermissionsManager.contains,
             account=address,
-            permissions=self.PERM_0,
+            permissions=self.PERM_0
         )
+        print(result.decode_error)
         self.assertEqual(result.return_value, False)
 
     def test_permissions(self):

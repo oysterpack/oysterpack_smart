@@ -1,4 +1,4 @@
-from pyteal import Global
+from pyteal import Global, Txn
 from pyteal.ast import abi, Expr, Not, And
 
 
@@ -21,3 +21,18 @@ def is_payment_only(txn: abi.PaymentTransaction) -> Expr:
     Returns true if the transaction is not rekeying and not closing the account.
     """
     return And(Not(is_rekeying_account(txn)), Not(is_closing_account(txn)))
+
+
+def is_expected_receiver(txn: abi.PaymentTransaction, address: abi.Address) -> Expr:
+    return txn.get().receiver() == address.get()
+
+
+def is_current_application_receiver(txn: abi.PaymentTransaction) -> Expr:
+    return txn.get().receiver() == Global.current_application_address()
+
+
+def is_txn_sender(txn: abi.PaymentTransaction) -> Expr:
+    """
+    :return: true if the payment sender is the same as the transaction sender
+    """
+    return txn.get().sender() == Txn.sender()

@@ -1,6 +1,7 @@
 import unittest
 from typing import Final
 
+import algosdk.error
 from beaker import Application, Authorize, sandbox
 from beaker.client import ApplicationClient
 from beaker.decorators import external, opt_in, delete
@@ -23,7 +24,7 @@ class AccountPermissionsManager(Application):
 
     @external(authorize=Authorize.only(Global.creator_address()))
     def grant(
-        self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
+            self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
     ) -> Expr:
         account_permissions = self.account_permissions[account.address()]
         return Seq(
@@ -33,11 +34,12 @@ class AccountPermissionsManager(Application):
 
     @external(authorize=Authorize.only(Global.creator_address()))
     def revoke(
-        self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
+            self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
     ) -> Expr:
+        account_permissions = self.account_permissions[account.address()]
         return Seq(
-            self.account_permissions[account.address()].revoke(permissions),
-            output.set(self.account_permissions.get()),
+            account_permissions.revoke(permissions),
+            output.set(account_permissions.get()),
         )
 
     @external(authorize=Authorize.only(Global.creator_address()))
@@ -46,12 +48,14 @@ class AccountPermissionsManager(Application):
 
     @external(read_only=True)
     def contains(
-        self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
+            self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
     ) -> Expr:
-        return If(
-            App.optedIn(account.address(), Global.current_application_id()),
-            output.set(self.account_permissions[account.address()].contains(permissions)),
-            output.set(Int(0))
+        return output.set(
+            If(
+                App.optedIn(account.address(), Global.current_application_id()),
+                self.account_permissions[account.address()].contains(permissions),
+                Int(0),
+            )
         )
 
     @delete(authorize=Authorize.only(Global.creator_address()))
@@ -90,7 +94,9 @@ class AccountPermissionsTestCase(unittest.TestCase):
             sender=cls.user.address, signer=cls.user.signer
         )
 
+        # optin the accounts
         cls.owner_client.opt_in()
+        cls.user_client.opt_in()
 
         print("owner:", cls.owner.address)
         print("user:", cls.user.address)
@@ -105,33 +111,13 @@ class AccountPermissionsTestCase(unittest.TestCase):
 
         _sk, address = generate_account()
         result = self.owner_client.call(
-            AccountPermissionsManager.contains,
-            account=address,
-            permissions=self.PERM_0
+            AccountPermissionsManager.contains, account=address, permissions=self.PERM_0
         )
         print(result.decode_error)
         self.assertEqual(result.return_value, False)
 
     def test_permissions(self):
-        with self.subTest("when user opts in, local state is initialized"):
-            self.user_client.opt_in()
-            account_app_info = self.user_client.client.account_application_info(
-                self.user.address, self.user_client.app_id
-            )
-            # pp(account_app_info)
-            # assert that the user has no permissions set
-            self.assertEqual(
-                account_app_info["app-local-state"]["key-value"][0]["value"]["uint"], 0
-            )
-
-            result = self.owner_client.call(
-                AccountPermissionsManager.contains,
-                account=self.user.address,
-                permissions=self.PERM_0,
-            )
-            self.assertFalse(result.return_value)
-
-        with self.subTest("grant opted in user permissions"):
+        with self.subTest("grant permissions"):
             result = self.owner_client.call(
                 AccountPermissionsManager.grant,
                 account=self.user.address,
@@ -166,6 +152,63 @@ class AccountPermissionsTestCase(unittest.TestCase):
                     permissions=perms,
                 )
                 self.assertEqual(result.return_value, expected_result, str(perms))
+
+            with self.subTest("revoke permission"):
+                result = self.owner_client.call(
+                    AccountPermissionsManager.revoke,
+                    account=self.user.address,
+                    permissions=self.PERM_0,
+                )
+                self.assertEqual(result.return_value, self.PERM_1)
+
+            with self.subTest("revoke all permissions"):
+                result = self.owner_client.call(
+                    AccountPermissionsManager.grant,
+                    account=self.user.address,
+                    permissions=self.PERM_2,
+                )
+                self.assertTrue(result.return_value > 0)
+
+                result = self.owner_client.call(
+                    AccountPermissionsManager.revoke_all,
+                    account=self.user.address,
+                )
+                account_app_info = self.user_client.client.account_application_info(
+                    self.user.address, self.user_client.app_id
+                )
+                # assert that the user has no permissions set
+                self.assertEqual(
+                    account_app_info["app-local-state"]["key-value"][0]["value"][
+                        "uint"
+                    ],
+                    0,
+                )
+
+    def test_with_negative_permission(self):
+        with self.assertRaises(algosdk.error.ABIEncodingError) as err:
+            self.owner_client.call(
+                AccountPermissionsManager.grant,
+                account=self.user.address,
+                permissions=-1,
+            )
+        self.assertTrue("value -1 is not a non-negative int" in str(err.exception))
+
+    def test_with_zero_permission(self):
+        self.owner_client.call(
+            AccountPermissionsManager.revoke_all,
+            account=self.user.address,
+        )
+        self.owner_client.call(
+            AccountPermissionsManager.grant,
+            account=self.user.address,
+            permissions=self.PERM_0 | self.PERM_63
+        )
+        result = self.owner_client.call(
+            AccountPermissionsManager.grant,
+            account=self.user.address,
+            permissions=0,
+        )
+        self.assertEqual(result.return_value, self.PERM_0 | self.PERM_63)
 
 
 class HelperFunctionsTestCast(unittest.TestCase):

@@ -18,6 +18,8 @@ AssetID = NewType("AssetID", int)
 
 BoxKey = NewType("BoxKey", bytes)
 
+MicroAlgos = NewType("MicroAlgos", int)
+
 
 class AppID(int):
     def to_address(self) -> Address:
@@ -26,7 +28,7 @@ class AppID(int):
         """
 
         app_id_checksum = algosdk.encoding.checksum(b"appID" + self.to_bytes(8, "big"))
-        return algosdk.encoding.encode_address(app_id_checksum)
+        return Address(algosdk.encoding.encode_address(app_id_checksum))
 
 
 @dataclass(slots=True)

@@ -1,4 +1,4 @@
-pre-commit: format check test
+pre-commit: format check sandbox-reset test
 
 test:
 	coverage run -m unittest
@@ -33,3 +33,5 @@ kmd-start: check_algorand_data_env_var
 kmd-stop: check_algorand_data_env_var
 	sudo -u algorand goal -d $(ALGORAND_DATA) kmd stop
 
+sandbox-reset:
+	algokit sandbox reset

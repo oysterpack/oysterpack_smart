@@ -5,7 +5,6 @@ from algosdk import mnemonic
 from algosdk.account import generate_account
 from beaker.application import Application
 
-from tests.algorand.test_support import sandbox_application_client
 from oysterpack.algorand.client.model import AppID, Mnemonic
 from tests.algorand.test_support import AlgorandTestSupport
 
@@ -49,9 +48,9 @@ class Foo(Application):
     pass
 
 
-class AppIdTestCase(unittest.TestCase):
+class AppIdTestCase(AlgorandTestSupport, unittest.TestCase):
     def test_to_address(self):
-        app_client = sandbox_application_client(Foo())
+        app_client = self.sandbox_application_client(Foo())
 
         app_id, app_addess, _tx_id = app_client.create()
         app_id = AppID(app_id)

@@ -197,20 +197,13 @@ class AccountBitSetTestCase(unittest.TestCase):
                 )
                 self.assertTrue(result.return_value > 0)
 
-                result = self.owner_client.call(
+                self.owner_client.call(
                     BitSetApp.clear,
                     account=self.user.address,
                 )
-                account_app_info = self.user_client.client.account_application_info(
-                    self.user.address, self.user_client.app_id
-                )
+                account_app_info = self.user_client.get_account_state()
                 # assert that the user has no permissions set
-                self.assertEqual(
-                    account_app_info["app-local-state"]["key-value"][0]["value"][
-                        "uint"
-                    ],
-                    0,
-                )
+                self.assertEqual(account_app_info["account_bitset"], 0)
 
     def test_with_negative_permission(self):
         with self.assertRaises(algosdk.error.ABIEncodingError) as err:

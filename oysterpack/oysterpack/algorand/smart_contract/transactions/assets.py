@@ -1,46 +1,135 @@
-from pyteal import TxnField, InnerTxnBuilder, Addr, TxnType, Int, Txn, Expr, Global
+from pyteal import TxnField, InnerTxnBuilder, TxnType, Int, Expr, Global
+from pyteal.ast import abi
 
-from oysterpack.algorand.client.model import Address, AssetID
 
-
-def transfer(*, receiver: Address, asset_id: AssetID, amount: int) -> list[Expr]:
+def optin_txn_fields(asset: abi.Asset) -> dict[TxnField, Expr | list[Expr]]:
     """
-    Creates an inner transaction to transfer assets from the smart contract to the specified receiver
+    Assembles fields for an inner transaction to opt-in the smart conract into the specified asset.
 
-    :param asset_id: must be in the assets array sent as part of the application call
+    NOTES
+    -----
+    - the contract must be pre-funded with ALGO to cover the contract's min-balance
+    - transaction fees must be covered externally
     """
-
-    exprs = [
-        InnerTxnBuilder.Begin(),
-        InnerTxnBuilder.SetFields(
-            {
-                TxnField.type_enum: TxnType.AssetTransfer,
-                TxnField.asset_receiver: Addr(receiver),
-                TxnField.asset_amount: Int(amount),
-                TxnField.xfer_asset: Txn.assets[asset_id],
-            }
-        ),
-    ]
-
-    return exprs
+    return {
+        TxnField.type_enum: TxnType.AssetTransfer,
+        TxnField.asset_receiver: Global.current_application_address(),
+        TxnField.asset_amount: Int(0),
+        TxnField.xfer_asset: asset.asset_id(),
+        TxnField.fee: Int(0),
+    }
 
 
-def optin(asset_id: AssetID) -> list[Expr]:
+def set_optin_txn_fields(asset: abi.Asset) -> Expr:
     """
-    Creates an inner transaction to opt-in the smart conract into an asset.
+    Sets fields on an inner transaction to opt-in the smart conract into the specified asset.
 
-    NOTE: the contract must be pre-funded with ALGO to cover the contract's min-balance
-
-    :param asset_id: must be in the assets array sent as part of the application call
+    NOTES
+    -----
+    - the contract must be pre-funded with ALGO to cover the contract's min-balance
+    - transaction fees must be covered externally
     """
-    return [
-        InnerTxnBuilder.Begin(),
-        InnerTxnBuilder.SetFields(
-            {
-                TxnField.type_enum: TxnType.AssetTransfer,
-                TxnField.asset_receiver: Global.current_application_address(),
-                TxnField.asset_amount: Int(0),
-                TxnField.xfer_asset: Txn.assets[asset_id],
-            }
-        ),
-    ]
+    return InnerTxnBuilder.SetFields(optin_txn_fields(asset))
+
+
+def execute_optin(asset: abi.Asset) -> Expr:
+    """
+    Sets fields on an inner transaction to opt-in the smart conract into the specified asset.
+
+    NOTES
+    -----
+    - the contract must be pre-funded with ALGO to cover the contract's min-balance
+    - transaction fees must be covered externally
+    """
+    return InnerTxnBuilder.Execute(optin_txn_fields(asset))
+
+
+def optout_txn_fields(
+    asset: abi.Asset, close_to: abi.Address | None = None
+) -> dict[TxnField, Expr | list[Expr]]:
+    """
+    Assembles fields for an inner transaction to opt-out the smart contract for the specified asset.
+
+    ::param close_to: defaults to `Global.creator_address()`
+
+    NOTES
+    -----
+    - transaction fees must be covered externally
+    """
+    asset_close_to = Global.creator_address() if close_to is None else close_to.get()
+    return {
+        TxnField.type_enum: TxnType.AssetTransfer,
+        TxnField.xfer_asset: asset.asset_id(),
+        TxnField.asset_receiver: asset_close_to,
+        TxnField.asset_close_to: asset_close_to,
+        TxnField.amount: Int(0),
+        TxnField.fee: Int(0),
+    }
+
+
+def set_optout_txn_fields(
+    asset: abi.Asset, close_to: abi.Address | None = None
+) -> Expr:
+    """
+    Sets fields on an inner transaction to opt-out the smart contract for the specified asset.
+
+    ::param close_to: defaults to `Global.creator_address()`
+
+    NOTES
+    -----
+    - transaction fees must be covered externally
+    """
+    return InnerTxnBuilder.SetFields(optout_txn_fields(asset, close_to))
+
+
+def execute_optout(asset: abi.Asset, close_to: abi.Address | None = None) -> Expr:
+    """
+    Sets fields on an inner transaction to opt-out the smart conract for the specified asset.
+
+    ::param close_to: defaults to `Global.creator_address()`
+
+    NOTES
+    -----
+    - transaction fees must be covered externally
+    """
+    return InnerTxnBuilder.Execute(optout_txn_fields(asset, close_to))
+
+
+def transfer_txn_fields(
+    *, receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
+) -> dict[TxnField, Expr | list[Expr]]:
+    """
+    Sets fields on inner transaction to transfer assets from the smart contract to the specified receiver
+    """
+    return {
+        TxnField.type_enum: TxnType.AssetTransfer,
+        TxnField.asset_receiver: receiver.address(),
+        TxnField.asset_amount: amount.get(),
+        TxnField.xfer_asset: asset.asset_id(),
+    }
+
+
+def set_transfer_txn_fields(
+    *, receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
+) -> Expr:
+    """
+    Sets fields on inner transaction to transfer assets from the smart contract to the specified receiver
+    """
+    return InnerTxnBuilder.SetFields(
+        transfer_txn_fields(receiver=receiver, asset=asset, amount=amount)
+    )
+
+
+def execute_transfer(
+    receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
+) -> Expr:
+    """
+    Sets fields on an inner transaction to opt-out the smart conract for the specified asset.
+
+    NOTES
+    -----
+    - transaction fees must be covered externally
+    """
+    return InnerTxnBuilder.Execute(
+        transfer_txn_fields(receiver=receiver, asset=asset, amount=amount)
+    )

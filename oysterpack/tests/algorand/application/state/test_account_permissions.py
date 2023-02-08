@@ -9,10 +9,10 @@ from beaker.sandbox.kmd import SandboxAccount
 from pyteal import Global, Expr, Seq, Approve, App, If, Int
 from pyteal.ast import abi
 
-from oysterpack.algorand.smart_contract.state.account_permissions import (
+from oysterpack.algorand.application.state.account_permissions import (
     AccountPermissions,
 )
-from oysterpack.algorand.smart_contract.state.bitset import decode_bit_mask
+from oysterpack.algorand.application.state.bitset import decode_bit_mask
 
 
 class AccountPermissionsManager(Application):

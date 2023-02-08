@@ -3,7 +3,7 @@ from copy import copy
 from pyteal import Expr
 from pyteal.ast import abi
 
-from oysterpack.algorand.smart_contract.state.bitset import AccountBitSet
+from oysterpack.algorand.application.state.bitset import AccountBitSet
 
 
 class AccountPermissions(AccountBitSet):

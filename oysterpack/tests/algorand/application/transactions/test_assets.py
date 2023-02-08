@@ -24,7 +24,7 @@ from pyteal.ast import abi
 
 from oysterpack.algorand.client.model import AssetId, Address
 from oysterpack.algorand.client.transactions import assets as client_assets
-from oysterpack.algorand.smart_contract.transactions.assets import (
+from oysterpack.algorand.application.transactions.assets import (
     execute_optin,
     execute_transfer,
     execute_optout,

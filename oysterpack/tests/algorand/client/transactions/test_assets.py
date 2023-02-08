@@ -17,7 +17,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         m.update(b"asset metadata")
         return m.digest()
 
-    def create_test_asset(self) -> tuple[assets.AssetID, Address]:
+    def create_test_asset(self) -> tuple[assets.AssetId, Address]:
         """
         Creates a new asset using the first account in the sandbox default wallet as the administrative accounts.
 
@@ -49,7 +49,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         tx_info = wait_for_confirmation(
             algod_client=self.algod_client, txid=txid, wait_rounds=4
         )
-        return (assets.AssetID(tx_info["asset-index"]), Address(manager))
+        return (assets.AssetId(tx_info["asset-index"]), Address(manager))
 
     def test_create(self):
         sender = self.sandbox_default_wallet.list_keys()[0]

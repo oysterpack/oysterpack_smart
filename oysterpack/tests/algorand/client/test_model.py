@@ -5,7 +5,7 @@ from algosdk import mnemonic
 from algosdk.account import generate_account
 from beaker.application import Application
 
-from oysterpack.algorand.client.model import AppID, Mnemonic
+from oysterpack.algorand.client.model import AppId, Mnemonic
 from tests.algorand.test_support import AlgorandTestSupport
 
 
@@ -53,7 +53,7 @@ class AppIdTestCase(AlgorandTestSupport, unittest.TestCase):
         app_client = self.sandbox_application_client(Foo())
 
         app_id, app_addess, _tx_id = app_client.create()
-        app_id = AppID(app_id)
+        app_id = AppId(app_id)
         self.assertEqual(app_id.to_address(), app_addess)
 
 

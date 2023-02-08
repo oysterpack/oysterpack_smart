@@ -22,7 +22,7 @@ from pyteal import (
 )
 from pyteal.ast import abi
 
-from oysterpack.algorand.client.model import AssetID, Address
+from oysterpack.algorand.client.model import AssetId, Address
 from oysterpack.algorand.client.transactions import assets as client_assets
 from oysterpack.algorand.smart_contract.transactions.assets import (
     execute_optin,
@@ -110,7 +110,7 @@ class Foo(Application):
         )
 
 
-def create_test_asset() -> tuple[AssetID, Address]:
+def create_test_asset() -> tuple[AssetId, Address]:
     """
     Creates a new asset using the first account in the sandbox default wallet as the administrative accounts.
 
@@ -151,7 +151,7 @@ def create_test_asset() -> tuple[AssetID, Address]:
         algod_client=sandbox.get_algod_client(), txid=txid, wait_rounds=4
     )
 
-    asset_id, address = (AssetID(tx_info["asset-index"]), Address(manager))
+    asset_id, address = (AssetId(tx_info["asset-index"]), Address(manager))
     pp(sandbox.get_algod_client().account_asset_info(address, asset_id))
     return asset_id, address
 

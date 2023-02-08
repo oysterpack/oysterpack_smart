@@ -7,7 +7,7 @@ from algosdk.transaction import (
     AssetCloseOutTxn,
 )
 
-from oysterpack.algorand.client.model import Address, AssetID
+from oysterpack.algorand.client.model import Address, AssetId
 from oysterpack.algorand.client.transactions import GetSuggestedParams, create_lease
 
 
@@ -48,7 +48,7 @@ def create(
 def update(
     *,
     sender: Address,
-    asset_id: AssetID,
+    asset_id: AssetId,
     manager: Address | None,
     reserve: Address | None,
     freeze: Address | None,
@@ -72,7 +72,7 @@ def update(
 
 
 def opt_in(
-    *, account: Address, asset_id: AssetID, suggested_params: GetSuggestedParams
+    *, account: Address, asset_id: AssetId, suggested_params: GetSuggestedParams
 ) -> AssetOptInTxn:
     return AssetOptInTxn(
         sender=account, index=asset_id, sp=suggested_params(), lease=create_lease()
@@ -83,7 +83,7 @@ def close_out(
     *,
     account: Address,
     close_to: Address | None = None,
-    asset_id: AssetID,
+    asset_id: AssetId,
     suggested_params: GetSuggestedParams,
 ) -> AssetCloseOutTxn:
     return AssetCloseOutTxn(
@@ -99,7 +99,7 @@ def transfer(
     *,
     sender: Address,
     receiver: Address,
-    asset_id: AssetID,
+    asset_id: AssetId,
     amount: int,
     suggested_params: GetSuggestedParams,
     note: str | None = None,

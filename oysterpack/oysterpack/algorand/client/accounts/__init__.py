@@ -1,7 +1,7 @@
 import algosdk.error
 from algosdk.v2client.algod import AlgodClient
 
-from oysterpack.algorand.client.model import Address, AssetID, AssetHolding
+from oysterpack.algorand.client.model import Address, AssetId, AssetHolding
 
 
 def get_auth_address(address: Address, algod_client: AlgodClient) -> Address:
@@ -27,7 +27,7 @@ def get_asset_holdings(
 
 
 def get_asset_holding(
-    address: Address, asset_id: AssetID, algod_client: AlgodClient
+    address: Address, asset_id: AssetId, algod_client: AlgodClient
 ) -> AssetHolding | None:
     try:
         data = algod_client.account_asset_info(address=address, asset_id=asset_id)[

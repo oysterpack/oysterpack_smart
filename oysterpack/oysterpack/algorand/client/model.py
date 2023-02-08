@@ -14,14 +14,14 @@ from algosdk import mnemonic
 # https://developer.algorand.org/docs/get-details/accounts/#transformation-public-key-to-algorand-address
 Address = NewType("Address", str)
 
-AssetID = NewType("AssetID", int)
+AssetId = NewType("AssetId", int)
 
 BoxKey = NewType("BoxKey", bytes)
 
 MicroAlgos = NewType("MicroAlgos", int)
 
 
-class AppID(int):
+class AppId(int):
     def to_address(self) -> Address:
         """
         Generates the smart contract's Algorand address from its app ID
@@ -34,7 +34,7 @@ class AppID(int):
 @dataclass(slots=True)
 class AssetHolding:
     amount: int
-    asset_id: AssetID
+    asset_id: AssetId
     is_frozen: bool
 
     # TODO: https://github.com/python/mypy/issues/14167 remove mypy ignore once mypy support Self

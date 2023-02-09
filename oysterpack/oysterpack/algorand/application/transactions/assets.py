@@ -1,5 +1,8 @@
+from typing import cast
+
 from pyteal import TxnField, InnerTxnBuilder, TxnType, Int, Expr, Global
 from pyteal.ast import abi
+from pyteal.ast.abi import make
 
 
 def optin_txn_fields(asset: abi.Asset) -> dict[TxnField, Expr | list[Expr]]:
@@ -45,7 +48,7 @@ def execute_optin(asset: abi.Asset) -> Expr:
 
 
 def optout_txn_fields(
-    asset: abi.Asset, close_to: abi.Address | None = None
+    asset: abi.Asset, close_to: abi.Account | abi.Address | None = None
 ) -> dict[TxnField, Expr | list[Expr]]:
     """
     Assembles fields for an inner transaction to opt-out the smart contract for the specified asset.
@@ -56,7 +59,19 @@ def optout_txn_fields(
     -----
     - transaction fees must be covered externally
     """
-    asset_close_to = Global.creator_address() if close_to is None else close_to.get()
+
+    def get_close_to_address() -> Expr:
+        if close_to is None:
+            return Global.creator_address()
+        if type(close_to) is abi.Account:
+            address = make(abi.Address)
+            address.set(close_to.address())
+            return address.get()
+        if type(close_to) is abi.Address:
+            return cast(abi.Address, close_to).get()
+        raise ValueError("close_to type must be: abi.Account | abi.Address | None")
+
+    asset_close_to = get_close_to_address()
     return {
         TxnField.type_enum: TxnType.AssetTransfer,
         TxnField.xfer_asset: asset.asset_id(),
@@ -68,7 +83,7 @@ def optout_txn_fields(
 
 
 def set_optout_txn_fields(
-    asset: abi.Asset, close_to: abi.Address | None = None
+    asset: abi.Asset, close_to: abi.Account | abi.Address | None = None
 ) -> Expr:
     """
     Sets fields on an inner transaction to opt-out the smart contract for the specified asset.
@@ -82,7 +97,9 @@ def set_optout_txn_fields(
     return InnerTxnBuilder.SetFields(optout_txn_fields(asset, close_to))
 
 
-def execute_optout(asset: abi.Asset, close_to: abi.Address | None = None) -> Expr:
+def execute_optout(
+    asset: abi.Asset, close_to: abi.Account | abi.Address | None = None
+) -> Expr:
     """
     Sets fields on an inner transaction to opt-out the smart conract for the specified asset.
 
@@ -92,6 +109,7 @@ def execute_optout(asset: abi.Asset, close_to: abi.Address | None = None) -> Exp
     -----
     - transaction fees must be covered externally
     """
+
     return InnerTxnBuilder.Execute(optout_txn_fields(asset, close_to))
 
 

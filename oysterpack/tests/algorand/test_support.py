@@ -53,10 +53,13 @@ class AlgorandTestSupport:
         :param app: Application instance
         :return: ApplicationClient using the default sandbox wallet account as the sender and signer
         """
-        account = sandbox.get_accounts().pop()
+
+        if signer is None:
+            account = sandbox.get_accounts().pop()
+            signer = account.signer
         return ApplicationClient(
             client=sandbox.get_algod_client(),
             app=app,
-            sender=sender if sender else account.address,
-            signer=signer if signer else account.signer,
+            sender=sender,
+            signer=signer,
         )

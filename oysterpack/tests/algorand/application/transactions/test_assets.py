@@ -1,3 +1,4 @@
+import time
 import unittest
 from pprint import pp
 from typing import Callable
@@ -22,8 +23,6 @@ from pyteal import (
 )
 from pyteal.ast import abi
 
-from oysterpack.algorand.client.model import AssetId, Address
-from oysterpack.algorand.client.transactions import assets as client_assets
 from oysterpack.algorand.application.transactions.assets import (
     execute_optin,
     execute_transfer,
@@ -32,6 +31,8 @@ from oysterpack.algorand.application.transactions.assets import (
     set_optout_txn_fields,
     set_transfer_txn_fields,
 )
+from oysterpack.algorand.client.model import AssetId, Address
+from oysterpack.algorand.client.transactions import assets as client_assets
 from tests.algorand.test_support import AlgorandTestSupport
 
 
@@ -175,10 +176,12 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         :return:
         """
 
-        app_client = AlgorandTestSupport.sandbox_application_client(Foo())
+        app_client = self.sandbox_application_client(Foo())
         # create asset
         asset_id, asset_manager_address = create_test_asset()
 
+        # there seems to be a timing issue
+        time.sleep(1)
         account_starting_balance = app_client.client.account_info(app_client.sender)[
             "amount"
         ]
@@ -272,6 +275,7 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(app_account_info["total-assets-opted-in"], 0)
 
         app_client.delete(suggested_params=sp)
+        time.sleep(1)
         account_balance = app_client.client.account_info(app_client.sender)["amount"]
         pp(
             {

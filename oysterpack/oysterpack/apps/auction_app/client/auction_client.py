@@ -95,11 +95,11 @@ class AuctionState:
 
 class AuctionClient:
     def __init__(
-        self,
-        app_id: AppId,
-        algod_client: AlgodClient,
-        signer: TransactionSigner,
-        sender: Address | None = None,
+            self,
+            app_id: AppId,
+            algod_client: AlgodClient,
+            signer: TransactionSigner,
+            sender: Address | None = None,
     ):
         self._app_client = ApplicationClient(
             app=Auction(),
@@ -137,9 +137,32 @@ class AuctionClient:
         )
 
     def set_bid_asset(self, asset_id: AssetId, min_bid: int):
+        """
+        Sets or updates the bidd asset settings.
+
+        If the bid asset is already set and if the
+
+        :param asset_id:
+        :param min_bid:
+        :return:
+        """
+        app_state = self.get_application_state()
+        if app_state.bid_asset_id == asset_id and app_state.min_bid == min_bid:
+            # then no changes are needed
+            return
+
+        # if the bid asset is being updated, then opt out the bid asset
+        if app_state.bid_asset_id and app_state.bid_asset_id != asset_id:
+            self.optout_asset(app_state.bid_asset_id)
+
         sp = self._app_client.client.suggested_params()
+        # transaction fees need to cover the inner transaction to opt in the bid asset
         sp.fee = sp.min_fee * 2
         sp.flat_fee = True
+
+        # if only the min bid is being changed, then no bid asset opt in is needed
+        if app_state.bid_asset_id and app_state.bid_asset_id == asset_id:
+            sp.fee = sp.min_fee
 
         self._app_client.call(
             Auction.set_bid_asset,

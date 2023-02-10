@@ -75,7 +75,6 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
 
             app_assets = seller_app_client.get_application_account_info()["assets"]
             self.assertEqual(len(app_assets), 1)
-            print(app_assets)
             self.assertEqual(
                 len(
                     [asset for asset in app_assets if asset["asset-id"] == bid_asset_id]
@@ -83,9 +82,29 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 1,
             )
 
-        with self.subTest("setting the bid asset when it is already set should fail"):
-            with self.assertRaises(AlgodHTTPError):
-                seller_app_client.set_bid_asset(bid_asset_id, min_bid)
+        with self.subTest("update the bid asset"):
+            seller_app_client.set_bid_asset(bid_asset_id, min_bid)
+            app_state = seller_app_client.get_application_state()
+            self.assertEqual(bid_asset_id, app_state.bid_asset_id)
+            self.assertEqual(min_bid, app_state.min_bid)
+
+        with self.subTest("change the bid asset settings"):
+            bid_asset_id, _asset_manager_address = self.create_test_asset("goUSD")
+            min_bid = 2_000_000
+            seller_app_client.set_bid_asset(bid_asset_id, min_bid)
+
+            app_state = seller_app_client.get_application_state()
+            self.assertEqual(bid_asset_id, app_state.bid_asset_id)
+            self.assertEqual(min_bid, app_state.min_bid)
+
+            app_assets = seller_app_client.get_application_account_info()["assets"]
+            self.assertEqual(len(app_assets), 1)
+            self.assertEqual(
+                len(
+                    [asset for asset in app_assets if asset["asset-id"] == bid_asset_id]
+                ),
+                1,
+            )
 
     def test_optout_asset(self):
         # SETUP
@@ -112,6 +131,14 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         seller_app_client.optout_asset(bid_asset_id)
         app_account_info = seller_app_client.get_application_account_info()
         self.assertEqual(len(app_account_info["assets"]), 0)
+
+        with self.subTest(
+            "after opting out the bid asset, the bid asset can be set again"
+        ):
+            seller_app_client.set_bid_asset(bid_asset_id, min_bid)
+            app_account_info = seller_app_client.get_application_account_info()
+            self.assertEqual(len(app_account_info["assets"]), 1)
+            self.assertEqual(app_account_info["assets"][0]["asset-id"], bid_asset_id)
 
 
 if __name__ == "__main__":

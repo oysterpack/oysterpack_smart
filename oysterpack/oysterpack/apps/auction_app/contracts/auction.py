@@ -25,6 +25,8 @@ from pyteal import (
     Cond,
     Approve,
     Txn,
+    If,
+    Or, Not,
 )
 from pyteal.ast import abi
 
@@ -142,73 +144,6 @@ class Auction(AuctionState, AuctionAuth):
             self.seller_address.set(seller.address()),
         )
 
-    @external(authorize=AuctionAuth.is_seller)
-    def set_bid_asset(self, bid_asset: abi.Asset, min_bid: abi.Uint64) -> Expr:
-        """
-        Opts in the bid asset, only if it has not yet been opted in.
-
-        To change the bid asset once its set, the seller must first opt out the bid asset.
-
-        Asserts
-        -------
-        1. status == AuctionStatus.New
-        2. bid asset_id has not been set
-        3. min bid > 0
-
-        Inner Transactions
-        ------------------
-        1. opts in the asset
-
-        Notes
-        -----
-        - transaction fees = 0.002 ALGO
-        - contract must be prefunded to pay for contract storage costs with at least 0.2 ALGO:
-          - 0.1 ALGO for contract account storage
-          - 0.1 ALGO for asset holding storage
-        - bid asset id and min bid are stored in global state
-        """
-        return Seq(
-            Assert(self.is_new()),
-            Assert(self.bid_asset_id.get() == Int(0)),
-            Assert(min_bid.get() > Int(0)),
-            self.bid_asset_id.set(bid_asset.asset_id()),
-            self.min_bid.set(min_bid.get()),
-            execute_optin(bid_asset),
-        )
-
-    @external(authorize=AuctionAuth.is_seller)
-    def optin_asset(self, asset: abi.Asset) -> Expr:
-        """
-        Opt in asset to be sold in the auction.
-        After the asset is opted in, then the seller can transfer the assets to the auction account.
-
-        Notes
-        -----
-        - transaction fees = 0.002 ALGO
-        - contract must be prefunded to pay for contract storage costs with at least 0.2 ALGO:
-          - 0.1 ALGO for contract account storage
-          - 0.1 ALGO for asset holding storage
-        """
-        return Seq(Assert(self.is_new()), execute_optin(asset))
-
-    @external(authorize=AuctionAuth.is_seller)
-    def optout_asset(self, asset: abi.Asset) -> Expr:
-        return Seq(Assert(self.is_new()), execute_optout(asset, Txn.sender()))
-
-    @external(authorize=AuctionAuth.is_seller)
-    def cancel(self) -> Expr:
-        """
-        The auction cannot be cancelled once it has been committed.
-        If the auction is already cancelled, then this is a noop.
-
-        :return:
-        """
-
-        return Cond(
-            [self.is_new(), self.status.set(Int(AuctionStatus.Cancelled.value))],
-            [self.is_cancelled(), Approve()],
-        )
-
     @delete(authorize=Authorize.only(Global.creator_address()))
     def delete(self) -> Expr:
         """
@@ -247,4 +182,88 @@ class Auction(AuctionState, AuctionAuth):
                     TxnField.amount: Int(0),
                 }
             ),
+        )
+
+    @external(authorize=AuctionAuth.is_seller)
+    def set_bid_asset(self, bid_asset: abi.Asset, min_bid: abi.Uint64) -> Expr:
+        """
+        Opts in the bid asset, only if it has not yet been opted in.
+
+        To change the bid asset once its set, the seller must first opt out the bid asset.
+        The min bid can be updated if the bid_asset is not being changed.
+
+        Asserts
+        -------
+        1. status == AuctionStatus.New
+        2. bid asset_id == 0 or is the same
+        3. min bid > 0
+
+        Inner Transactions
+        ------------------
+        1. opts in the asset
+
+        Notes
+        -----
+        - transaction fees = 0.002 ALGO
+        - contract must be prefunded to pay for contract storage costs with at least 0.2 ALGO:
+          - 0.1 ALGO for contract account storage
+          - 0.1 ALGO for asset holding storage
+        - bid asset id and min bid are stored in global state
+        """
+        return Seq(
+            Assert(self.is_new()),
+            Assert(min_bid.get() > Int(0)),
+            Assert(
+                Or(
+                    self.bid_asset_id.get() == Int(0),
+                    self.bid_asset_id.get() == bid_asset.asset_id(),
+                )
+            ),
+            self.bid_asset_id.set(bid_asset.asset_id()),
+            self.min_bid.set(min_bid.get()),
+            # if the auction does not hold the bid asset, then opt in the bid asset
+            bid_asset_holding := AssetHolding.balance(self.address, bid_asset.asset_id()),
+            If(Not(bid_asset_holding.hasValue()), execute_optin(bid_asset))
+        )
+
+    @external(authorize=AuctionAuth.is_seller)
+    def optin_asset(self, asset: abi.Asset) -> Expr:
+        """
+        Opt in asset to be sold in the auction.
+        After the asset is opted in, then the seller can transfer the assets to the auction account.
+
+        Notes
+        -----
+        - transaction fees = 0.002 ALGO
+        - contract must be prefunded to pay for contract storage costs with at least 0.2 ALGO:
+          - 0.1 ALGO for contract account storage
+          - 0.1 ALGO for asset holding storage
+        """
+        return Seq(Assert(self.is_new()), execute_optin(asset))
+
+    @external(authorize=AuctionAuth.is_seller)
+    def optout_asset(self, asset: abi.Asset) -> Expr:
+        return Seq(
+            Assert(self.is_new()),
+            execute_optout(asset, Txn.sender()),
+            # If the bid asset is being opted out, then reset `bid_set_id` to zero
+            # NOTE: in order to change the bid asset, it must first be opted out.
+            If(
+                asset.asset_id() == self.bid_asset_id.get(),
+                self.bid_asset_id.set(Int(0)),
+            ),
+        )
+
+    @external(authorize=AuctionAuth.is_seller)
+    def cancel(self) -> Expr:
+        """
+        The auction cannot be cancelled once it has been committed.
+        If the auction is already cancelled, then this is a noop.
+
+        :return:
+        """
+
+        return Cond(
+            [self.is_new(), self.status.set(Int(AuctionStatus.Cancelled.value))],
+            [self.is_cancelled(), Approve()],
         )

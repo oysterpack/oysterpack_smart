@@ -1,15 +1,18 @@
+from abc import ABC
 from datetime import datetime, UTC
 from pprint import pformat
 from typing import cast, Optional, Any
 
 from algosdk.atomic_transaction_composer import TransactionSigner
 from algosdk.encoding import encode_address
+from algosdk.error import AlgodHTTPError
 from algosdk.logic import get_application_address
 from algosdk.v2client.algod import AlgodClient
 from beaker.client import ApplicationClient
 
-from oysterpack.algorand.client.model import Address, AppId, AssetId
+from oysterpack.algorand.client.model import Address, AppId, AssetId, AssetHolding
 from oysterpack.algorand.client.transactions import create_lease
+from oysterpack.algorand.params import MinimumBalance
 from oysterpack.apps.auction_app.contracts.auction import Auction
 from oysterpack.apps.auction_app.model.auction import AuctionStatus
 
@@ -93,13 +96,13 @@ class AuctionState:
         )
 
 
-class AuctionClient:
+class _AuctionClient(ABC):
     def __init__(
-        self,
-        app_id: AppId,
-        algod_client: AlgodClient,
-        signer: TransactionSigner,
-        sender: Address | None = None,
+            self,
+            app_id: AppId,
+            algod_client: AlgodClient,
+            signer: TransactionSigner,
+            sender: Address | None = None,
     ):
         self._app_client = ApplicationClient(
             app=Auction(),
@@ -109,6 +112,61 @@ class AuctionClient:
             sender=sender,
         )
 
+    @property
+    def contract_address(self) -> Address:
+        return Address(get_application_address(self._app_client.app_id))
+
+    @property
+    def app_id(self) -> AppId:
+        return AppId(self._app_client.app_id)
+
+    def fund(self, algo_amount: int):
+        if algo_amount > 0:
+            self._app_client.fund(algo_amount)
+
+    def _fund_asset_optin(self):
+        """
+        Ensures the contract is funded to be able to opt in an asset
+        :return:
+        """
+        account_info = self.get_application_account_info()
+        algo_balance = cast(int, account_info["amount"])
+        min_balance = cast(int, account_info["min-balance"])
+        self.fund(min_balance + MinimumBalance.asset_opt_in - algo_balance)
+
+    def get_application_account_info(self) -> dict[str, Any]:
+        return self._app_client.get_application_account_info()
+
+    def get_application_state(self) -> AuctionState:
+        return AuctionState(self._app_client.get_application_state())
+
+    def _assert_valid_asset_id(self, asset_id: AssetId):
+        if not self._is_asset_id_valid(asset_id):
+            raise AssertionError(f"invalid asset id: ")
+
+    def _is_asset_id_valid(self, asset_id: AssetId) -> bool:
+        try:
+            self._app_client.client.asset_info(asset_id)
+            return True
+        except AlgodHTTPError as err:
+            print(err)
+            if err.code == 404:
+                return False
+            raise err
+
+    def _is_asset_opted_in(self, asset_id: AssetId) -> bool:
+        try:
+            self._app_client.client.account_asset_info(self.contract_address, asset_id)
+            # if the call successfully returns, then it means the Auction already holds the asset
+            return True
+        except AlgodHTTPError as err:
+            if err.code == 404:
+                return False
+            raise err
+
+
+class AuctionClient(_AuctionClient):
+
     @classmethod
     def from_client(cls, app_client: ApplicationClient) -> "AuctionClient":
         return cls(
@@ -117,14 +175,6 @@ class AuctionClient:
             cast(TransactionSigner, app_client.signer),
             cast(Optional[Address], app_client.sender),
         )
-
-    @property
-    def contract_address(self) -> Address:
-        return Address(get_application_address(self._app_client.app_id))
-
-    @property
-    def app_id(self) -> AppId:
-        return AppId(self._app_client.app_id)
 
     def get_seller_address(self) -> Address:
         app_state = self._app_client.get_application_state()
@@ -163,6 +213,8 @@ class AuctionClient:
         # if only the min bid is being changed, then no bid asset opt in is needed
         if app_state.bid_asset_id and app_state.bid_asset_id == asset_id:
             sp.fee = sp.min_fee
+        else:
+            self._fund_asset_optin()
 
         self._app_client.call(
             Auction.set_bid_asset,
@@ -183,11 +235,26 @@ class AuctionClient:
             lease=create_lease(),
         )
 
-    def fund(self, algo_amount: int):
-        self._app_client.fund(algo_amount)
+    def optin_asset(self, asset_id: AssetId):
+        """
+        If the asset is not already opted in, then opt in the asset.
+        Also makes sure the Auction contract is funded to opt in the asset.
+        """
 
-    def get_application_account_info(self) -> dict[str, Any]:
-        return self._app_client.get_application_account_info()
+        self._assert_valid_asset_id(asset_id)
+        if not self._is_asset_opted_in(asset_id):
+            self._fund_asset_optin()
 
-    def get_application_state(self) -> AuctionState:
-        return AuctionState(self._app_client.get_application_state())
+            sp = self._app_client.client.suggested_params()
+            sp.fee = sp.min_fee * 2
+            sp.flat_fee = True
+
+            self._app_client.call(
+                Auction.optin_asset,
+                asset=asset_id,
+                suggested_params=sp,
+                lease=create_lease(),
+            )
+
+    def get_auction_assets(self) -> list[AssetHolding]:
+        return [AssetHolding.from_data(asset) for asset in self.get_application_account_info()["assets"]]

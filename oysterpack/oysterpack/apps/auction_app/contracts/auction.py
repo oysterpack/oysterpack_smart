@@ -38,7 +38,7 @@ from oysterpack.algorand.application.transactions.assets import (
 from oysterpack.apps.auction_app.model.auction import AuctionStatus
 
 
-class AuctionState(Application):
+class _AuctionState(Application):
     status: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64,
         default=Int(AuctionStatus.New.value),
@@ -109,7 +109,7 @@ class AuctionState(Application):
         return AssetHolding.balance(self.address, self.bid_asset_id.get())
 
 
-class AuctionAuth:
+class _AuctionAuth:
     @Subroutine(TealType.uint64)
     @staticmethod
     def is_seller(sender: Expr) -> Expr:
@@ -120,7 +120,7 @@ class AuctionAuth:
 
 
 # TODO: add standardized transaction notes
-class Auction(AuctionState, AuctionAuth):
+class Auction(_AuctionState, _AuctionAuth):
     """
     Auction is used to sell asset holdings escrowed by this contract to the highest bidder.
 
@@ -185,7 +185,7 @@ class Auction(AuctionState, AuctionAuth):
             ),
         )
 
-    @external(authorize=AuctionAuth.is_seller)
+    @external(authorize=_AuctionAuth.is_seller)
     def set_bid_asset(self, bid_asset: abi.Asset, min_bid: abi.Uint64) -> Expr:
         """
         Opts in the bid asset, only if it has not yet been opted in.
@@ -229,7 +229,7 @@ class Auction(AuctionState, AuctionAuth):
             If(Not(bid_asset_holding.hasValue()), execute_optin(bid_asset)),
         )
 
-    @external(authorize=AuctionAuth.is_seller)
+    @external(authorize=_AuctionAuth.is_seller)
     def optin_asset(self, asset: abi.Asset) -> Expr:
         """
         Opt in asset to be sold in the auction.
@@ -244,7 +244,7 @@ class Auction(AuctionState, AuctionAuth):
         """
         return Seq(Assert(self.is_new()), execute_optin(asset))
 
-    @external(authorize=AuctionAuth.is_seller)
+    @external(authorize=_AuctionAuth.is_seller)
     def optout_asset(self, asset: abi.Asset) -> Expr:
         return Seq(
             Assert(self.is_new()),
@@ -257,7 +257,7 @@ class Auction(AuctionState, AuctionAuth):
             ),
         )
 
-    @external(authorize=AuctionAuth.is_seller)
+    @external(authorize=_AuctionAuth.is_seller)
     def cancel(self) -> Expr:
         """
         The auction cannot be cancelled once it has been committed.

@@ -52,9 +52,6 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         )
         creator_app_client = AuctionClient.from_client(creator_app_client)
 
-        # fund the auction to pay for storage
-        seller_app_client.fund(int(0.2 * algo))
-
         bid_asset_id, _asset_manager_address = self.create_test_asset("USD$")
         min_bid = 1_000_000
 
@@ -123,9 +120,6 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             creator_app_client.prepare(signer=seller.signer)
         )
 
-        # fund the auction to pay for storage
-        seller_app_client.fund(int(0.2 * algo))
-
         bid_asset_id, _asset_manager_address = self.create_test_asset("USD$")
         min_bid = 1_000_000
         seller_app_client.set_bid_asset(bid_asset_id, min_bid)
@@ -136,12 +130,51 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(len(app_account_info["assets"]), 0)
 
         with self.subTest(
-            "after opting out the bid asset, the bid asset can be set again"
+                "after opting out the bid asset, the bid asset can be set again"
         ):
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
             app_account_info = seller_app_client.get_application_account_info()
             self.assertEqual(len(app_account_info["assets"]), 1)
             self.assertEqual(app_account_info["assets"][0]["asset-id"], bid_asset_id)
+
+    def test_optin_asset(self):
+        # SETUP
+        accounts = sandbox.get_accounts()
+        creator = accounts.pop()
+        seller = accounts.pop()
+
+        creator_app_client = self.sandbox_application_client(
+            Auction(), signer=creator.signer
+        )
+        creator_app_client.create(seller=seller.address)
+        seller_app_client = AuctionClient.from_client(
+            creator_app_client.prepare(signer=seller.signer)
+        )
+
+        gold_asset_id, _asset_manager_address = self.create_test_asset("GOLD$")
+
+        # auction should start with zero assets
+        auction_assets = seller_app_client.get_auction_assets()
+        self.assertEqual(len(auction_assets), 0)
+
+        # ACT
+        seller_app_client.optin_asset(gold_asset_id)
+        # ASSERT asset was opted in
+        auction_assets = seller_app_client.get_auction_assets()
+        self.assertEqual(len(auction_assets), 1)
+        self.assertEqual(len([asset for asset in auction_assets if asset.asset_id == gold_asset_id]), 1)
+
+        with self.subTest("opting is an asset that is already opted in is a noop"):
+            seller_app_client.optin_asset(gold_asset_id)
+
+        with self.subTest("optin a second asset"):
+            go_mint_asset_id, _asset_manager_address = self.create_test_asset("goMINT")
+            seller_app_client.optin_asset(go_mint_asset_id)
+            # Assert
+            auction_assets = seller_app_client.get_auction_assets()
+            self.assertEqual(len(auction_assets), 2)
+            self.assertEqual(len([asset for asset in auction_assets if asset.asset_id == gold_asset_id]), 1)
+            self.assertEqual(len([asset for asset in auction_assets if asset.asset_id == go_mint_asset_id]), 1)
 
 
 if __name__ == "__main__":

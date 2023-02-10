@@ -1,11 +1,9 @@
 from typing import Final
 
-from algosdk.transaction import OnComplete
 from beaker import (
     Application,
     ApplicationStateValue,
     Authorize,
-    AppPrecompile,
     external,
 )
 from beaker.decorators import create, delete
@@ -16,18 +14,18 @@ from pyteal import (
     Int,
     Global,
     AssetHolding,
-    Not,
-    Reject,
     InnerTxnBuilder,
     Assert,
-    InnerTxn,
     Subroutine,
     App,
     Bytes,
     TxnField,
     TxnType,
-    If,
     AccountParam,
+    Cond,
+    Approve,
+    Txn,
+    Or,
 )
 from pyteal.ast import abi
 
@@ -42,81 +40,14 @@ from oysterpack.apps.auction_app.model.auction import AuctionStatus
 AssetMinBalance = Int(100000)
 
 
-class AuctionBidEscrow(Application):
-    """
-    Escrow account used to hold the bid until the auction is closed.
-
-    Notes
-    -----
-    - created by the Auction app account
-    - all methods require authorization and can only be invoked by the creator address, i.e.,
-      the Auction that created this escrow account
-    """
-
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def optin_asset(
-        self, storage_fees: abi.PaymentTransaction, asset: abi.Asset
-    ) -> Expr:
-        """
-        Optin the specified asset.
-        If the asset is already opted in, then the call will be rejected.
-
-        :param storage_fees: payment is required to pay for asset holding storage fees
-        :param asset: asset tp opt in
-        :return:
-        """
-        return Seq(
-            # assert that the asset is not already opted in
-            asset_holding := AssetHolding.balance(self.address, asset=asset.asset_id()),
-            Assert(Not(asset_holding.hasValue())),
-            # check payment
-            Assert(
-                storage_fees.get().receiver() == Global.current_application_address()
-            ),
-            Assert(storage_fees.get().amount() == AssetMinBalance),
-            execute_optin(asset),
-        )
-
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def close_out_asset(self, asset: abi.Asset, close_to: abi.Account) -> Expr:
-        """
-        Closes out the asset to the specified account.
-
-        If the asset is not opted in, then the call will fail.
-
-        :param asset:
-        :param close_to:
-        :return:
-        """
-        return execute_optout(asset=asset, close_to=close_to)
-
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def close_out_all_assets(self, asset: abi.Asset, close_to: abi.Account) -> Expr:
-        # TODO
-        return Reject()
-
-    @delete(authorize=Authorize.only(Global.creator_address()))
-    def delete(self) -> Expr:
-        return Seq(
-            # assert that the app has opted out of all assets
-            total_assets := AccountParam.totalAssets(
-                Global.current_application_address()
-            ),
-            Assert(total_assets.value() == Int(0)),
-            # close out the account back to the creator
-            InnerTxnBuilder.Execute(
-                {
-                    TxnField.type_enum: TxnType.Payment,
-                    TxnField.receiver: Global.creator_address(),
-                    TxnField.close_remainder_to: Global.creator_address(),
-                    TxnField.amount: Int(0),
-                }
-            ),
-        )
-
-
+# TODO: add standardized transaction notes
 class Auction(Application):
     """
+    Auction is used to sell all asset holdings escrowed by this contract to the highest bidder.
+
+    Auctions only supports USD stablecoins as payments. The list of supported stablecoins is whitelisted.
+    All stablcoins are priced at $1 USD.
+
     Seller must fund the Auction contract with ALGO to pay for contract storage costs:
     - AuctionBidEscrow contract storage costs
     - asset holding storage costs
@@ -128,21 +59,19 @@ class Auction(Application):
         descr="Auction status [New, Initialized, Cancelled, Started, Sold, NotSold, Finalized]",
     )
 
-    bid_escrow: Final[AppPrecompile] = AppPrecompile(AuctionBidEscrow())
-    bid_escrow_app_id: Final[ApplicationStateValue] = ApplicationStateValue(
-        stack_type=TealType.uint64
-    )
-
     seller_address: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.bytes, static=True
     )
 
-    highest_bidder_address: Final[ApplicationStateValue] = ApplicationStateValue(
-        stack_type=TealType.bytes
+    bid_asset_id: Final[ApplicationStateValue] = ApplicationStateValue(
+        stack_type=TealType.uint64, descr="Asset that is used to submit bids"
     )
-
     min_bid: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64, descr="Minimum bid price that is accepted."
+    )
+
+    highest_bidder_address: Final[ApplicationStateValue] = ApplicationStateValue(
+        stack_type=TealType.bytes
     )
 
     start_time: Final[ApplicationStateValue] = ApplicationStateValue(
@@ -174,25 +103,58 @@ class Auction(Application):
         )
 
     @external(authorize=is_seller)
-    def initialize(self) -> Expr:
+    def set_bid_asset(self, bid_asset: abi.Asset, min_bid: abi.Uint64) -> Expr:
         """
-        Creates the AuctionBidderEscrow contract, if it has not yet been created.
-        The auction can only be
+        Opts in the bid asset, only if it has not yet been opted in.
+
+        To change the bid asset once its set, the seller must first opt out the bid asset.
+
+        Asserts
+        -------
+        1. status == AuctionStatus.New
+        2. bid asset_id has not been set
+        3. min bid > 0
+
+        Inner Transactions
+        ------------------
+        1. opts in the asset
 
         Notes
         -----
-        - 0.002 ALGO transaction fees are required to cover inner transaction to create bid escrow contract
+        - transaction fees = 0.002 ALGO
         - contract must be prefunded with at least 0.2 ALGO to pay for contract storage fees
 
         :return:
         """
-        return If(
-            self.bid_escrow_app_id.get() == Int(0),
-            Seq(
-                Assert(self.status.get() == Int(AuctionStatus.New.value)),
-                InnerTxnBuilder.Execute(self.bid_escrow.get_create_config()),
-                self.bid_escrow_app_id.set(InnerTxn.created_application_id()),
-            ),
+        return Seq(
+            Assert(self._is_new()),
+            Assert(self.bid_asset_id.get() == Int(0)),
+            Assert(min_bid.get() > Int(0)),
+            self.bid_asset_id.set(bid_asset.asset_id()),
+            self.min_bid.set(min_bid.get()),
+            execute_optin(bid_asset),
+        )
+
+    @external(authorize=is_seller)
+    def optin_asset(self, asset: abi.Asset) -> Expr:
+        return Seq(Assert(self._is_new()), execute_optin(asset))
+
+    @external(authorize=is_seller)
+    def optout_asset(self, asset: abi.Asset) -> Expr:
+        return Seq(Assert(self._is_new()), execute_optout(asset, Txn.sender()))
+
+    @external(authorize=is_seller)
+    def cancel(self) -> Expr:
+        """
+        The auction cannot be cancelled once it has been committed.
+        If the auction is already cancelled, then this is a noop.
+
+        :return:
+        """
+
+        return Cond(
+            [self._is_new(), self.status.set(Int(AuctionStatus.Cancelled.value))],
+            [self._is_cancelled(), Approve()],
         )
 
     @delete(authorize=Authorize.only(Global.creator_address()))
@@ -200,36 +162,30 @@ class Auction(Application):
         """
         Auction can only be deleted by its creator.
 
-        The auction can only be deleted if:
-            1. status == AuctionStatus.Finalized
-            2. auction has no asset holdings
+        Asserts
+        -------
+        1. status == AuctionStatus.Finalized
+        2. auction must have no asset holdings, i.e., all asset holdings have been closed out
 
-        Performs the following:
-            1. deletes the bid escrow contract, which closes out its ALGO balance to its Auction creator
-            2. closes out the account ALGO balance to its creator
+        Inner Transactions
+        ------------------
+        1. deletes the bid escrow contract
+            1.1 bid escrow contract closes out its ALGO balance to its Auction creator
+        2. closes out the account ALGO balance to its creator
 
         Notes
         -----
-        - There are 3 inner transactions. Fees are paid by the sender: 4000 microAlgo
+        - transaction fees= 0.004 ALGO
 
-        :param bid_escrow_app_id: must match the bid escrow app id, which can be looked up from global state
-        :return:
+        :param bid_escrow_app_id: is required in order to delete the contract. It can be looked up from global state
         """
         return Seq(
-            Assert(self.status.get() == Int(AuctionStatus.Finalized.value)),
-            Assert(bid_escrow_app_id.application_id() == self.bid_escrow_app_id.get()),
+            Assert(self._is_finalized()),
             # assert that the app has opted out of all assets
             total_assets := AccountParam.totalAssets(
                 Global.current_application_address()
             ),
             Assert(total_assets.value() == Int(0)),
-            InnerTxnBuilder.Execute(
-                {
-                    TxnField.type_enum: TxnType.ApplicationCall,
-                    TxnField.application_id: self.bid_escrow_app_id.get(),
-                    TxnField.on_completion: Int(OnComplete.DeleteApplicationOC.value),
-                }
-            ),
             # close out ALGO balance to the creator
             InnerTxnBuilder.Execute(
                 {
@@ -240,3 +196,34 @@ class Auction(Application):
                 }
             ),
         )
+
+    @external(read_only=True)
+    def get_highest_bid(self, *, output: abi.Uint64) -> Expr:
+        return Seq(
+            Assert(Or(self._is_started(), self._is_sold())),
+            asset_balance := AssetHolding.balance(
+                self.address, self.bid_asset_id.get()
+            ),
+            output.set(asset_balance.value()),
+        )
+
+    def _is_new(self) -> Expr:
+        return self.status.get() == Int(AuctionStatus.New.value)
+
+    def _is_committed(self) -> Expr:
+        return self.status.get() == Int(AuctionStatus.Committed.value)
+
+    def _is_started(self) -> Expr:
+        return self.status.get() == Int(AuctionStatus.Started.value)
+
+    def _is_sold(self) -> Expr:
+        return self.status.get() == Int(AuctionStatus.Sold.value)
+
+    def _is_not_sold(self) -> Expr:
+        return self.status.get() == Int(AuctionStatus.NotSold.value)
+
+    def _is_finalized(self) -> Expr:
+        return self.status.get() == Int(AuctionStatus.Finalized.value)
+
+    def _is_cancelled(self) -> Expr:
+        return self.status.get() == Int(AuctionStatus.Cancelled.value)

@@ -17,7 +17,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         m.update(b"asset metadata")
         return m.digest()
 
-    def create_test_asset(self) -> tuple[assets.AssetId, Address]:
+    def create_asset(self) -> tuple[assets.AssetId, Address]:
         """
         Creates a new asset using the first account in the sandbox default wallet as the administrative accounts.
 
@@ -112,7 +112,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertTrue(asset_id in account_created_asset_ids)
 
     def test_update(self):
-        asset_id, manager = self.create_test_asset()
+        asset_id, manager = self.create_asset()
 
         # update the asset by changing all the asset accounts
         _, new_manager = generate_account()
@@ -144,7 +144,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(asset_info["params"]["freeze"], freeze)
 
     def test_opt_in(self):
-        asset_id, _manager = self.create_test_asset()
+        asset_id, _manager = self.create_asset()
         account = self.sandbox_default_wallet.list_keys()[1]
         txn = assets.opt_in(
             account=account,
@@ -162,7 +162,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertIsNotNone(get_asset_holding(account, asset_id, self.algod_client))
 
     def test_transfer(self):
-        asset_id, manager = self.create_test_asset()
+        asset_id, manager = self.create_asset()
         account = self.sandbox_default_wallet.list_keys()[1]
 
         # opt in the account
@@ -199,7 +199,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(asset_balance, 1000)
 
     def test_close_out(self):
-        asset_id, manager = self.create_test_asset()
+        asset_id, manager = self.create_asset()
         account = self.sandbox_default_wallet.list_keys()[1]
 
         # opt in
@@ -227,7 +227,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertIsNone(get_asset_holding(account, asset_id, self.algod_client))
 
     def test_close_out_to_account(self):
-        asset_id, manager = self.create_test_asset()
+        asset_id, manager = self.create_asset()
         account = self.sandbox_default_wallet.list_keys()[1]
 
         # opt in

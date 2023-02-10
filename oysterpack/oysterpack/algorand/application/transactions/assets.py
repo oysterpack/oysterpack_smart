@@ -48,7 +48,7 @@ def execute_optin(asset: abi.Asset) -> Expr:
 
 
 def optout_txn_fields(
-    asset: abi.Asset, close_to: abi.Account | abi.Address | None = None
+    asset: abi.Asset, close_to: abi.Account | abi.Address | Expr | None = None
 ) -> dict[TxnField, Expr | list[Expr]]:
     """
     Assembles fields for an inner transaction to opt-out the smart contract for the specified asset.
@@ -63,13 +63,17 @@ def optout_txn_fields(
     def get_close_to_address() -> Expr:
         if close_to is None:
             return Global.creator_address()
+        if isinstance(close_to, Expr):
+            return close_to
         if type(close_to) is abi.Account:
             address = make(abi.Address)
             address.set(close_to.address())
             return address.get()
         if type(close_to) is abi.Address:
             return cast(abi.Address, close_to).get()
-        raise ValueError("close_to type must be: abi.Account | abi.Address | None")
+        raise ValueError(
+            f"close_to type must be: abi.Account | abi.Address | Expr | None: {type(close_to)}"
+        )
 
     asset_close_to = get_close_to_address()
     return {
@@ -83,7 +87,7 @@ def optout_txn_fields(
 
 
 def set_optout_txn_fields(
-    asset: abi.Asset, close_to: abi.Account | abi.Address | None = None
+    asset: abi.Asset, close_to: abi.Account | abi.Address | Expr | None = None
 ) -> Expr:
     """
     Sets fields on an inner transaction to opt-out the smart contract for the specified asset.
@@ -98,7 +102,7 @@ def set_optout_txn_fields(
 
 
 def execute_optout(
-    asset: abi.Asset, close_to: abi.Account | abi.Address | None = None
+    asset: abi.Asset, close_to: abi.Account | abi.Address | Expr | None = None
 ) -> Expr:
     """
     Sets fields on an inner transaction to opt-out the smart conract for the specified asset.

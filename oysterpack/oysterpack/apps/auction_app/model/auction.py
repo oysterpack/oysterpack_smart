@@ -13,8 +13,8 @@ class AuctionStatus(IntEnum):
     -----------------------
     New -> Initialized
 
-    Prepared -> Started
-    Prepared -> Cancelled
+    Committed -> Started
+    Committed -> Cancelled
 
     Started -> BidAccepted
     Started -> Sold
@@ -26,9 +26,9 @@ class AuctionStatus(IntEnum):
     """
 
     New = auto()
-    # Once the auction is prepared, its settings can no longer be changed
-    # A prepared auction can transition to the Cancelled or Started states
-    Prepared = auto()
+    # Once the auction is committed, its settings can no longer be changed
+    # A committed auction can transition to the Cancelled or Started states
+    Committed = auto()
     # Seller can cancel the auction as long it has not started.
     # Once the auction has been started, it cannot be cancelled.
     Cancelled = auto()

@@ -95,11 +95,11 @@ class AuctionState:
 
 class AuctionClient:
     def __init__(
-            self,
-            app_id: AppId,
-            algod_client: AlgodClient,
-            signer: TransactionSigner,
-            sender: Address | None = None,
+        self,
+        app_id: AppId,
+        algod_client: AlgodClient,
+        signer: TransactionSigner,
+        sender: Address | None = None,
     ):
         self._app_client = ApplicationClient(
             app=Auction(),

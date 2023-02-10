@@ -62,7 +62,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             with self.assertRaises(AlgodHTTPError):
                 creator_app_client.set_bid_asset(bid_asset_id, min_bid)
 
-        with self.subTest("auction status is new and bid asset is not set"):
+        with self.subTest("the bid can be set when the auction status is new"):
             seller_app_client.set_bid_asset(
                 bid_asset_id,
                 min_bid,
@@ -82,11 +82,14 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 1,
             )
 
-        with self.subTest("update the bid asset"):
+        with self.subTest("setting the bid asset again to the same values is a noop "):
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
+
+        with self.subTest("update the min bid"):
+            seller_app_client.set_bid_asset(bid_asset_id, min_bid * 2)
             app_state = seller_app_client.get_application_state()
             self.assertEqual(bid_asset_id, app_state.bid_asset_id)
-            self.assertEqual(min_bid, app_state.min_bid)
+            self.assertEqual(min_bid * 2, app_state.min_bid)
 
         with self.subTest("change the bid asset settings"):
             bid_asset_id, _asset_manager_address = self.create_test_asset("goUSD")

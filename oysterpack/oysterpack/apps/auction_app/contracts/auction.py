@@ -26,7 +26,8 @@ from pyteal import (
     Approve,
     Txn,
     If,
-    Or, Not,
+    Or,
+    Not,
 )
 from pyteal.ast import abi
 
@@ -222,8 +223,10 @@ class Auction(AuctionState, AuctionAuth):
             self.bid_asset_id.set(bid_asset.asset_id()),
             self.min_bid.set(min_bid.get()),
             # if the auction does not hold the bid asset, then opt in the bid asset
-            bid_asset_holding := AssetHolding.balance(self.address, bid_asset.asset_id()),
-            If(Not(bid_asset_holding.hasValue()), execute_optin(bid_asset))
+            bid_asset_holding := AssetHolding.balance(
+                self.address, bid_asset.asset_id()
+            ),
+            If(Not(bid_asset_holding.hasValue()), execute_optin(bid_asset)),
         )
 
     @external(authorize=AuctionAuth.is_seller)

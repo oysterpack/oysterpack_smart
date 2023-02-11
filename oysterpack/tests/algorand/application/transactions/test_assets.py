@@ -180,8 +180,6 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         # create asset
         asset_id, asset_manager_address = create_test_asset()
 
-        # there seems to be a timing issue
-        time.sleep(1)
         account_starting_balance = app_client.client.account_info(app_client.sender)[
             "amount"
         ]
@@ -275,8 +273,7 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(app_account_info["total-assets-opted-in"], 0)
 
         app_client.delete(suggested_params=sp)
-        time.sleep(1)
-        account_balance = app_client.client.account_info(app_client.sender)["amount"]
+        account_balance = self.algod_client.account_info(app_client.sender)["amount"]
         pp(
             {
                 "event": "deleted app",
@@ -305,7 +302,9 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
 
     def test_submit_optin_optout(self):
         self.optin_optout_test(
-            Foo.submit_optin_asset, Foo.submit_optout_asset, Foo.submit_asset_transfer
+            Foo.submit_optin_asset,
+            Foo.submit_optout_asset,
+            Foo.submit_asset_transfer,
         )
 
 

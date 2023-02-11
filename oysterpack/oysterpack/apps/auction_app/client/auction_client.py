@@ -306,6 +306,7 @@ class AuctionClient(_AuctionClient):
         self.optin_asset(asset_id)
 
         # transfer the asset
+        # the transfer will fail if there are insufficient funds
         asset_transfer_txn = assets.transfer(
             sender=Address(cast(str, self._app_client.sender)),
             receiver=self.contract_address,

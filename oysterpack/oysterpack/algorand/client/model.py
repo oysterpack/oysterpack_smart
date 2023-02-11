@@ -5,7 +5,7 @@ https://developer.algorand.org/docs/get-details/accounts/
 """
 
 from dataclasses import dataclass
-from typing import NewType, Self, Any
+from typing import NewType, Any
 
 import algosdk.encoding
 from algosdk import mnemonic
@@ -37,9 +37,8 @@ class AssetHolding:
     asset_id: AssetId
     is_frozen: bool
 
-    # TODO: https://github.com/python/mypy/issues/14167 remove mypy ignore once mypy support Self
     @classmethod
-    def from_data(cls, data: dict[str, Any]) -> Self:  # type: ignore
+    def from_data(cls, data: dict[str, Any]) -> "AssetHolding":
         """
         :param data: required keys: 'amount','asset-id, 'is-frozen'
         :return:

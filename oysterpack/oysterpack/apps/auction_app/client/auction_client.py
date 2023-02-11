@@ -106,11 +106,11 @@ class AuctionState:
 
 class _AuctionClient(AppClient):
     def __init__(
-            self,
-            app_id: AppId,
-            algod_client: AlgodClient,
-            signer: TransactionSigner,
-            sender: Address | None = None,
+        self,
+        app_id: AppId,
+        algod_client: AlgodClient,
+        signer: TransactionSigner,
+        sender: Address | None = None,
     ):
         super().__init__(
             app=Auction(),
@@ -129,9 +129,6 @@ class _AuctionClient(AppClient):
         algo_balance = cast(int, account_info["amount"])
         min_balance = cast(int, account_info["min-balance"])
         self.fund(min_balance + MinimumBalance.asset_opt_in - algo_balance)
-
-    def get_auction_state(self) -> AuctionState:
-        return AuctionState(self.get_application_state())
 
     def _assert_valid_asset_id(self, asset_id: AssetId):
         if not self._is_asset_id_valid(asset_id):
@@ -167,6 +164,9 @@ class AuctionClient(_AuctionClient):
             cast(TransactionSigner, app_client.signer),
             cast(Optional[Address], app_client.sender),
         )
+
+    def get_auction_state(self) -> AuctionState:
+        return AuctionState(self.get_application_state())
 
     def get_seller_address(self) -> Address:
         app_state = self.get_application_state()

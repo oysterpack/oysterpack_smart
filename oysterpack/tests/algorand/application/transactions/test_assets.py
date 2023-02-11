@@ -1,4 +1,3 @@
-import time
 import unittest
 from pprint import pp
 from typing import Callable

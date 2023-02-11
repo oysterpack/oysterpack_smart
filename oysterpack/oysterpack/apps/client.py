@@ -11,12 +11,12 @@ from oysterpack.algorand.client.model import AppId, Address
 
 class AppClient:
     def __init__(
-            self,
-            app: Application,
-            app_id: AppId,
-            algod_client: AlgodClient,
-            signer: TransactionSigner,
-            sender: Address | None = None,
+        self,
+        app: Application,
+        app_id: AppId,
+        algod_client: AlgodClient,
+        signer: TransactionSigner,
+        sender: Address | None = None,
     ):
         self._app_client = ApplicationClient(
             app=app,

@@ -222,7 +222,7 @@ class WalletSession:
 
     @handle_kmd_client_errors
     def generate_key(self) -> Address:
-        return self._wallet.generate_key()
+        return Address(self._wallet.generate_key())
 
     @handle_kmd_client_errors
     def delete_key(self, address: Address) -> bool:

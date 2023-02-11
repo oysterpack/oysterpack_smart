@@ -1,9 +1,11 @@
 import unittest
 
 from algosdk.error import AlgodHTTPError
+from algosdk.transaction import wait_for_confirmation
 from beaker import sandbox
-from beaker.consts import algo
 
+from oysterpack.algorand.client.model import Address
+from oysterpack.algorand.client.transactions import assets
 from oysterpack.apps.auction_app.client.auction_client import AuctionClient
 from oysterpack.apps.auction_app.contracts.auction import (
     Auction,
@@ -130,7 +132,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(len(app_account_info["assets"]), 0)
 
         with self.subTest(
-                "after opting out the bid asset, the bid asset can be set again"
+            "after opting out the bid asset, the bid asset can be set again"
         ):
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
             app_account_info = seller_app_client.get_application_account_info()
@@ -162,7 +164,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         # ASSERT asset was opted in
         auction_assets = seller_app_client.get_auction_assets()
         self.assertEqual(len(auction_assets), 1)
-        self.assertEqual(len([asset for asset in auction_assets if asset.asset_id == gold_asset_id]), 1)
+        self.assertEqual(
+            len([asset for asset in auction_assets if asset.asset_id == gold_asset_id]),
+            1,
+        )
 
         with self.subTest("opting is an asset that is already opted in is a noop"):
             seller_app_client.optin_asset(gold_asset_id)
@@ -173,8 +178,70 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             # Assert
             auction_assets = seller_app_client.get_auction_assets()
             self.assertEqual(len(auction_assets), 2)
-            self.assertEqual(len([asset for asset in auction_assets if asset.asset_id == gold_asset_id]), 1)
-            self.assertEqual(len([asset for asset in auction_assets if asset.asset_id == go_mint_asset_id]), 1)
+            self.assertEqual(
+                len(
+                    [
+                        asset
+                        for asset in auction_assets
+                        if asset.asset_id == gold_asset_id
+                    ]
+                ),
+                1,
+            )
+            self.assertEqual(
+                len(
+                    [
+                        asset
+                        for asset in auction_assets
+                        if asset.asset_id == go_mint_asset_id
+                    ]
+                ),
+                1,
+            )
+
+    def test_deposit_asset(self):
+        # SETUP
+        accounts = sandbox.get_accounts()
+        creator = accounts.pop()
+        seller = accounts.pop()
+
+        creator_app_client = self.sandbox_application_client(
+            Auction(), signer=creator.signer
+        )
+        creator_app_client.create(seller=seller.address)
+        seller_app_client = AuctionClient.from_client(
+            creator_app_client.prepare(signer=seller.signer)
+        )
+
+        gold_asset_id, asset_manager_address = self.create_test_asset("GOLD$")
+
+        # opt in GOLD$ for the seller account
+        txn = assets.opt_in(
+            account=Address(seller.address),
+            asset_id=gold_asset_id,
+            suggested_params=self.algod_client.suggested_params,
+        )
+        signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        # transfer assets to the seller account
+        txn = assets.transfer(
+            sender=asset_manager_address,
+            receiver=Address(seller.address),
+            asset_id=gold_asset_id,
+            amount=1_000_000,
+            suggested_params=self.algod_client.suggested_params,
+        )
+        signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        # ACT
+        deposit_amount = 10_000
+        asset_holding = seller_app_client.deposit_asset(gold_asset_id, deposit_amount)
+        self.assertEqual(asset_holding.asset_id, gold_asset_id)
+        self.assertEqual(asset_holding.amount, deposit_amount)
 
 
 if __name__ == "__main__":

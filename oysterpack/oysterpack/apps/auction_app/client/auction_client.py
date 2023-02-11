@@ -1,9 +1,13 @@
 from abc import ABC
+from dataclasses import dataclass
 from datetime import datetime, UTC
 from pprint import pformat
 from typing import cast, Optional, Any
 
-from algosdk.atomic_transaction_composer import TransactionSigner
+from algosdk.atomic_transaction_composer import (
+    TransactionSigner,
+    AtomicTransactionComposer,
+)
 from algosdk.encoding import encode_address
 from algosdk.error import AlgodHTTPError
 from algosdk.logic import get_application_address
@@ -11,10 +15,15 @@ from algosdk.v2client.algod import AlgodClient
 from beaker.client import ApplicationClient
 
 from oysterpack.algorand.client.model import Address, AppId, AssetId, AssetHolding
-from oysterpack.algorand.client.transactions import create_lease
+from oysterpack.algorand.client.transactions import create_lease, assets
 from oysterpack.algorand.params import MinimumBalance
 from oysterpack.apps.auction_app.contracts.auction import Auction
 from oysterpack.apps.auction_app.model.auction import AuctionStatus
+
+
+@dataclass
+class InvalidAssetId(Exception):
+    asset_id: AssetId
 
 
 class AuctionState:
@@ -98,11 +107,11 @@ class AuctionState:
 
 class _AuctionClient(ABC):
     def __init__(
-            self,
-            app_id: AppId,
-            algod_client: AlgodClient,
-            signer: TransactionSigner,
-            sender: Address | None = None,
+        self,
+        app_id: AppId,
+        algod_client: AlgodClient,
+        signer: TransactionSigner,
+        sender: Address | None = None,
     ):
         self._app_client = ApplicationClient(
             app=Auction(),
@@ -142,7 +151,7 @@ class _AuctionClient(ABC):
 
     def _assert_valid_asset_id(self, asset_id: AssetId):
         if not self._is_asset_id_valid(asset_id):
-            raise AssertionError(f"invalid asset id: ")
+            raise InvalidAssetId(asset_id)
 
     def _is_asset_id_valid(self, asset_id: AssetId) -> bool:
         try:
@@ -166,7 +175,6 @@ class _AuctionClient(ABC):
 
 
 class AuctionClient(_AuctionClient):
-
     @classmethod
     def from_client(cls, app_client: ApplicationClient) -> "AuctionClient":
         return cls(
@@ -257,4 +265,60 @@ class AuctionClient(_AuctionClient):
             )
 
     def get_auction_assets(self) -> list[AssetHolding]:
-        return [AssetHolding.from_data(asset) for asset in self.get_application_account_info()["assets"]]
+        assets = [
+            AssetHolding.from_data(asset)
+            for asset in self.get_application_account_info()["assets"]
+        ]
+        bid_asset_id = self.get_application_state().bid_asset_id
+        if bid_asset_id:
+            # TODO: adding mypy ignore because mypy is complaining about `asset.asset_id`, even though it is valid
+            return [asset for asset in assets if asset.asset_id != bid_asset_id]  # type: ignore
+        return assets
+
+    def deposit_asset(self, asset_id: AssetId, amount: int) -> AssetHolding:
+        """
+        If necessary, the asset is opted in and the contract is funded.
+
+        Asserts
+        -------
+        1. amount > 0
+        2. auction status == New
+        3. asset_id != bid_asset_id
+
+        :param asset_id: bid asset deposits are not allowed
+        :param amount: must be > 0
+        """
+
+        # check args
+        if amount <= 0:
+            raise AssertionError("amount must be > 0")
+
+        app_state = self.get_application_state()
+        if app_state.status != AuctionStatus.New:
+            raise AssertionError(
+                "asset deposit is only allowed when auction status is 'New'"
+            )
+
+        if app_state.bid_asset_id == asset_id:
+            raise AssertionError("asset deposits are not allowed for the bid asset")
+
+        # ensure the auction has opted in the asset
+        self.optin_asset(asset_id)
+
+        # transfer the asset
+        asset_transfer_txn = assets.transfer(
+            sender=Address(cast(str, self._app_client.sender)),
+            receiver=self.contract_address,
+            asset_id=asset_id,
+            amount=amount,
+            suggested_params=self._app_client.client.suggested_params,
+        )
+        atc = AtomicTransactionComposer()
+        self._app_client.add_transaction(atc, asset_transfer_txn)
+        atc.execute(self._app_client.client, 4)
+
+        return AssetHolding.from_data(
+            self._app_client.client.account_asset_info(self.contract_address, asset_id)[
+                "asset-holding"
+            ]
+        )

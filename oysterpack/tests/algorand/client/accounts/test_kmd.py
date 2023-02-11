@@ -282,7 +282,6 @@ class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
         from oysterpack.algorand.client.accounts.error import KeyNotFoundError
 
         session = self._create_test_wallet_session()
-        session.generate_key()
 
         from algosdk.transaction import PaymentTxn
 

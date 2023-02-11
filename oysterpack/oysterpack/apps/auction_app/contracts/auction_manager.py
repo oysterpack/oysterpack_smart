@@ -14,7 +14,6 @@ from pyteal import (
     Int,
     InnerTxn,
     Assert,
-    AppParam,
     TxnType,
     OnComplete,
 )
@@ -43,7 +42,6 @@ class AuctionManager(Application):
             - Auction contract creation
             - Auction contract deletion
         """
-
         return super().initialize_application_state()
 
     def get_auction_min_balance(self, *, output: abi.Uint64) -> Expr:
@@ -85,18 +83,11 @@ class AuctionManager(Application):
         :return:
         """
         return Seq(
-            self._create_auction_contract(),
-            # verify payment transaction
             Assert(
                 auction_storage_fees.get().receiver() == self.address,
-                comment="payment must be sent to this contract",
+                comment="payment receiver must be this contract",
             ),
-            app_addess := AppParam.address(InnerTxn.application_id()).value(),
-            auction_min_balance := AccountParam.minBalance(app_addess).value(),
-            Assert(
-                auction_storage_fees.get().amount() == auction_min_balance,
-                comment="payment amount must exactly match Auction contract required minimum balance",
-            ),
+            self._create_auction_contract(),
         )
 
     @internal

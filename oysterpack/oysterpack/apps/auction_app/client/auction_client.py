@@ -425,3 +425,14 @@ class AuctionClient(_AuctionClient):
             start_time=int(start_time.timestamp()),
             end_time=int(end_time.timestamp()),
         )
+
+    def cancel(self):
+        app_state = self.get_auction_state()
+        if app_state.status != AuctionStatus.New:
+            raise AssertionError(
+                "auction can only be commited when auction status is 'New'"
+            )
+        if app_state.seller_address != self._app_client.sender:
+            raise AuthError
+
+        self._app_client.call(Auction.cancel)

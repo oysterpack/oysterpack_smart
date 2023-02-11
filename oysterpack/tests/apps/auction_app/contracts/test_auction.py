@@ -134,7 +134,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(len(app_account_info["assets"]), 0)
 
         with self.subTest(
-            "after opting out the bid asset, the bid asset can be set again"
+                "after opting out the bid asset, the bid asset can be set again"
         ):
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
             app_account_info = seller_app_client.get_application_account_info()
@@ -398,13 +398,41 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 int(end_time.timestamp()), int(auction_state.end_time.timestamp())
             )
 
+        with self.subTest("auction cannot be cancelled once it is committed"):
+            with self.assertRaises(AssertionError):
+                seller_app_client.cancel()
+
+    def test_cancel(self):
+        # SETUP
+        accounts = sandbox.get_accounts()
+        creator = accounts.pop()
+        seller = accounts.pop()
+
+        creator_app_client = self.sandbox_application_client(
+            Auction(), signer=creator.signer
+        )
+        creator_app_client.create(seller=seller.address)
+        seller_app_client = AuctionClient.from_client(
+            creator_app_client.prepare(signer=seller.signer)
+        )
+        creator_app_client = AuctionClient.from_client(creator_app_client)
+
+        with self.subTest("only seller is authorized to cancel the auction"):
+            with self.assertRaises(AuthError):
+                creator_app_client.cancel()
+
+        with self.subTest("seller can cancel the auction while auction status=New"):
+            seller_app_client.cancel()
+            auction_state = seller_app_client.get_auction_state()
+            self.assertEqual(AuctionStatus.Cancelled, auction_state.status)
+
     def _optin_asset_and_seed_balance(
-        self,
-        receiver: Address,
-        asset_id: AssetId,
-        amount: int,
-        asset_reserve_address: Address,
-        auction_client: AuctionClient,
+            self,
+            receiver: Address,
+            asset_id: AssetId,
+            amount: int,
+            asset_reserve_address: Address,
+            auction_client: AuctionClient,
     ):
         txn = assets.opt_in(
             account=receiver,

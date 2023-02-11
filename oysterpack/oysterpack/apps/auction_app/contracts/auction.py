@@ -34,6 +34,7 @@ from pyteal.ast import abi
 from oysterpack.algorand.application.transactions.assets import (
     execute_optin,
     execute_optout,
+    execute_transfer,
 )
 from oysterpack.apps.auction_app.model.auction import AuctionStatus
 
@@ -256,6 +257,21 @@ class Auction(_AuctionState, _AuctionAuth):
                 self.bid_asset_id.set(Int(0)),
             ),
         )
+
+    @external(authorize=_AuctionAuth.is_seller)
+    def withdraw_asset(self, asset: abi.Asset, amount: abi.Uint64) -> Expr:
+        """
+        Assets can only be withdrawn when auction status is `New`
+
+        Notes
+        -----
+        - transaction fees = 0.002 ALGO
+
+        :param asset:
+        :param amount:
+        :return:
+        """
+        return Seq(Assert(self.is_new()), execute_transfer(Txn.sender(), asset, amount))
 
     @external(authorize=_AuctionAuth.is_seller)
     def cancel(self) -> Expr:

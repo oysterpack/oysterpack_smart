@@ -25,6 +25,9 @@ class InvalidAssetId(Exception):
     asset_id: AssetId
 
 
+class AuthError(Exception): pass
+
+
 class AuctionState:
     def __init__(self, state: dict[bytes | str, bytes | str | int]):
         self.__state = state
@@ -108,11 +111,11 @@ class AuctionState:
 
 class _AuctionClient(AppClient):
     def __init__(
-        self,
-        app_id: AppId,
-        algod_client: AlgodClient,
-        signer: TransactionSigner,
-        sender: Address | None = None,
+            self,
+            app_id: AppId,
+            algod_client: AlgodClient,
+            signer: TransactionSigner,
+            sender: Address | None = None,
     ):
         super().__init__(
             app=Auction(),
@@ -156,6 +159,13 @@ class _AuctionClient(AppClient):
                 return False
             raise err
 
+    def _get_asset_holding(self, asset_id) -> AssetHolding:
+        return AssetHolding.from_data(
+            self._app_client.client.account_asset_info(self.contract_address, asset_id)[
+                "asset-holding"
+            ]
+        )
+
 
 class AuctionClient(_AuctionClient):
     @classmethod
@@ -188,6 +198,9 @@ class AuctionClient(_AuctionClient):
             # then no changes are needed
             return
 
+        if app_state.seller_address != self._app_client.sender:
+            raise AuthError
+
         # if the bid asset is being updated, then opt out the bid asset
         if app_state.bid_asset_id and app_state.bid_asset_id != asset_id:
             self.optout_asset(app_state.bid_asset_id)
@@ -212,6 +225,23 @@ class AuctionClient(_AuctionClient):
         )
 
     def optout_asset(self, asset_id: AssetId):
+        """
+        If the contract does not hold the asset, then this is a noop.
+
+        Asserts
+        -------
+        1. sender is seller
+
+        :param asset_id:
+        :return:
+        """
+
+        if not self._is_asset_opted_in(asset_id):
+            return
+
+        if self.get_seller_address() != self._app_client.sender:
+            raise AuthError
+
         sp = self._app_client.client.suggested_params()
         sp.fee = sp.min_fee * 2
         sp.flat_fee = True
@@ -227,6 +257,9 @@ class AuctionClient(_AuctionClient):
         If the asset is not already opted in, then opt in the asset.
         Also makes sure the Auction contract is funded to opt in the asset.
         """
+
+        if self.get_seller_address() != self._app_client.sender:
+            raise AuthError
 
         self._assert_valid_asset_id(asset_id)
         if not self._is_asset_opted_in(asset_id):
@@ -263,6 +296,7 @@ class AuctionClient(_AuctionClient):
         1. amount > 0
         2. auction status == New
         3. asset_id != bid_asset_id
+        4. sender is seller
 
         :param asset_id: bid asset deposits are not allowed
         :param amount: must be > 0
@@ -273,6 +307,8 @@ class AuctionClient(_AuctionClient):
             raise AssertionError("amount must be > 0")
 
         app_state = self.get_auction_state()
+        if app_state.seller_address != self._app_client.sender:
+            raise AuthError
         if app_state.status != AuctionStatus.New:
             raise AssertionError(
                 "asset deposit is only allowed when auction status is 'New'"
@@ -297,8 +333,39 @@ class AuctionClient(_AuctionClient):
         self._app_client.add_transaction(atc, asset_transfer_txn)
         atc.execute(self._app_client.client, 4)
 
-        return AssetHolding.from_data(
-            self._app_client.client.account_asset_info(self.contract_address, asset_id)[
-                "asset-holding"
-            ]
+        return self._get_asset_holding(asset_id)
+
+    def withdraw_asset(self, asset_id: AssetId, amount: int) -> AssetHolding:
+        """
+        Only the seller can withdraw assets
+
+        Asserts
+        -------
+        1. sender is seller
+        2. auction status is `New`
+        3. amount > 0
+        """
+
+        if amount <= 0:
+            raise AssertionError("amount must be > 0")
+
+        app_state = self.get_auction_state()
+        if app_state.seller_address != self._app_client.sender:
+            raise AuthError
+
+        if app_state.status != AuctionStatus.New:
+            raise AssertionError(
+                "asset withdrawal is only allowed when auction status is 'New'"
+            )
+
+        sp = self._app_client.client.suggested_params()
+        sp.fee = sp.min_fee * 2
+        sp.flat_fee = True
+        self._app_client.call(
+            Auction.withdraw_asset,
+            asset=asset_id,
+            amount=amount,
+            suggested_params=sp,
         )
+
+        return self._get_asset_holding(asset_id)

@@ -1,12 +1,11 @@
 import unittest
 
-from algosdk.error import AlgodHTTPError
 from algosdk.transaction import wait_for_confirmation
 from beaker import sandbox
 
 from oysterpack.algorand.client.model import Address
 from oysterpack.algorand.client.transactions import assets
-from oysterpack.apps.auction_app.client.auction_client import AuctionClient
+from oysterpack.apps.auction_app.client.auction_client import AuctionClient, AuthError
 from oysterpack.apps.auction_app.contracts.auction import (
     Auction,
     AuctionStatus,
@@ -58,7 +57,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         min_bid = 1_000_000
 
         with self.subTest("only the seller can set the bid asset"):
-            with self.assertRaises(AlgodHTTPError):
+            with self.assertRaises(AuthError):
                 creator_app_client.set_bid_asset(bid_asset_id, min_bid)
 
         with self.subTest("the bid can be set when the auction status is new"):
@@ -121,6 +120,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         seller_app_client = AuctionClient.from_client(
             creator_app_client.prepare(signer=seller.signer)
         )
+        creator_app_client = AuctionClient.from_client(creator_app_client)
 
         bid_asset_id, _asset_manager_address = self.create_test_asset("USD$")
         min_bid = 1_000_000
@@ -132,12 +132,16 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(len(app_account_info["assets"]), 0)
 
         with self.subTest(
-            "after opting out the bid asset, the bid asset can be set again"
+                "after opting out the bid asset, the bid asset can be set again"
         ):
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
             app_account_info = seller_app_client.get_application_account_info()
             self.assertEqual(len(app_account_info["assets"]), 1)
             self.assertEqual(app_account_info["assets"][0]["asset-id"], bid_asset_id)
+
+        with self.subTest("only the seller can optout an asset"):
+            with self.assertRaises(AuthError):
+                creator_app_client.optout_asset(bid_asset_id)
 
     def test_optin_asset(self):
         # SETUP
@@ -152,6 +156,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         seller_app_client = AuctionClient.from_client(
             creator_app_client.prepare(signer=seller.signer)
         )
+        creator_app_client = AuctionClient.from_client(creator_app_client)
 
         gold_asset_id, _asset_manager_address = self.create_test_asset("GOLD$")
 
@@ -160,6 +165,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(len(auction_assets), 0)
 
         # ACT
+        with self.subTest("only the seller can optin an asset"):
+            with self.assertRaises(AuthError):
+                creator_app_client.optin_asset(gold_asset_id)
+
         seller_app_client.optin_asset(gold_asset_id)
         # ASSERT asset was opted in
         auction_assets = seller_app_client.get_auction_assets()
@@ -199,6 +208,8 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 1,
             )
 
+
+
     def test_deposit_asset(self):
         # SETUP
         accounts = sandbox.get_accounts()
@@ -212,6 +223,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         seller_app_client = AuctionClient.from_client(
             creator_app_client.prepare(signer=seller.signer)
         )
+        creator_app_client = AuctionClient.from_client(creator_app_client)
 
         gold_asset_id, asset_manager_address = self.create_test_asset("GOLD$")
 
@@ -243,6 +255,9 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(asset_holding.asset_id, gold_asset_id)
         self.assertEqual(asset_holding.amount, deposit_amount)
 
+        with self.subTest("only the seller can deposit assets"):
+            with self.assertRaises(AuthError):
+                creator_app_client.deposit_asset(gold_asset_id, deposit_amount)
 
 if __name__ == "__main__":
     unittest.main()

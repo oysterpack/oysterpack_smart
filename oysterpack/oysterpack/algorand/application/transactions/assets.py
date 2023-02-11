@@ -118,21 +118,35 @@ def execute_optout(
 
 
 def transfer_txn_fields(
-    *, receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
+    *, receiver: abi.Account | abi.Address | Expr, asset: abi.Asset, amount: abi.Uint64
 ) -> dict[TxnField, Expr | list[Expr]]:
     """
     Sets fields on inner transaction to transfer assets from the smart contract to the specified receiver
     """
+
+    def get_receiver_address() -> Expr:
+        if isinstance(receiver, Expr):
+            return receiver
+        if type(receiver) is abi.Account:
+            address = make(abi.Address)
+            address.set(receiver.address())
+            return address.get()
+        if type(receiver) is abi.Address:
+            return cast(abi.Address, receiver).get()
+        raise ValueError(
+            f"receiver type must be: abi.Account | abi.Address | Expr : {type(receiver)}"
+        )
+
     return {
         TxnField.type_enum: TxnType.AssetTransfer,
-        TxnField.asset_receiver: receiver.address(),
+        TxnField.asset_receiver: get_receiver_address(),
         TxnField.asset_amount: amount.get(),
         TxnField.xfer_asset: asset.asset_id(),
     }
 
 
 def set_transfer_txn_fields(
-    *, receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
+    *, receiver: abi.Account | abi.Address | Expr, asset: abi.Asset, amount: abi.Uint64
 ) -> Expr:
     """
     Sets fields on inner transaction to transfer assets from the smart contract to the specified receiver
@@ -143,7 +157,7 @@ def set_transfer_txn_fields(
 
 
 def execute_transfer(
-    receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
+    receiver: abi.Account | abi.Address | Expr, asset: abi.Asset, amount: abi.Uint64
 ) -> Expr:
     """
     Sets fields on an inner transaction to opt-out the smart conract for the specified asset.

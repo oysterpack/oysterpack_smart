@@ -1,8 +1,7 @@
-from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from pprint import pformat
-from typing import cast, Optional, Any
+from typing import cast, Optional
 
 from algosdk.atomic_transaction_composer import (
     TransactionSigner,
@@ -10,7 +9,6 @@ from algosdk.atomic_transaction_composer import (
 )
 from algosdk.encoding import encode_address
 from algosdk.error import AlgodHTTPError
-from algosdk.logic import get_application_address
 from algosdk.v2client.algod import AlgodClient
 from beaker.client import ApplicationClient
 
@@ -19,6 +17,7 @@ from oysterpack.algorand.client.transactions import create_lease, assets
 from oysterpack.algorand.params import MinimumBalance
 from oysterpack.apps.auction_app.contracts.auction import Auction
 from oysterpack.apps.auction_app.model.auction import AuctionStatus
+from oysterpack.apps.client import AppClient
 
 
 @dataclass
@@ -105,33 +104,21 @@ class AuctionState:
         )
 
 
-class _AuctionClient(ABC):
+class _AuctionClient(AppClient):
     def __init__(
-        self,
-        app_id: AppId,
-        algod_client: AlgodClient,
-        signer: TransactionSigner,
-        sender: Address | None = None,
+            self,
+            app_id: AppId,
+            algod_client: AlgodClient,
+            signer: TransactionSigner,
+            sender: Address | None = None,
     ):
-        self._app_client = ApplicationClient(
+        super().__init__(
             app=Auction(),
             app_id=app_id,
-            client=algod_client,
+            algod_client=algod_client,
             signer=signer,
             sender=sender,
         )
-
-    @property
-    def contract_address(self) -> Address:
-        return Address(get_application_address(self._app_client.app_id))
-
-    @property
-    def app_id(self) -> AppId:
-        return AppId(self._app_client.app_id)
-
-    def fund(self, algo_amount: int):
-        if algo_amount > 0:
-            self._app_client.fund(algo_amount)
 
     def _fund_asset_optin(self):
         """
@@ -143,11 +130,8 @@ class _AuctionClient(ABC):
         min_balance = cast(int, account_info["min-balance"])
         self.fund(min_balance + MinimumBalance.asset_opt_in - algo_balance)
 
-    def get_application_account_info(self) -> dict[str, Any]:
-        return self._app_client.get_application_account_info()
-
-    def get_application_state(self) -> AuctionState:
-        return AuctionState(self._app_client.get_application_state())
+    def get_auction_state(self) -> AuctionState:
+        return AuctionState(self.get_application_state())
 
     def _assert_valid_asset_id(self, asset_id: AssetId):
         if not self._is_asset_id_valid(asset_id):
@@ -185,7 +169,7 @@ class AuctionClient(_AuctionClient):
         )
 
     def get_seller_address(self) -> Address:
-        app_state = self._app_client.get_application_state()
+        app_state = self.get_application_state()
         # seller address is stored as bytes in the contract
         # beaker's ApplicationClient will return the bytes as a hex encoded string
         return Address(
@@ -204,7 +188,7 @@ class AuctionClient(_AuctionClient):
         :param min_bid:
         :return:
         """
-        app_state = self.get_application_state()
+        app_state = self.get_auction_state()
         if app_state.bid_asset_id == asset_id and app_state.min_bid == min_bid:
             # then no changes are needed
             return
@@ -269,7 +253,7 @@ class AuctionClient(_AuctionClient):
             AssetHolding.from_data(asset)
             for asset in self.get_application_account_info()["assets"]
         ]
-        bid_asset_id = self.get_application_state().bid_asset_id
+        bid_asset_id = self.get_auction_state().bid_asset_id
         if bid_asset_id:
             # TODO: adding mypy ignore because mypy is complaining about `asset.asset_id`, even though it is valid
             return [asset for asset in assets if asset.asset_id != bid_asset_id]  # type: ignore
@@ -293,7 +277,7 @@ class AuctionClient(_AuctionClient):
         if amount <= 0:
             raise AssertionError("amount must be > 0")
 
-        app_state = self.get_application_state()
+        app_state = self.get_auction_state()
         if app_state.status != AuctionStatus.New:
             raise AssertionError(
                 "asset deposit is only allowed when auction status is 'New'"

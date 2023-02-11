@@ -67,7 +67,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 min_bid,
             )
             # ASSERT
-            app_state = creator_app_client.get_application_state()
+            app_state = creator_app_client.get_auction_state()
             logger.info(f"app_state: {app_state}")
             self.assertEqual(app_state.bid_asset_id, bid_asset_id)
             self.assertEqual(app_state.min_bid, min_bid)
@@ -86,7 +86,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
 
         with self.subTest("update the min bid"):
             seller_app_client.set_bid_asset(bid_asset_id, min_bid * 2)
-            app_state = seller_app_client.get_application_state()
+            app_state = seller_app_client.get_auction_state()
             self.assertEqual(bid_asset_id, app_state.bid_asset_id)
             self.assertEqual(min_bid * 2, app_state.min_bid)
 
@@ -95,7 +95,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             min_bid = 2_000_000
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
 
-            app_state = seller_app_client.get_application_state()
+            app_state = seller_app_client.get_auction_state()
             self.assertEqual(bid_asset_id, app_state.bid_asset_id)
             self.assertEqual(min_bid, app_state.min_bid)
 

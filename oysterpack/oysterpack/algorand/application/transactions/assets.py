@@ -2,7 +2,6 @@ from typing import cast
 
 from pyteal import TxnField, InnerTxnBuilder, TxnType, Int, Expr, Global
 from pyteal.ast import abi
-from pyteal.ast.abi import make
 
 
 def optin_txn_fields(asset: abi.Asset) -> dict[TxnField, Expr | list[Expr]]:
@@ -66,9 +65,7 @@ def optout_txn_fields(
         if isinstance(close_to, Expr):
             return close_to
         if type(close_to) is abi.Account:
-            address = make(abi.Address)
-            address.set(close_to.address())
-            return address.get()
+            return close_to.address()
         if type(close_to) is abi.Address:
             return cast(abi.Address, close_to).get()
         raise ValueError(
@@ -128,9 +125,7 @@ def transfer_txn_fields(
         if isinstance(receiver, Expr):
             return receiver
         if type(receiver) is abi.Account:
-            address = make(abi.Address)
-            address.set(receiver.address())
-            return address.get()
+            return receiver.address()
         if type(receiver) is abi.Address:
             return cast(abi.Address, receiver).get()
         raise ValueError(

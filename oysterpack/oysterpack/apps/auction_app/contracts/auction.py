@@ -227,7 +227,10 @@ class Auction(_AuctionState, _AuctionAuth):
             bid_asset_holding := AssetHolding.balance(
                 self.address, bid_asset.asset_id()
             ),
-            If(Not(bid_asset_holding.hasValue()), execute_optin(bid_asset)),
+            If(
+                Not(bid_asset_holding.hasValue()),
+                execute_optin(bid_asset),
+            ),
         )
 
     @external(authorize=_AuctionAuth.is_seller)
@@ -243,10 +246,21 @@ class Auction(_AuctionState, _AuctionAuth):
           - 0.1 ALGO for contract account storage
           - 0.1 ALGO for asset holding storage
         """
-        return Seq(Assert(self.is_new()), execute_optin(asset))
+        return Seq(
+            Assert(self.is_new()),
+            execute_optin(asset),
+        )
 
     @external(authorize=_AuctionAuth.is_seller)
     def optout_asset(self, asset: abi.Asset) -> Expr:
+        """
+        Closes out the asset to the seller
+
+        Asserts
+        -------
+        1. auction status is `New`
+        """
+
         return Seq(
             Assert(self.is_new()),
             execute_optout(asset, Txn.sender()),
@@ -271,7 +285,30 @@ class Auction(_AuctionState, _AuctionAuth):
         :param amount:
         :return:
         """
-        return Seq(Assert(self.is_new()), execute_transfer(Txn.sender(), asset, amount))
+        return Seq(
+            Assert(self.is_new()),
+            execute_transfer(Txn.sender(), asset, amount),
+        )
+
+    @external(authorize=_AuctionAuth.is_seller)
+    def commit(self, start_time: abi.Uint64, end_time: abi.Uint64) -> Expr:
+        return Seq(
+            Assert(self.is_new()),
+            Assert(self.bid_asset_id.get() != Int(0)),
+            Assert(self.min_bid.get() > Int(0)),
+            # besides the bid asset, there should be at least 1 asset for sale
+            #
+            # NOTE:
+            # - asset balances should be > 0, but are not checked here
+            # - client should check the asset balances before committing
+            total_assets := AccountParam.totalAssets(self.address),
+            Assert(total_assets.value() > Int(1)),
+            Assert(start_time.get() > Global.latest_timestamp()),
+            Assert(end_time.get() > start_time.get()),
+            self.start_time.set(start_time.get()),
+            self.end_time.set(end_time.get()),
+            self.status.set(Int(AuctionStatus.Committed.value)),
+        )
 
     @external(authorize=_AuctionAuth.is_seller)
     def cancel(self) -> Expr:

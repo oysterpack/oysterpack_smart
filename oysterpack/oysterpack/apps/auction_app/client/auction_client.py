@@ -25,7 +25,8 @@ class InvalidAssetId(Exception):
     asset_id: AssetId
 
 
-class AuthError(Exception): pass
+class AuthError(Exception):
+    pass
 
 
 class AuctionState:
@@ -111,11 +112,11 @@ class AuctionState:
 
 class _AuctionClient(AppClient):
     def __init__(
-            self,
-            app_id: AppId,
-            algod_client: AlgodClient,
-            signer: TransactionSigner,
-            sender: Address | None = None,
+        self,
+        app_id: AppId,
+        algod_client: AlgodClient,
+        signer: TransactionSigner,
+        sender: Address | None = None,
     ):
         super().__init__(
             app=Auction(),
@@ -369,3 +370,58 @@ class AuctionClient(_AuctionClient):
         )
 
         return self._get_asset_holding(asset_id)
+
+    def commit(self, start_time: datetime | None, end_time: datetime):
+        """
+        Asserts
+        -------
+        1. end time > start time
+        2. auction status == New
+        3. bid asset has been set
+        4. min bid > 0
+        5. auction has at least 1 asset for sale
+        6. auction asset balances > 0
+        7. bid asset balance == 0
+
+        :param start_time: defaults to now
+        """
+
+        if start_time is None:
+            start_time = datetime.now(UTC)
+
+        if int(end_time.timestamp()) <= int(start_time.timestamp()):
+            raise AssertionError("end_time must be after start_time")
+
+        app_state = self.get_auction_state()
+        if app_state.seller_address != self._app_client.sender:
+            raise AuthError
+
+        if app_state.status != AuctionStatus.New:
+            raise AssertionError(
+                "auction can only be commited when auction status is 'New'"
+            )
+
+        if app_state.bid_asset_id is None:
+            raise AssertionError("bid asset has not been set")
+
+        if not app_state.min_bid:
+            raise AssertionError("min must be greater than 0")
+
+        auction_assets = self.get_auction_assets()
+        if len(auction_assets) == 0:
+            raise AssertionError("auction has no assets")
+
+        for asset_holding in auction_assets:
+            if asset_holding.amount == 0:
+                raise AssertionError(
+                    "all auction asset balances must be greater than 0"
+                )
+
+        if self._get_asset_holding(app_state.bid_asset_id).amount > 0:
+            raise AssertionError("bid asset balance must be 0")
+
+        self._app_client.call(
+            Auction.commit,
+            start_time=int(start_time.timestamp()),
+            end_time=int(end_time.timestamp()),
+        )

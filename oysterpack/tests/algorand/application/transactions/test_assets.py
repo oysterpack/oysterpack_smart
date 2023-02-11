@@ -248,6 +248,7 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         log("transferred assets to app")
 
         # transfer assets back to manager account
+        print(f"asset_id={asset_id} asset_manager_address={asset_manager_address}")
         app_client.call(
             transfer,
             receiver=asset_manager_address,

@@ -1,5 +1,6 @@
 import unittest
 
+from algosdk.error import AlgodHTTPError
 from algosdk.transaction import wait_for_confirmation
 from beaker import sandbox
 
@@ -208,8 +209,6 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 1,
             )
 
-
-
     def test_deposit_asset(self):
         # SETUP
         accounts = sandbox.get_accounts()
@@ -258,6 +257,70 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         with self.subTest("only the seller can deposit assets"):
             with self.assertRaises(AuthError):
                 creator_app_client.deposit_asset(gold_asset_id, deposit_amount)
+
+    def test_withdraw_asset(self):
+        # SETUP
+        accounts = sandbox.get_accounts()
+        creator = accounts.pop()
+        seller = accounts.pop()
+
+        creator_app_client = self.sandbox_application_client(
+            Auction(), signer=creator.signer
+        )
+        creator_app_client.create(seller=seller.address)
+        seller_app_client = AuctionClient.from_client(
+            creator_app_client.prepare(signer=seller.signer)
+        )
+        creator_app_client = AuctionClient.from_client(creator_app_client)
+
+        gold_asset_id, asset_manager_address = self.create_test_asset("GOLD$")
+
+        # opt in GOLD$ for the seller account
+        txn = assets.opt_in(
+            account=Address(seller.address),
+            asset_id=gold_asset_id,
+            suggested_params=self.algod_client.suggested_params,
+        )
+        signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        # transfer assets to the seller account
+        starting_asset_balance = 1_000_000
+        txn = assets.transfer(
+            sender=asset_manager_address,
+            receiver=Address(seller.address),
+            asset_id=gold_asset_id,
+            amount=starting_asset_balance,
+            suggested_params=self.algod_client.suggested_params,
+        )
+        signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+        seller_app_client.deposit_asset(gold_asset_id, 1_000_000)
+
+        with self.subTest("only seller can withdraw assets"):
+            with self.assertRaises(AuthError):
+                creator_app_client.withdraw_asset(gold_asset_id, 1000)
+
+        with self.subTest("seller withdraws asset"):
+            withdraw_amount = 100_000
+            asset_holding = seller_app_client.withdraw_asset(gold_asset_id, withdraw_amount)
+            self.assertEqual(asset_holding.asset_id, gold_asset_id)
+            self.assertEqual(asset_holding.amount, starting_asset_balance - withdraw_amount)
+
+        with self.subTest("seller tries to withdraw <= 0"):
+            with self.assertRaises(AssertionError):
+                seller_app_client.withdraw_asset(gold_asset_id, 0)
+            with self.assertRaises(AssertionError):
+                seller_app_client.withdraw_asset(gold_asset_id, -1)
+
+        with self.subTest("seller tries to over withdraw"):
+            with self.assertRaises(AlgodHTTPError) as err:
+                seller_app_client.withdraw_asset(gold_asset_id, starting_asset_balance)
+            self.assertEqual(err.exception.code, 400)
+            self.assertTrue("underflow on subtracting 1000000 from sender amount 900000" in str(err.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

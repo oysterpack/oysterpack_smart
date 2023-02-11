@@ -53,6 +53,8 @@ class AuctionState:
     def seller_address(self) -> Address:
         return Address(
             encode_address(
+                # seller address is stored as bytes in the contract
+                # beaker's ApplicationClient will return the bytes as a hex encoded string
                 bytes.fromhex(cast(str, self.__state[Auction.seller_address.str_key()]))
             )
         )
@@ -169,14 +171,7 @@ class AuctionClient(_AuctionClient):
         return AuctionState(self.get_application_state())
 
     def get_seller_address(self) -> Address:
-        app_state = self.get_application_state()
-        # seller address is stored as bytes in the contract
-        # beaker's ApplicationClient will return the bytes as a hex encoded string
-        return Address(
-            encode_address(
-                bytes.fromhex(cast(str, app_state[Auction.seller_address.str_key()]))
-            )
-        )
+        return self.get_auction_state().seller_address
 
     def set_bid_asset(self, asset_id: AssetId, min_bid: int):
         """

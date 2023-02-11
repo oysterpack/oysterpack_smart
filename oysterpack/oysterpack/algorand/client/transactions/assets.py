@@ -72,7 +72,10 @@ def update(
 
 
 def opt_in(
-    *, account: Address, asset_id: AssetId, suggested_params: GetSuggestedParams
+    *,
+    account: Address,
+    asset_id: AssetId,
+    suggested_params: GetSuggestedParams,
 ) -> AssetOptInTxn:
     return AssetOptInTxn(
         sender=account, index=asset_id, sp=suggested_params(), lease=create_lease()

@@ -33,19 +33,28 @@ class AuctionStatus(IntEnum):
     # Once the auction has been started, it cannot be cancelled.
     Cancelled = auto()
 
-    Started = auto()
-    # Auction ended and the assets were sold
-    # NOTE: seller can end an auction early, i.e., before the end time, by accepting the current highest bid
-    Sold = auto()
-    # Auction ended and the assets were not sold.
-    # No bid was made >= min bid price
-    NotSold = auto()
+    # Seller accepted the highest bid and has ended the auction.
+    BidAccepted = auto()
+
     # All assets have transferred out of the contracts.
     #
     # If status == Sold, then:
     # 1. payment is transferred from the buyer's escrow account to the seller
     # 2. assets are transferred from the seller's escrow to the
     Finalized = auto()
+
+    def __repr__(self) -> str:
+        match (self):
+            case AuctionStatus.New:
+                return f"New({AuctionStatus.New.value})"
+            case AuctionStatus.Committed:
+                return f"Committed({AuctionStatus.Committed.value})"
+            case AuctionStatus.Cancelled:
+                return f"Cancelled({AuctionStatus.Cancelled.value})"
+            case AuctionStatus.BidAccepted:
+                return f"BidAccepted({AuctionStatus.BidAccepted.value})"
+            case AuctionStatus.Finalized:
+                return f"Finalized({AuctionStatus.Finalized.value})"
 
 
 @dataclass(slots=True)

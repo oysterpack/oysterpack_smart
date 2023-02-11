@@ -6,7 +6,7 @@ from beaker import (
     Authorize,
     external,
 )
-from beaker.decorators import create, delete, internal
+from beaker.decorators import create, delete
 from pyteal import (
     TealType,
     Expr,
@@ -51,14 +51,21 @@ class _AuctionState(Application):
     )
 
     bid_asset_id: Final[ApplicationStateValue] = ApplicationStateValue(
-        stack_type=TealType.uint64, descr="Asset that is used to submit bids"
+        stack_type=TealType.uint64,
+        descr="Asset that is used to submit bids",
     )
     min_bid: Final[ApplicationStateValue] = ApplicationStateValue(
-        stack_type=TealType.uint64, descr="Minimum bid price that is accepted."
+        stack_type=TealType.uint64,
+        descr="Minimum bid price that is accepted.",
     )
 
     highest_bidder_address: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.bytes
+    )
+
+    highest_bid: Final[ApplicationStateValue] = ApplicationStateValue(
+        stack_type=TealType.uint64,
+        default=Int(0),
     )
 
     start_time: Final[ApplicationStateValue] = ApplicationStateValue(
@@ -85,14 +92,8 @@ class _AuctionState(Application):
     def is_committed(self) -> Expr:
         return self.status.get() == Int(AuctionStatus.Committed.value)
 
-    def is_started(self) -> Expr:
-        return self.status.get() == Int(AuctionStatus.Started.value)
-
-    def is_sold(self) -> Expr:
-        return self.status.get() == Int(AuctionStatus.Sold.value)
-
-    def is_not_sold(self) -> Expr:
-        return self.status.get() == Int(AuctionStatus.NotSold.value)
+    def is_bid_accepted(self) -> Expr:
+        return self.status.get() == Int(AuctionStatus.BidAccepted.value)
 
     def is_finalized(self) -> Expr:
         return self.status.get() == Int(AuctionStatus.Finalized.value)
@@ -101,13 +102,6 @@ class _AuctionState(Application):
         return self.status.get() == Int(AuctionStatus.Cancelled.value)
 
     # END - AuctionStatus helper functions
-
-    @internal(TealType.uint64)
-    def get_highest_bid(self) -> Expr:
-        """
-        Highest bid is the bid asset balance.
-        """
-        return AssetHolding.balance(self.address, self.bid_asset_id.get())
 
 
 class _AuctionAuth:
@@ -213,13 +207,13 @@ class Auction(_AuctionState, _AuctionAuth):
         - bid asset id and min bid are stored in global state
         """
         return Seq(
-            Assert(self.is_new()),
-            Assert(min_bid.get() > Int(0)),
             Assert(
+                self.is_new(),
+                min_bid.get() > Int(0),
                 Or(
                     self.bid_asset_id.get() == Int(0),
                     self.bid_asset_id.get() == bid_asset.asset_id(),
-                )
+                ),
             ),
             self.bid_asset_id.set(bid_asset.asset_id()),
             self.min_bid.set(min_bid.get()),
@@ -293,18 +287,22 @@ class Auction(_AuctionState, _AuctionAuth):
     @external(authorize=_AuctionAuth.is_seller)
     def commit(self, start_time: abi.Uint64, end_time: abi.Uint64) -> Expr:
         return Seq(
-            Assert(self.is_new()),
-            Assert(self.bid_asset_id.get() != Int(0)),
-            Assert(self.min_bid.get() > Int(0)),
+            Assert(
+                self.is_new(),
+                self.bid_asset_id.get() != Int(0),
+                self.min_bid.get() > Int(0),
+            ),
             # besides the bid asset, there should be at least 1 asset for sale
             #
             # NOTE:
             # - asset balances should be > 0, but are not checked here
             # - client should check the asset balances before committing
             total_assets := AccountParam.totalAssets(self.address),
-            Assert(total_assets.value() > Int(1)),
-            Assert(start_time.get() > Global.latest_timestamp()),
-            Assert(end_time.get() > start_time.get()),
+            Assert(
+                total_assets.value() > Int(1),
+                start_time.get() >= Global.latest_timestamp(),
+                end_time.get() > start_time.get(),
+            ),
             self.start_time.set(start_time.get()),
             self.end_time.set(end_time.get()),
             self.status.set(Int(AuctionStatus.Committed.value)),
@@ -323,3 +321,59 @@ class Auction(_AuctionState, _AuctionAuth):
             [self.is_new(), self.status.set(Int(AuctionStatus.Cancelled.value))],
             [self.is_cancelled(), Approve()],
         )
+
+    @external
+    def bid(
+        self,
+        bid: abi.AssetTransferTransaction,
+        highest_bidder: abi.Account,
+    ) -> Expr:
+        """
+
+        Asserts
+        -------
+        1. auction status == Committed
+        2. bid asset
+        3. bid asset transfer received is this contract
+
+        Notes
+        -----
+        - new highest bidder is set to the bid sender
+
+        """
+        return Seq(
+            Assert(
+                self.status.get() == Int(AuctionStatus.Committed.value),
+                # check auction bidding has started
+                Global.latest_timestamp() >= self.start_time.get(),
+                Global.latest_timestamp() <= self.end_time.get(),
+                bid.get().asset_receiver() == self.address,
+                bid.get().xfer_asset() == self.bid_asset_id.get(),
+                bid.get().asset_amount() > self.highest_bid.get(),
+            ),
+            # refund the current highest bidder
+            # if this is the first bid (highes_bid == 0), then no refund is needed
+            If(
+                self.highest_bid.get() > Int(0),
+                Seq(
+                    Assert(
+                        highest_bidder.address() == self.highest_bidder_address.get()
+                    ),
+                    # TODO: add transaction note
+                    execute_transfer(
+                        receiver=highest_bidder,
+                        asset=self.bid_asset_id.get(),
+                        amount=self.highest_bid.get(),
+                    ),
+                ),
+            ),
+            self.highest_bidder_address.set(bid.get().sender()),
+            self.highest_bid.set(bid.get().asset_amount()),
+        )
+
+    @external(read_only=True)
+    def latest_timestamp(self, *, output: abi.Uint64) -> Expr:
+        """
+        Get the latest confirmed block UNIX timestamp
+        """
+        return output.set(Global.latest_timestamp())

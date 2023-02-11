@@ -1,3 +1,4 @@
+import pprint
 import unittest
 from datetime import datetime, UTC, timedelta
 
@@ -7,7 +8,11 @@ from beaker import sandbox
 
 from oysterpack.algorand.client.model import Address, AssetId
 from oysterpack.algorand.client.transactions import assets
-from oysterpack.apps.auction_app.client.auction_client import AuctionClient, AuthError
+from oysterpack.apps.auction_app.client.auction_client import (
+    AuctionClient,
+    AuthError,
+    AuctionBidder,
+)
 from oysterpack.apps.auction_app.contracts.auction import (
     Auction,
     AuctionStatus,
@@ -134,7 +139,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(len(app_account_info["assets"]), 0)
 
         with self.subTest(
-                "after opting out the bid asset, the bid asset can be set again"
+            "after opting out the bid asset, the bid asset can be set again"
         ):
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
             app_account_info = seller_app_client.get_application_account_info()
@@ -352,8 +357,6 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             auction_client=seller_app_client,
         )
 
-        print(self.algod_client.account_info(seller.address))
-
         start_time = datetime.now(UTC) + timedelta(days=1)
         end_time = start_time + timedelta(days=3)
 
@@ -402,6 +405,68 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             with self.assertRaises(AssertionError):
                 seller_app_client.cancel()
 
+    def test_bid(self):
+        # SETUP
+        accounts = sandbox.get_accounts()
+        creator = accounts.pop()
+        seller = accounts.pop()
+        bidder = accounts.pop()
+
+        creator_app_client = self.sandbox_application_client(
+            Auction(), signer=creator.signer
+        )
+        creator_app_client.create(seller=seller.address)
+        seller_app_client = AuctionClient.from_client(
+            creator_app_client.prepare(signer=seller.signer)
+        )
+        auction_bidder = AuctionBidder.from_client(
+            creator_app_client.prepare(signer=bidder.signer)
+        )
+
+        gold_asset_id, gold_asset_manager_address = self.create_test_asset("GOLD$")
+        bid_asset_id, bid_asset_manager_address = self.create_test_asset("USD$")
+
+        # opt in GOLD$ for the seller account
+        starting_asset_balance = 1_000_000
+        self._optin_asset_and_seed_balance(
+            receiver=Address(seller.address),
+            asset_id=gold_asset_id,
+            amount=starting_asset_balance,
+            asset_reserve_address=gold_asset_manager_address,
+            auction_client=seller_app_client,
+        )
+        self._optin_asset_and_seed_balance(
+            receiver=Address(seller.address),
+            asset_id=bid_asset_id,
+            amount=starting_asset_balance,
+            asset_reserve_address=bid_asset_manager_address,
+            auction_client=seller_app_client,
+        )
+        self._optin_asset_and_seed_balance(
+            receiver=Address(bidder.address),
+            asset_id=bid_asset_id,
+            amount=starting_asset_balance,
+            asset_reserve_address=bid_asset_manager_address,
+            auction_client=seller_app_client,
+        )
+
+        min_bid = 10_000
+        seller_app_client.set_bid_asset(bid_asset_id, min_bid)
+        seller_app_client.optin_asset(gold_asset_id)
+        seller_app_client.deposit_asset(gold_asset_id, 10_000)
+
+        start_time = seller_app_client.latest_timestamp()
+        end_time = start_time + timedelta(days=3)
+        seller_app_client.commit(start_time, end_time)
+
+        pprint.pp(seller_app_client.get_auction_state())
+
+        with self.subTest("first bid is minimum bid"):
+            auction_bidder.bid(min_bid)
+            auction_state = seller_app_client.get_auction_state()
+            self.assertEqual(auction_state.highest_bid, min_bid)
+            self.assertEqual(auction_state.highest_bidder_address, bidder.address)
+
     def test_cancel(self):
         # SETUP
         accounts = sandbox.get_accounts()
@@ -427,12 +492,12 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             self.assertEqual(AuctionStatus.Cancelled, auction_state.status)
 
     def _optin_asset_and_seed_balance(
-            self,
-            receiver: Address,
-            asset_id: AssetId,
-            amount: int,
-            asset_reserve_address: Address,
-            auction_client: AuctionClient,
+        self,
+        receiver: Address,
+        asset_id: AssetId,
+        amount: int,
+        asset_reserve_address: Address,
+        auction_client: AuctionClient,
     ):
         txn = assets.opt_in(
             account=receiver,

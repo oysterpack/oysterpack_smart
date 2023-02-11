@@ -6,7 +6,9 @@ from typing import cast, Optional
 from algosdk.atomic_transaction_composer import (
     TransactionSigner,
     AtomicTransactionComposer,
+    TransactionWithSigner,
 )
+from algosdk.constants import ZERO_ADDRESS
 from algosdk.encoding import encode_address
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
@@ -42,12 +44,6 @@ class AuctionState:
                 return AuctionStatus.Cancelled
             case AuctionStatus.Committed.value:
                 return AuctionStatus.Committed
-            case AuctionStatus.Started.value:
-                return AuctionStatus.Started
-            case AuctionStatus.Sold.value:
-                return AuctionStatus.Sold
-            case AuctionStatus.NotSold.value:
-                return AuctionStatus.NotSold
             case AuctionStatus.Finalized.value:
                 return AuctionStatus.Finalized
             case _:
@@ -55,12 +51,8 @@ class AuctionState:
 
     @property
     def seller_address(self) -> Address:
-        return Address(
-            encode_address(
-                # seller address is stored as bytes in the contract
-                # beaker's ApplicationClient will return the bytes as a hex encoded string
-                bytes.fromhex(cast(str, self.__state[Auction.seller_address.str_key()]))
-            )
+        return self._encode_address(
+            cast(str, self.__state[Auction.seller_address.str_key()])
         )
 
     @property
@@ -79,8 +71,14 @@ class AuctionState:
     def highest_bidder_address(self) -> Address | None:
         if Auction.highest_bidder_address.str_key() in self.__state.keys():
             value = cast(str, self.__state[Auction.highest_bidder_address.str_key()])
-            return Address(value) if value else None
+            return self._encode_address(value) if value else None
         return None
+
+    @property
+    def highest_bid(self) -> int:
+        if Auction.highest_bid.str_key() in self.__state.keys():
+            return cast(int, self.__state[Auction.highest_bid.str_key()])
+        return 0
 
     @property
     def start_time(self) -> datetime | None:
@@ -96,6 +94,15 @@ class AuctionState:
             return datetime.fromtimestamp(value, UTC) if value else None
         return None
 
+    def _encode_address(self, hex_encoded_address_bytes: str) -> Address:
+        return Address(
+            encode_address(
+                # seller address is stored as bytes in the contract
+                # beaker's ApplicationClient will return the bytes as a hex encoded string
+                bytes.fromhex(hex_encoded_address_bytes)
+            )
+        )
+
     def __repr__(self):
         return pformat(
             {
@@ -104,8 +111,13 @@ class AuctionState:
                 Auction.bid_asset_id.str_key(): self.bid_asset_id,
                 Auction.min_bid.str_key(): self.min_bid,
                 Auction.highest_bidder_address.str_key(): self.highest_bidder_address,
-                Auction.start_time.str_key(): self.start_time,
-                Auction.end_time.str_key(): self.end_time,
+                Auction.highest_bid.str_key(): self.highest_bid,
+                Auction.start_time.str_key(): self.start_time.isoformat()
+                if self.start_time
+                else None,
+                Auction.end_time.str_key(): self.end_time.isoformat()
+                if self.end_time
+                else None,
             }
         )
 
@@ -165,6 +177,86 @@ class _AuctionClient(AppClient):
             self._app_client.client.account_asset_info(self.contract_address, asset_id)[
                 "asset-holding"
             ]
+        )
+
+
+class AuctionBidder(AppClient):
+    def __init__(
+        self,
+        app_id: AppId,
+        algod_client: AlgodClient,
+        signer: TransactionSigner,
+        sender: Address | None = None,
+    ):
+        super().__init__(
+            app=Auction(),
+            app_id=app_id,
+            algod_client=algod_client,
+            signer=signer,
+            sender=sender,
+        )
+
+    @classmethod
+    def from_client(cls, app_client: ApplicationClient) -> "AuctionBidder":
+        return cls(
+            AppId(app_client.app_id),
+            app_client.client,
+            cast(TransactionSigner, app_client.signer),
+            cast(Optional[Address], app_client.sender),
+        )
+
+    def get_auction_state(self) -> AuctionState:
+        return AuctionState(self.get_application_state())
+
+    def is_auction_bidding_open(self, auction_state: AuctionState | None) -> bool:
+        if auction_state is None:
+            auction_state = AuctionState(self.get_application_state())
+        now = datetime.now(UTC)
+        if auction_state.start_time and auction_state.end_time:
+            return (
+                auction_state.status == AuctionStatus.Committed
+                and now >= auction_state.start_time
+                and now < auction_state.end_time
+            )
+        else:
+            return False
+
+    def bid(self, amount: int):
+        auction_state = AuctionState(self.get_application_state())
+        if not self.is_auction_bidding_open(auction_state):
+            raise AssertionError("auction is not open for bidding")
+
+        if amount <= auction_state.highest_bid:
+            raise AssertionError(
+                f"bid is too low - current highest bid is: {auction_state.highest_bid}"
+            )
+
+        asset_transfer_txn = assets.transfer(
+            sender=cast(Address, self._app_client.sender),
+            receiver=self.contract_address,
+            asset_id=cast(AssetId, auction_state.bid_asset_id),
+            amount=amount,
+            suggested_params=self._app_client.get_suggested_params,
+        )
+
+        sp = self._app_client.client.suggested_params()
+
+        if auction_state.highest_bidder_address:
+            highest_bidder = auction_state.highest_bidder_address
+            # transaction fees need to cover the inner transaction to refund the highest bidder
+            sp.fee = sp.min_fee * 2
+            sp.flat_fee = True
+        else:
+            highest_bidder = Address(ZERO_ADDRESS)
+
+        self._app_client.call(
+            Auction.bid,
+            bid=TransactionWithSigner(
+                asset_transfer_txn,
+                cast(TransactionSigner, self._app_client.signer),
+            ),
+            highest_bidder=highest_bidder,
+            suggested_params=sp,
         )
 
 
@@ -436,3 +528,7 @@ class AuctionClient(_AuctionClient):
             raise AuthError
 
         self._app_client.call(Auction.cancel)
+
+    def latest_timestamp(self) -> datetime:
+        result = self._app_client.call(Auction.latest_timestamp)
+        return datetime.fromtimestamp(result.return_value, UTC)

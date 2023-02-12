@@ -124,11 +124,11 @@ class AuctionState:
 
 class _AuctionClient(AppClient):
     def __init__(
-        self,
-        app_id: AppId,
-        algod_client: AlgodClient,
-        signer: TransactionSigner,
-        sender: Address | None = None,
+            self,
+            app_id: AppId,
+            algod_client: AlgodClient,
+            signer: TransactionSigner,
+            sender: Address | None = None,
     ):
         super().__init__(
             app=Auction(),
@@ -179,14 +179,15 @@ class _AuctionClient(AppClient):
             ]
         )
 
+
 # TODO: add standardized transaction notes
 class AuctionBidder(AppClient):
     def __init__(
-        self,
-        app_id: AppId,
-        algod_client: AlgodClient,
-        signer: TransactionSigner,
-        sender: Address | None = None,
+            self,
+            app_id: AppId,
+            algod_client: AlgodClient,
+            signer: TransactionSigner,
+            sender: Address | None = None,
     ):
         super().__init__(
             app=Auction(),
@@ -214,9 +215,9 @@ class AuctionBidder(AppClient):
         now = datetime.now(UTC)
         if auction_state.start_time and auction_state.end_time:
             return (
-                auction_state.status == AuctionStatus.Committed
-                and now >= auction_state.start_time
-                and now < auction_state.end_time
+                    auction_state.status == AuctionStatus.Committed
+                    and now >= auction_state.start_time
+                    and now < auction_state.end_time
             )
         else:
             return False
@@ -256,8 +257,11 @@ class AuctionBidder(AppClient):
                 cast(TransactionSigner, self._app_client.signer),
             ),
             highest_bidder=highest_bidder,
+            bid_asset=auction_state.bid_asset_id,
+            sender=self._app_client.sender,
             suggested_params=sp,
         )
+
 
 # TODO: add standardized transaction notes
 class AuctionClient(_AuctionClient):
@@ -379,6 +383,11 @@ class AuctionClient(_AuctionClient):
             # TODO: adding mypy ignore because mypy is complaining about `asset.asset_id`, even though it is valid
             return [asset for asset in assets if asset.asset_id != bid_asset_id]  # type: ignore
         return assets
+
+    def get_bid_asset_holding(self) -> AssetHolding:
+        bid_asset_id = self.get_auction_state().bid_asset_id
+        bid_asset_holding = self._app_client.client.account_asset_info(self.contract_address, bid_asset_id)
+        return AssetHolding.from_data(bid_asset_holding["asset-holding"])
 
     def deposit_asset(self, asset_id: AssetId, amount: int) -> AssetHolding:
         """

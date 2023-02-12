@@ -312,7 +312,8 @@ class Auction(_AuctionState, _AuctionAuth):
     def cancel(self) -> Expr:
         """
         The auction cannot be cancelled once it has been committed.
-        If the auction is already cancelled, then this is a noop.
+
+        - If the auction is already cancelled, then this is a noop.
 
         :return:
         """
@@ -324,22 +325,36 @@ class Auction(_AuctionState, _AuctionAuth):
 
     @external
     def bid(
-        self,
-        bid: abi.AssetTransferTransaction,
-        highest_bidder: abi.Account,
+            self,
+            bid: abi.AssetTransferTransaction,
+            highest_bidder: abi.Account,
+            bid_asset: abi.Asset
     ) -> Expr:
         """
+        Used to submit a bid.
+
+        - The bid transaction sender is used as the bidder account, i.e., not the auction smart contract call transaction sender.
+        - If the bid becomes the new highest bid, then the previous bidder is automatically refunded.
+          - if the previous bidder has opted out of the bid asset, then the bid assets are retained by the auction contract
 
         Asserts
         -------
         1. auction status == Committed
-        2. bid asset
-        3. bid asset transfer received is this contract
+        2. bid asset transfer
+        3. bid asset transfer receiver is this auction contract
+        4. bid > current highest bid
+        4. auction bidding is open, i.e., Global.latest_timestamp() is within the start and end time window
+        5. If the auction already had a bid, then the current highest bidder's account must be passed in
+           - this is needed to refund the previous bidder
 
-        Notes
-        -----
-        - new highest bidder is set to the bid sender
+        Inner Transactions
+        ------------------
+        1. If this bid is replacing the previous bid, i.e., this is not the first bid, then an asset transfer transaction
+           is issued to refund the previous highest bidder's account
 
+        :param bid: bid payment
+        :param highest_bidder: required to be able to refund previous highest bidder
+        :param bid_asset: required to be able to refund previous highest bidder
         """
         return Seq(
             Assert(
@@ -357,14 +372,19 @@ class Auction(_AuctionState, _AuctionAuth):
                 self.highest_bid.get() > Int(0),
                 Seq(
                     Assert(
-                        highest_bidder.address() == self.highest_bidder_address.get()
+                        highest_bidder.address() == self.highest_bidder_address.get(),
+                        bid_asset.asset_id() == self.bid_asset_id.get(),
                     ),
-                    # TODO: add transaction note
-                    execute_transfer(
-                        receiver=highest_bidder,
-                        asset=self.bid_asset_id.get(),
-                        amount=self.highest_bid.get(),
+                    bid_asset_holding := AssetHolding.balance(highest_bidder.address(), bid_asset.asset_id()),
+                    If(
+                        bid_asset_holding.hasValue(),
+                        execute_transfer(
+                            receiver=highest_bidder,
+                            asset=self.bid_asset_id.get(),
+                            amount=self.highest_bid.get(),
+                        ),
                     ),
+
                 ),
             ),
             self.highest_bidder_address.set(bid.get().sender()),

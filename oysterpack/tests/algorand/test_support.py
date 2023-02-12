@@ -17,6 +17,7 @@ from beaker.sandbox.kmd import get_sandbox_default_wallet
 from ulid import ULID
 
 from oysterpack.algorand.client.accounts import get_auth_address
+from oysterpack.algorand.client.accounts.kmd import WalletTransactionSigner, WalletSession
 from oysterpack.algorand.client.model import Address, AssetId
 from oysterpack.algorand.client.transactions import assets as client_assets
 from oysterpack.core.logging import configure_logging
@@ -35,6 +36,9 @@ class AlgorandTestSupport:
     def get_auth_addr(self) -> Callable[[Address], Address]:
         return functools.partial(get_auth_address, algod_client=self.algod_client)
 
+    def sandbox_default_wallet_transaction_signer(self) -> WalletTransactionSigner:
+        return WalletTransactionSigner(WalletSession.from_wallet(self.sandbox_default_wallet, self.get_auth_addr()))
+
     def create_test_wallet(self) -> wallet.Wallet:
         """Creates a new emptu wallet and returns a Wallet for testing purposes"""
         wallet_name = wallet_password = str(ULID())
@@ -47,9 +51,9 @@ class AlgorandTestSupport:
 
     @staticmethod
     def sandbox_application_client(
-        app: Application,
-        sender: Address | None = None,
-        signer: TransactionSigner | None = None,
+            app: Application,
+            sender: Address | None = None,
+            signer: TransactionSigner | None = None,
     ) -> ApplicationClient:
         """
         :param app: Application instance

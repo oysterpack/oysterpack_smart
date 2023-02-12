@@ -44,6 +44,8 @@ class AuctionState:
                 return AuctionStatus.Cancelled
             case AuctionStatus.Committed.value:
                 return AuctionStatus.Committed
+            case AuctionStatus.BidAccepted.value:
+                return AuctionStatus.BidAccepted
             case AuctionStatus.Finalized.value:
                 return AuctionStatus.Finalized
             case _:
@@ -528,6 +530,17 @@ class AuctionClient(_AuctionClient):
             start_time=int(start_time.timestamp()),
             end_time=int(end_time.timestamp()),
         )
+
+    def accept_bid(self):
+        app_state = self.get_auction_state()
+        if app_state.status != AuctionStatus.Committed:
+            raise AssertionError("auction status must be `Committed`")
+        if app_state.highest_bid == 0:
+            raise AssertionError("auction has no bid")
+        if datetime.now(UTC) > app_state.end_time:
+            raise AssertionError("auction has ended")
+
+        self._app_client.call(Auction.accept_bid)
 
     def cancel(self):
         app_state = self.get_auction_state()

@@ -1,3 +1,4 @@
+import pprint
 import unittest
 from datetime import datetime, UTC, timedelta
 
@@ -455,6 +456,11 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         seller_app_client.optin_asset(gold_asset_id)
         seller_app_client.deposit_asset(gold_asset_id, 10_000)
 
+        with self.subTest("submit bid before it has been committed"):
+            with self.assertRaises(AssertionError) as err:
+                auction_bidder.bid(min_bid)
+            self.assertEqual("auction is not open for bidding", str(err.exception))
+
         start_time = seller_app_client.latest_timestamp()
         end_time = start_time + timedelta(days=3)
         seller_app_client.commit(start_time, end_time)
@@ -524,6 +530,81 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             self.assertEqual(
                 expected_auction_bid_asset_holding, auction_bid_asset_holding.amount
             )
+
+        with self.subTest("bids are rejected if the auction has ended"):
+            # TODO
+            pass
+
+    def test_accept_bid(self):
+        # SETUP
+        accounts = sandbox.get_accounts()
+        creator = accounts.pop()
+        seller = accounts.pop()
+        bidder = accounts.pop()
+
+        creator_app_client = self.sandbox_application_client(
+            Auction(), signer=creator.signer
+        )
+        creator_app_client.create(seller=seller.address)
+        seller_app_client = AuctionClient.from_client(
+            creator_app_client.prepare(signer=seller.signer)
+        )
+        auction_bidder = AuctionBidder.from_client(
+            creator_app_client.prepare(signer=bidder.signer)
+        )
+
+        gold_asset_id, gold_asset_manager_address = self.create_test_asset("GOLD$")
+        bid_asset_id, bid_asset_manager_address = self.create_test_asset("USD$")
+
+        # opt in GOLD$ for the seller account
+        starting_asset_balance = 1_000_000
+        self._optin_asset_and_seed_balance(
+            receiver=Address(seller.address),
+            asset_id=gold_asset_id,
+            amount=starting_asset_balance,
+            asset_reserve_address=gold_asset_manager_address,
+            auction_client=seller_app_client,
+        )
+        self._optin_asset_and_seed_balance(
+            receiver=Address(seller.address),
+            asset_id=bid_asset_id,
+            amount=starting_asset_balance,
+            asset_reserve_address=bid_asset_manager_address,
+            auction_client=seller_app_client,
+        )
+        self._optin_asset_and_seed_balance(
+            receiver=Address(bidder.address),
+            asset_id=bid_asset_id,
+            amount=starting_asset_balance,
+            asset_reserve_address=bid_asset_manager_address,
+            auction_client=seller_app_client,
+        )
+
+        min_bid = 10_000
+        seller_app_client.set_bid_asset(bid_asset_id, min_bid)
+        seller_app_client.optin_asset(gold_asset_id)
+        seller_app_client.deposit_asset(gold_asset_id, 10_000)
+
+        with self.assertRaises(AssertionError) as err:
+            seller_app_client.accept_bid()
+        self.assertEqual(str(err.exception), "auction status must be `Committed`")
+
+        start_time = seller_app_client.latest_timestamp()
+        end_time = start_time + timedelta(days=3)
+        seller_app_client.commit(start_time, end_time)
+
+        with self.assertRaises(AssertionError) as err:
+            seller_app_client.accept_bid()
+        self.assertEqual(str(err.exception), "auction has no bid")
+
+        auction_bidder.bid(min_bid)
+        auction_state = seller_app_client.get_auction_state()
+        self.assertEqual(auction_state.highest_bid, min_bid)
+        self.assertEqual(auction_state.highest_bidder_address, bidder.address)
+
+        seller_app_client.accept_bid()
+        auction_state = seller_app_client.get_auction_state()
+        self.assertEqual(AuctionStatus.BidAccepted, auction_state.status)
 
     def test_cancel(self):
         # SETUP

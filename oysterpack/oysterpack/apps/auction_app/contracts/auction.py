@@ -392,6 +392,27 @@ class Auction(_AuctionState, _AuctionAuth):
             self.highest_bid.set(bid.get().asset_amount()),
         )
 
+    @external(authorize=_AuctionAuth.is_seller)
+    def accept_bid(self) -> Expr:
+        """
+        The seller may choose to accept the current highest bid and end the auction early.
+
+        Asserts
+        -------
+        1. auction status == Committed
+        2. there is a bid
+        3. auction has not ended
+
+        """
+        return Seq(
+            Assert(
+                self.status.get() == Int(AuctionStatus.Committed.value),
+                self.highest_bid.get() > Int(0),
+                Global.latest_timestamp() <= self.end_time.get(),
+            ),
+            self.status.set(Int(AuctionStatus.BidAccepted.value)),
+        )
+
     @external(read_only=True)
     def latest_timestamp(self, *, output: abi.Uint64) -> Expr:
         """

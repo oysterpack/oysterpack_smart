@@ -179,7 +179,7 @@ class _AuctionClient(AppClient):
             ]
         )
 
-
+# TODO: add standardized transaction notes
 class AuctionBidder(AppClient):
     def __init__(
         self,
@@ -259,7 +259,7 @@ class AuctionBidder(AppClient):
             suggested_params=sp,
         )
 
-
+# TODO: add standardized transaction notes
 class AuctionClient(_AuctionClient):
     @classmethod
     def from_client(cls, app_client: ApplicationClient) -> "AuctionClient":

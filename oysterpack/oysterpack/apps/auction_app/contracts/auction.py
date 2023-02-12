@@ -325,17 +325,17 @@ class Auction(_AuctionState, _AuctionAuth):
 
     @external
     def bid(
-            self,
-            bid: abi.AssetTransferTransaction,
-            highest_bidder: abi.Account,
-            bid_asset: abi.Asset
+        self,
+        bid: abi.AssetTransferTransaction,
+        highest_bidder: abi.Account,
+        bid_asset: abi.Asset,
     ) -> Expr:
         """
         Used to submit a bid.
 
         - The bid transaction sender is used as the bidder account, i.e., not the auction smart contract call transaction sender.
         - If the bid becomes the new highest bid, then the previous bidder is automatically refunded.
-          - if the previous bidder has opted out of the bid asset, then the bid assets are retained by the auction contract
+          - If the previous bidder has opted out of the bid asset, then the bid assets are retained by the auction contract
 
         Asserts
         -------
@@ -350,7 +350,7 @@ class Auction(_AuctionState, _AuctionAuth):
         Inner Transactions
         ------------------
         1. If this bid is replacing the previous bid, i.e., this is not the first bid, then an asset transfer transaction
-           is issued to refund the previous highest bidder's account
+           is issued to refund the previous highest bidder's account.
 
         :param bid: bid payment
         :param highest_bidder: required to be able to refund previous highest bidder
@@ -375,7 +375,9 @@ class Auction(_AuctionState, _AuctionAuth):
                         highest_bidder.address() == self.highest_bidder_address.get(),
                         bid_asset.asset_id() == self.bid_asset_id.get(),
                     ),
-                    bid_asset_holding := AssetHolding.balance(highest_bidder.address(), bid_asset.asset_id()),
+                    bid_asset_holding := AssetHolding.balance(
+                        highest_bidder.address(), bid_asset.asset_id()
+                    ),
                     If(
                         bid_asset_holding.hasValue(),
                         execute_transfer(
@@ -384,7 +386,6 @@ class Auction(_AuctionState, _AuctionAuth):
                             amount=self.highest_bid.get(),
                         ),
                     ),
-
                 ),
             ),
             self.highest_bidder_address.set(bid.get().sender()),

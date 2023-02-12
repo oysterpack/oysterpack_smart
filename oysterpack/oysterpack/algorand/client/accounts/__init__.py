@@ -17,7 +17,7 @@ def get_auth_address(address: Address, algod_client: AlgodClient) -> Address:
 
 
 def get_asset_holdings(
-        address: Address, algod_client: AlgodClient
+    address: Address, algod_client: AlgodClient
 ) -> list[AssetHolding]:
     account_info = algod_client.account_info(address)
     return [
@@ -27,9 +27,9 @@ def get_asset_holdings(
 
 
 def get_asset_holding(
-        address: Address,
-        asset_id: AssetId,
-        algod_client: AlgodClient,
+    address: Address,
+    asset_id: AssetId,
+    algod_client: AlgodClient,
 ) -> AssetHolding | None:
     try:
         data = algod_client.account_asset_info(address=address, asset_id=asset_id)[

@@ -43,7 +43,7 @@ def _to_wallet(data: dict[str, Any]) -> Wallet:
 
 
 def create_kmd_client(
-        url: str, token: str, check_connection: bool = True
+    url: str, token: str, check_connection: bool = True
 ) -> kmd.KMDClient:
     """
     Creates a KMD client instance that is configured to connect to the specified URL using the specified API token.
@@ -88,7 +88,7 @@ def get_wallet(kmd_client: kmd.KMDClient, name: WalletName) -> Wallet | None:
 
 
 def create_wallet(
-        kmd_client: kmd.KMDClient, name: WalletName, password: WalletPassword
+    kmd_client: kmd.KMDClient, name: WalletName, password: WalletPassword
 ) -> Wallet:
     """
     Creates a new wallet using the specified name and password.
@@ -104,10 +104,10 @@ def create_wallet(
 
 
 def recover_wallet(
-        kmd_client: kmd.KMDClient,
-        name: WalletName,
-        password: WalletPassword,
-        master_derivation_key: Mnemonic,
+    kmd_client: kmd.KMDClient,
+    name: WalletName,
+    password: WalletPassword,
+    master_derivation_key: Mnemonic,
 ) -> Wallet:
     """
     Tries to recover a wallet using the specified master derivation key mnemonic.
@@ -137,11 +137,11 @@ def recover_wallet(
 class WalletSession:
     @handle_kmd_client_errors
     def __init__(
-            self,
-            kmd_client: kmd.KMDClient,
-            name: WalletName,
-            password: WalletPassword,
-            get_auth_addr: Callable[[Address], Address],
+        self,
+        kmd_client: kmd.KMDClient,
+        name: WalletName,
+        password: WalletPassword,
+        get_auth_addr: Callable[[Address], Address],
     ):
         """
 
@@ -168,7 +168,9 @@ class WalletSession:
         self._get_auth_addr = get_auth_addr
 
     @classmethod
-    def from_wallet(cls, wallet: KmdWallet, get_auth_addr: Callable[[Address], Address]) -> "WalletSession":
+    def from_wallet(
+        cls, wallet: KmdWallet, get_auth_addr: Callable[[Address], Address]
+    ) -> "WalletSession":
         return cls(
             kmd_client=wallet.kcl,
             name=WalletName(wallet.name),
@@ -294,9 +296,9 @@ class WalletTransactionSigner(TransactionSigner):
         self.__wallet = wallet
 
     def sign_transactions(
-            self,
-            txn_group: list[Transaction],
-            indexes: list[int],
+        self,
+        txn_group: list[Transaction],
+        indexes: list[int],
     ) -> list[SignedTransaction | LogicSigTransaction | MultisigTransaction]:
         """
 

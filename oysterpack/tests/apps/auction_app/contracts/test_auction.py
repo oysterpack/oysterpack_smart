@@ -1,4 +1,3 @@
-import pprint
 import unittest
 from datetime import datetime, UTC, timedelta
 
@@ -7,7 +6,7 @@ from algosdk.transaction import wait_for_confirmation
 from beaker import sandbox
 
 from oysterpack.algorand.client.accounts import get_asset_holding
-from oysterpack.algorand.client.model import Address, AssetId, AssetHolding
+from oysterpack.algorand.client.model import Address, AssetId
 from oysterpack.algorand.client.transactions import assets
 from oysterpack.apps.auction_app.client.auction_client import (
     AuctionClient,
@@ -140,7 +139,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertEqual(len(app_account_info["assets"]), 0)
 
         with self.subTest(
-                "after opting out the bid asset, the bid asset can be set again"
+            "after opting out the bid asset, the bid asset can be set again"
         ):
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
             app_account_info = seller_app_client.get_application_account_info()
@@ -469,28 +468,39 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         with self.subTest("submit higher bid"):
             prior_highest_bid = seller_app_client.get_auction_state().highest_bid
             bid = prior_highest_bid + 1
-            bidder_bid_asset_holding_1 = get_asset_holding(Address(bidder.address), bid_asset_id, self.algod_client)
+            bidder_bid_asset_holding_1 = get_asset_holding(
+                Address(bidder.address), bid_asset_id, self.algod_client
+            )
             auction_bidder.bid(bid)
             auction_state = seller_app_client.get_auction_state()
             self.assertEqual(auction_state.highest_bid, bid)
             self.assertEqual(auction_state.highest_bidder_address, bidder.address)
             # bidder should have been refunded
-            bidder_bid_asset_holding_2 = get_asset_holding(Address(bidder.address), bid_asset_id, self.algod_client)
-            self.assertEqual(bidder_bid_asset_holding_1.amount - 1, bidder_bid_asset_holding_2.amount)
+            bidder_bid_asset_holding_2 = get_asset_holding(
+                Address(bidder.address), bid_asset_id, self.algod_client
+            )
+            self.assertEqual(
+                bidder_bid_asset_holding_1.amount - 1, bidder_bid_asset_holding_2.amount
+            )
 
         with self.subTest("previous bidder account has opted-out of the bid asset"):
             # close out the bid asset on the bidder account back to the bid asset manager account
             from oysterpack.algorand.client.transactions.assets import close_out
+
             txn = close_out(
                 account=Address(bidder.address),
                 asset_id=bid_asset_id,
                 close_to=bid_asset_manager_address,
-                suggested_params=self.algod_client.suggested_params
+                suggested_params=self.algod_client.suggested_params,
             )
             signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
             txid = self.algod_client.send_transaction(signed_txn)
             wait_for_confirmation(self.algod_client, txid)
-            self.assertIsNone(get_asset_holding(Address(bidder.address), bid_asset_id, self.algod_client))
+            self.assertIsNone(
+                get_asset_holding(
+                    Address(bidder.address), bid_asset_id, self.algod_client
+                )
+            )
 
             # submit a new high bid using the bid asset manager account
             assert bid_asset_manager_address != bidder.address
@@ -505,9 +515,15 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             auction_bidder_2.bid(previous_highest_bid + 1)
             # ASSERT
             # auction retained previous highest bid amount
-            auction_bid_asset_holding = get_asset_holding(seller_app_client.contract_address, bid_asset_id, self.algod_client)
-            expected_auction_bid_asset_holding = auction_bidder_2.get_auction_state().highest_bid + previous_highest_bid
-            self.assertEqual(expected_auction_bid_asset_holding,auction_bid_asset_holding.amount)
+            auction_bid_asset_holding = get_asset_holding(
+                seller_app_client.contract_address, bid_asset_id, self.algod_client
+            )
+            expected_auction_bid_asset_holding = (
+                auction_bidder_2.get_auction_state().highest_bid + previous_highest_bid
+            )
+            self.assertEqual(
+                expected_auction_bid_asset_holding, auction_bid_asset_holding.amount
+            )
 
     def test_cancel(self):
         # SETUP
@@ -534,12 +550,12 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             self.assertEqual(AuctionStatus.Cancelled, auction_state.status)
 
     def _optin_asset_and_seed_balance(
-            self,
-            receiver: Address,
-            asset_id: AssetId,
-            amount: int,
-            asset_reserve_address: Address,
-            auction_client: AuctionClient,
+        self,
+        receiver: Address,
+        asset_id: AssetId,
+        amount: int,
+        asset_reserve_address: Address,
+        auction_client: AuctionClient,
     ):
         txn = assets.opt_in(
             account=receiver,

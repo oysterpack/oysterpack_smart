@@ -16,6 +16,7 @@ from beaker.client import ApplicationClient
 
 from oysterpack.algorand.client.model import Address, AppId, AssetId, AssetHolding
 from oysterpack.algorand.client.transactions import create_lease, assets
+from oysterpack.algorand.client.transactions.assets import opt_in
 from oysterpack.algorand.params import MinimumBalance
 from oysterpack.apps.auction_app.contracts.auction import Auction
 from oysterpack.apps.auction_app.model.auction import AuctionStatus
@@ -95,6 +96,41 @@ class AuctionState:
             value = cast(int, self.__state[Auction.end_time.str_key()])
             return datetime.fromtimestamp(value, UTC) if value else None
         return None
+
+    def is_bidding_open(self) -> bool:
+        if self.start_time and self.end_time:
+            return (
+                self.status == AuctionStatus.Committed
+                and self.start_time <= datetime.now(UTC) < self.end_time
+            )
+        return False
+
+    def is_ended(self) -> bool:
+        """
+        :return: True if the auction has ended, but not yet fully finalized
+        """
+        if self.status in [
+            AuctionStatus.BidAccepted,
+            AuctionStatus.Cancelled,
+        ]:
+            return True
+
+        return (
+            self.status == AuctionStatus.Committed
+            # if status is committed, then `end_time` is not None
+            and datetime.now(UTC) > self.end_time  # type: ignore
+        )
+
+    def is_sold(self) -> bool:
+        if self.status == AuctionStatus.BidAccepted:
+            return True
+
+        return (
+            self.status == AuctionStatus.Committed
+            # if status is committed, then `end_time` is not None
+            and datetime.now(UTC) > self.end_time  # type: ignore
+            and self.highest_bid > 0
+        )
 
     def _encode_address(self, hex_encoded_address_bytes: str) -> Address:
         return Address(
@@ -182,8 +218,31 @@ class _AuctionClient(AppClient):
         )
 
 
+class _AuctionClientSupport(AppClient):
+    def get_auction_state(self) -> AuctionState:
+        return AuctionState(self.get_application_state())
+
+    def get_auction_assets(self) -> list[AssetHolding]:
+        assets = [
+            AssetHolding.from_data(asset)
+            for asset in self.get_application_account_info()["assets"]
+        ]
+        bid_asset_id = self.get_auction_state().bid_asset_id
+        if bid_asset_id:
+            # TODO: adding mypy ignore because mypy is complaining about `asset.asset_id`, even though it is valid
+            return [asset for asset in assets if asset.asset_id != bid_asset_id]  # type: ignore
+        return assets
+
+    def get_bid_asset_holding(self) -> AssetHolding:
+        bid_asset_id = self.get_auction_state().bid_asset_id
+        bid_asset_holding = self._app_client.client.account_asset_info(
+            self.contract_address, bid_asset_id
+        )
+        return AssetHolding.from_data(bid_asset_holding["asset-holding"])
+
+
 # TODO: add standardized transaction notes
-class AuctionBidder(AppClient):
+class AuctionBidder(_AuctionClientSupport):
     def __init__(
         self,
         app_id: AppId,
@@ -208,25 +267,9 @@ class AuctionBidder(AppClient):
             cast(Optional[Address], app_client.sender),
         )
 
-    def get_auction_state(self) -> AuctionState:
-        return AuctionState(self.get_application_state())
-
-    def is_auction_bidding_open(self, auction_state: AuctionState | None) -> bool:
-        if auction_state is None:
-            auction_state = AuctionState(self.get_application_state())
-        now = datetime.now(UTC)
-        if auction_state.start_time and auction_state.end_time:
-            return (
-                auction_state.status == AuctionStatus.Committed
-                and now >= auction_state.start_time
-                and now < auction_state.end_time
-            )
-        else:
-            return False
-
     def bid(self, amount: int):
         auction_state = AuctionState(self.get_application_state())
-        if not self.is_auction_bidding_open(auction_state):
+        if not auction_state.is_bidding_open():
             raise AssertionError("auction is not open for bidding")
 
         if amount <= auction_state.highest_bid:
@@ -264,9 +307,29 @@ class AuctionBidder(AppClient):
             suggested_params=sp,
         )
 
+    def optin_auction_assets(self):
+        bidder = self._app_client.sender
+        for asset in self.get_auction_assets():
+            try:
+                self._app_client.client.account_asset_info(bidder, asset.asset_id)
+            except AlgodHTTPError as err:
+                if err.code == 404:  # bidder account is not opted in
+                    txn = opt_in(
+                        account=bidder,
+                        asset_id=asset.asset_id,
+                        suggested_params=self._app_client.client.suggested_params,
+                    )
+                    atc = AtomicTransactionComposer()
+                    atc.add_transaction(
+                        TransactionWithSigner(txn, self._app_client.signer)
+                    )
+                    atc.execute(self._app_client.client, 4)
+                else:
+                    raise
+
 
 # TODO: add standardized transaction notes
-class AuctionClient(_AuctionClient):
+class AuctionClient(_AuctionClient, _AuctionClientSupport):
     @classmethod
     def from_client(cls, app_client: ApplicationClient) -> "AuctionClient":
         return cls(
@@ -275,9 +338,6 @@ class AuctionClient(_AuctionClient):
             cast(TransactionSigner, app_client.signer),
             cast(Optional[Address], app_client.sender),
         )
-
-    def get_auction_state(self) -> AuctionState:
-        return AuctionState(self.get_application_state())
 
     def get_seller_address(self) -> Address:
         return self.get_auction_state().seller_address
@@ -374,24 +434,6 @@ class AuctionClient(_AuctionClient):
                 suggested_params=sp,
                 lease=create_lease(),
             )
-
-    def get_auction_assets(self) -> list[AssetHolding]:
-        assets = [
-            AssetHolding.from_data(asset)
-            for asset in self.get_application_account_info()["assets"]
-        ]
-        bid_asset_id = self.get_auction_state().bid_asset_id
-        if bid_asset_id:
-            # TODO: adding mypy ignore because mypy is complaining about `asset.asset_id`, even though it is valid
-            return [asset for asset in assets if asset.asset_id != bid_asset_id]  # type: ignore
-        return assets
-
-    def get_bid_asset_holding(self) -> AssetHolding:
-        bid_asset_id = self.get_auction_state().bid_asset_id
-        bid_asset_holding = self._app_client.client.account_asset_info(
-            self.contract_address, bid_asset_id
-        )
-        return AssetHolding.from_data(bid_asset_holding["asset-holding"])
 
     def deposit_asset(self, asset_id: AssetId, amount: int) -> AssetHolding:
         """
@@ -552,6 +594,59 @@ class AuctionClient(_AuctionClient):
             raise AuthError
 
         self._app_client.call(Auction.cancel)
+
+    def finalize(self):
+        app_state = self.get_auction_state()
+        if app_state.status == AuctionStatus.Finalized:
+            return
+        if not app_state.is_ended():
+            raise AssertionError("auction cannot be finalized because it has not ended")
+
+        sp = self._app_client.get_suggested_params()
+        sp.fee = sp.min_fee * 2
+        sp.flat_fee = True
+
+        if app_state.is_sold():
+            # close out auction assets to the highest bidder
+            for asset in self.get_auction_assets():
+                self._app_client.call(
+                    Auction.finalize,
+                    asset=asset.asset_id,
+                    close_to=app_state.highest_bidder_address,
+                    suggested_params=sp,
+                    lease=create_lease(),
+                )
+            # close out the bid asset to the seller
+            self._app_client.call(
+                Auction.finalize,
+                asset=app_state.bid_asset_id,
+                close_to=app_state.seller_address,
+                suggested_params=sp,
+                lease=create_lease(),
+            )
+        else:
+            # close out auction assets to the seller
+            for asset in self.get_auction_assets():
+                self._app_client.call(
+                    Auction.finalize,
+                    asset=asset.asset_id,
+                    close_to=app_state.seller_address,
+                    suggested_params=sp,
+                    lease=create_lease(),
+                )
+            if app_state.bid_asset_id:
+                try:
+                    self.get_bid_asset_holding()
+                    self._app_client.call(
+                        Auction.finalize,
+                        asset=app_state.bid_asset_id,
+                        close_to=app_state.seller_address,
+                        suggested_params=sp,
+                        lease=create_lease(),
+                    )
+                except AlgodHTTPError as err:
+                    if err.code != 404:
+                        raise
 
     def latest_timestamp(self) -> datetime:
         result = self._app_client.call(Auction.latest_timestamp)

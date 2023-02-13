@@ -28,6 +28,8 @@ from pyteal import (
     If,
     Or,
     Not,
+    And,
+    Reject,
 )
 from pyteal.ast import abi
 
@@ -419,3 +421,84 @@ class Auction(_AuctionState, _AuctionAuth):
         Get the latest confirmed block UNIX timestamp
         """
         return output.set(Global.latest_timestamp())
+
+    @external
+    def finalize(self, asset: abi.Asset, close_to: abi.Account) -> Expr:
+        """
+        Once the auction has ended, call finalize for each asset held by the Auction.
+
+        If the auction ended sold, then
+        - highest bidder account must be paired with auction assets
+        - seller account must be paired with the bid asset
+
+        If the auction ended not sold, then
+        - highest bidder account must be paired with the bid asset
+        - seller account must be paired with auction assets
+
+        When all assets have been closed out, then the auction status is set to 'Finalized'.
+
+        If the auction has already been fully finalized, i.e., status==Finalized, then the call will be rejected.
+
+        """
+
+        def is_sold() -> Expr:
+            return Or(
+                self.is_bid_accepted(),
+                And(
+                    self.status.get() == Int(AuctionStatus.Committed.value),
+                    Global.latest_timestamp() > self.end_time.get(),
+                    self.highest_bid.get() > Int(0),
+                ),
+            )
+
+        def handle_sold() -> Expr:
+            return Seq(
+                Assert(
+                    Or(
+                        And(
+                            close_to.address() == self.seller_address.get(),
+                            asset.asset_id() == self.bid_asset_id.get(),
+                        ),
+                        And(
+                            close_to.address() == self.highest_bidder_address,
+                            asset.asset_id() != self.bid_asset_id.get(),
+                        ),
+                    )
+                ),
+                execute_optout(asset, close_to),
+            )
+
+        def is_not_sold() -> Expr:
+            return Or(
+                self.is_cancelled(),
+                And(
+                    self.status.get() == Int(AuctionStatus.Committed.value),
+                    Global.latest_timestamp() > self.end_time.get(),
+                    self.highest_bid.get() == Int(0),
+                ),
+            )
+
+        def handle_not_sold() -> Expr:
+            return Seq(
+                Assert(close_to.address() == self.seller_address.get()),
+                execute_optout(asset, close_to),
+            )
+
+        def close_out_asset() -> Expr:
+            return Seq(
+                Cond(
+                    [is_sold(), handle_sold()],
+                    [is_not_sold(), handle_not_sold()],
+                ),
+                total_assets := AccountParam.totalAssets(self.address),
+                If(
+                    total_assets.value() == Int(0),  # all assets have been closed out
+                    self.status.set(Int(AuctionStatus.Finalized.value)),
+                ),
+            )
+
+        return If(
+            self.is_finalized(),
+            Reject(),
+            close_out_asset(),
+        )

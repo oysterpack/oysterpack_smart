@@ -1,4 +1,3 @@
-import pprint
 import unittest
 from datetime import datetime, UTC, timedelta
 
@@ -629,6 +628,141 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             seller_app_client.cancel()
             auction_state = seller_app_client.get_auction_state()
             self.assertEqual(AuctionStatus.Cancelled, auction_state.status)
+
+    def test_finalize(self):
+        # SETUP
+        def create_auction() -> (AuctionClient, AuctionBidder):
+            accounts = sandbox.get_accounts()
+            creator = accounts.pop()
+            seller = accounts.pop()
+            bidder = accounts.pop()
+
+            creator_app_client = self.sandbox_application_client(
+                Auction(), signer=creator.signer
+            )
+            creator_app_client.create(seller=seller.address)
+            seller_app_client = AuctionClient.from_client(
+                creator_app_client.prepare(signer=seller.signer)
+            )
+            auction_bidder = AuctionBidder.from_client(
+                creator_app_client.prepare(signer=bidder.signer)
+            )
+
+            gold_asset_id, gold_asset_manager_address = self.create_test_asset("GOLD$")
+            bid_asset_id, bid_asset_manager_address = self.create_test_asset("USD$")
+
+            # opt in GOLD$ for the seller account
+            starting_asset_balance = 1_000_000
+            self._optin_asset_and_seed_balance(
+                receiver=Address(seller.address),
+                asset_id=gold_asset_id,
+                amount=starting_asset_balance,
+                asset_reserve_address=gold_asset_manager_address,
+                auction_client=seller_app_client,
+            )
+            self._optin_asset_and_seed_balance(
+                receiver=Address(seller.address),
+                asset_id=bid_asset_id,
+                amount=starting_asset_balance,
+                asset_reserve_address=bid_asset_manager_address,
+                auction_client=seller_app_client,
+            )
+            self._optin_asset_and_seed_balance(
+                receiver=Address(bidder.address),
+                asset_id=bid_asset_id,
+                amount=starting_asset_balance,
+                asset_reserve_address=bid_asset_manager_address,
+                auction_client=seller_app_client,
+            )
+
+            min_bid = 10_000
+            seller_app_client.set_bid_asset(bid_asset_id, min_bid)
+            seller_app_client.optin_asset(gold_asset_id)
+            seller_app_client.deposit_asset(gold_asset_id, 10_000)
+
+            with self.subTest("finalize before it has been committed"):
+                with self.assertRaises(AssertionError) as err:
+                    seller_app_client.finalize()
+                self.assertEqual(
+                    "auction cannot be finalized because it has not ended",
+                    str(err.exception),
+                )
+
+            return seller_app_client, auction_bidder
+
+        with self.subTest("auction bid has been accepted"):
+            seller_app_client, auction_bidder = create_auction()
+            # commit the auction
+            start_time = seller_app_client.latest_timestamp()
+            end_time = start_time + timedelta(days=3)
+            seller_app_client.commit(start_time, end_time)
+            # place bid
+            auction_bidder.optin_auction_assets()
+            auction_bidder.bid(auction_bidder.get_auction_state().min_bid)
+            # accet bid
+            seller_app_client.accept_bid()
+            # ACT
+            auction_asset_holdings = seller_app_client.get_auction_assets()
+            seller_bid_asset_holding_1 = self.algod_client.account_asset_info(
+                seller_app_client._app_client.sender,
+                seller_app_client.get_auction_state().bid_asset_id,
+            )
+            seller_app_client.finalize()
+
+            # ASSERT
+            auction_account_info = self.algod_client.account_info(
+                seller_app_client.contract_address
+            )
+            self.assertEqual(auction_account_info["total-assets-opted-in"], 0)
+            self.assertEqual(
+                AuctionStatus.Finalized, seller_app_client.get_auction_state().status
+            )
+            # check auction assets were transferred to highest bidder
+            auction_bidder_assets = dict(
+                [
+                    (asset["asset-id"], asset["amount"])
+                    for asset in self.algod_client.account_info(
+                        auction_bidder._app_client.sender
+                    )["assets"]
+                ]
+            )
+            for asset_holding in auction_asset_holdings:
+                self.assertEqual(
+                    asset_holding.amount, auction_bidder_assets[asset_holding.asset_id]
+                )
+            # check that the bid asset was transferred to the seller
+            seller_bid_asset_holding_2 = self.algod_client.account_asset_info(
+                seller_app_client._app_client.sender,
+                seller_app_client.get_auction_state().bid_asset_id,
+            )
+            print(seller_bid_asset_holding_2)
+            self.assertEqual(
+                seller_bid_asset_holding_1["asset-holding"]["amount"]
+                + seller_app_client.get_auction_state().highest_bid,
+                seller_bid_asset_holding_2["asset-holding"]["amount"],
+            )
+
+        with self.subTest("auction was cancelled"):
+            seller_app_client, auction_bidder = create_auction()
+            seller_app_client.cancel()
+
+            auction_asset_holdings = seller_app_client.get_auction_assets()
+            seller_bid_asset_holding_1 = self.algod_client.account_asset_info(
+                seller_app_client._app_client.sender,
+                seller_app_client.get_auction_state().bid_asset_id,
+            )
+
+            # ACT
+            seller_app_client.finalize()
+
+            # ASSERT
+            auction_account_info = self.algod_client.account_info(
+                seller_app_client.contract_address
+            )
+            self.assertEqual(auction_account_info["total-assets-opted-in"], 0)
+            self.assertEqual(
+                AuctionStatus.Finalized, seller_app_client.get_auction_state().status
+            )
 
     def _optin_asset_and_seed_balance(
         self,

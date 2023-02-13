@@ -42,30 +42,29 @@ from oysterpack.algorand.application.transactions.assets import (
 from oysterpack.apps.auction_app.model.auction import AuctionStatus
 
 
-class _AuctionState(Application):
+class _AuctionState:
     status: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64,
         default=Int(AuctionStatus.New.value),
-        descr="Auction status [New, Initialized, Cancelled, Started, Sold, NotSold, Finalized]",
     )
 
     seller_address: Final[ApplicationStateValue] = ApplicationStateValue(
-        stack_type=TealType.bytes, static=True
+        stack_type=TealType.bytes,
+        static=True,
     )
 
     bid_asset_id: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64,
-        descr="Asset that is used to submit bids",
+        descr="Asset that is used to submit bids, i.e., the asset that the seller is accepting as payment",
     )
     min_bid: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64,
-        descr="Minimum bid price that is accepted.",
+        descr="Minimum bid price that the seller will accept.",
     )
 
     highest_bidder_address: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.bytes
     )
-
     highest_bid: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64,
         default=Int(0),
@@ -74,20 +73,19 @@ class _AuctionState(Application):
     start_time: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64,
         descr="""
-            Auction start time specified as a UNIX timestamp, i.e., number of seconds since 1970-01-01. 
-            The latest confirmed block UNIX timestamp is used to determine time on-chain (Global.latest_timstamp()).
+            Auction start time specified as a UNIX timestamp.
+             
+            NOTE: The latest confirmed block UNIX timestamp is used on-chain (Global.latest_timstamp()).
             """,
     )
-
     end_time: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64,
         descr="""
-            Auction end time specified as a UNIX timestamp, i.e., number of seconds since 1970-01-01. 
-            The latest confirmed block UNIX timestamp is used to determine time on-chain (Global.latest_timstamp()).
+            Auction end time specified as a UNIX timestamp.
+             
+            NOTE: The latest confirmed block UNIX timestamp is used on-chain (Global.latest_timstamp()).
             """,
     )
-
-    # AuctionStatus helper functions
 
     def is_new(self) -> Expr:
         return self.status.get() == Int(AuctionStatus.New.value)
@@ -98,13 +96,11 @@ class _AuctionState(Application):
     def is_bid_accepted(self) -> Expr:
         return self.status.get() == Int(AuctionStatus.BidAccepted.value)
 
-    def is_finalized(self) -> Expr:
-        return self.status.get() == Int(AuctionStatus.Finalized.value)
-
     def is_cancelled(self) -> Expr:
         return self.status.get() == Int(AuctionStatus.Cancelled.value)
 
-    # END - AuctionStatus helper functions
+    def is_finalized(self) -> Expr:
+        return self.status.get() == Int(AuctionStatus.Finalized.value)
 
 
 class _AuctionAuth:
@@ -118,7 +114,7 @@ class _AuctionAuth:
 
 
 # TODO: add standardized transaction notes
-class Auction(_AuctionState, _AuctionAuth):
+class Auction(Application, _AuctionState, _AuctionAuth):
     """
     Auction is used to sell asset holdings escrowed by this contract to the highest bidder.
 

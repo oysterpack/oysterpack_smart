@@ -1,39 +1,27 @@
-from dataclasses import dataclass
-from datetime import datetime
 from enum import IntEnum, auto
-
-from oysterpack.algorand.client.model import AppId, Address, AssetId
 
 
 class AuctionStatus(IntEnum):
     """
-    An auction starts out in the `New` state, and terminates in the `Finalized` state.
+    When an auction is created, it starts out in the `New` state
+    The auction's final state is `Finalized`.
 
-    Valid state transitions
-    -----------------------
-    New -> Initialized
-
-    Committed -> Started
-    Committed -> Cancelled
-
-    Started -> BidAccepted
-    Started -> Sold
-    Started -> NotSold
-
-    Sold -> Finalized
-    NotSold -> Finalized
-    Cancelled -> Finalized
+    - When the seller is done setting up the auction, then the seller commits the auction.
+    - An auction can only be cancelled while in the `New` state.
+    - Once the seller is done setting up the auction, then the seller commits the auction.
+    - Once the auction is committed, its settings are frozen and awaits the bidding session to start.
+    - The seller can accept a bid during the bidding session before the bidding session's end time.
+      This effectively ends the auction early.
+    - When the auction is cancelled or after the bidding session completes, the auction needs to be finalized.
+    - During the finalization phase, assets are closed out on the auction
+      - If the auction was cancelled, then all assets are closed out to the seller.
+      - If the auction sold, then auction assets are closed out to the highest bidder, and the bid payment asset
+        is closed out to the seller.
     """
 
     New = auto()
-    # Once the auction is committed, its settings can no longer be changed
-    # A committed auction can transition to the Cancelled or Started states
     Committed = auto()
-    # Seller can cancel the auction as long it has not started.
-    # Once the auction has been started, it cannot be cancelled.
     Cancelled = auto()
-
-    # Seller accepted the highest bid and has ended the auction.
     BidAccepted = auto()
 
     # All assets have transferred out of the contracts.
@@ -55,43 +43,3 @@ class AuctionStatus(IntEnum):
                 return f"BidAccepted({AuctionStatus.BidAccepted.value})"
             case AuctionStatus.Finalized:
                 return f"Finalized({AuctionStatus.Finalized.value})"
-
-
-@dataclass(slots=True)
-class Bid:
-    """
-    The bid payment is made in USD stablecoin(s).
-    The auction may accept multiple USD stablecoins as payment.
-    Each stablecoin is valued at $1.
-    """
-
-    buyer: Address
-    payment: dict[AssetId, int]
-
-
-@dataclass(slots=True)
-class Auction:
-    seller: Address
-    status: AuctionStatus
-
-    # application escrow contract that holds the seller's assets
-    # the types of assets being auctioned are determined by the contract's asset holdings
-    seller_escrow_id: AppId
-    # application escrow contract that holds the buyer's bid payment
-    # the types of accepted payment are determined by the contract's asset holdings
-    buyer_escrow_id: AppId
-
-    # the first bid must be at least match the min bid
-    min_bid: int | None
-    # to place a new high bid, it must be at least greater than this amount
-    # new_bid >= current_highest_bid + min_bid _raise
-    min_bid_raise: int | None
-
-    # times are in UTC
-    # When the auction starts. The start time can be future dated.
-    # The start time can only be set when status == Initialized
-    start_time: datetime | None
-    # When the auction bidding session ends. Bids will be rejected if submitted after the end_time.
-    end_time: datetime | None
-
-    highest_bid: Bid | None

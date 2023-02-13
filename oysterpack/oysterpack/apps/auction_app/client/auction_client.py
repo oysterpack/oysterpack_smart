@@ -282,16 +282,15 @@ class AuctionBidder(_AuctionClientSupport):
             receiver=self.contract_address,
             asset_id=cast(AssetId, auction_state.bid_asset_id),
             amount=amount,
-            suggested_params=self._app_client.get_suggested_params,
+            suggested_params=self.suggested_params(),
         )
 
-        sp = self._app_client.client.suggested_params()
+        sp = self.suggested_params()
 
         if auction_state.highest_bidder_address:
             highest_bidder = auction_state.highest_bidder_address
             # transaction fees need to cover the inner transaction to refund the highest bidder
             sp.fee = sp.min_fee * 2
-            sp.flat_fee = True
         else:
             highest_bidder = Address(ZERO_ADDRESS)
 
@@ -317,7 +316,7 @@ class AuctionBidder(_AuctionClientSupport):
                     txn = opt_in(
                         account=bidder,
                         asset_id=asset.asset_id,
-                        suggested_params=self._app_client.client.suggested_params,
+                        suggested_params=self.suggested_params(),
                     )
                     atc = AtomicTransactionComposer()
                     atc.add_transaction(
@@ -364,10 +363,8 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         if app_state.bid_asset_id and app_state.bid_asset_id != asset_id:
             self.optout_asset(app_state.bid_asset_id)
 
-        sp = self._app_client.client.suggested_params()
         # transaction fees need to cover the inner transaction to opt in the bid asset
-        sp.fee = sp.min_fee * 2
-        sp.flat_fee = True
+        sp = self.suggested_params(txn_count=2)
 
         # if only the min bid is being changed, then no bid asset opt in is needed
         if app_state.bid_asset_id and app_state.bid_asset_id == asset_id:
@@ -401,13 +398,10 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         if self.get_seller_address() != self._app_client.sender:
             raise AuthError
 
-        sp = self._app_client.client.suggested_params()
-        sp.fee = sp.min_fee * 2
-        sp.flat_fee = True
         self._app_client.call(
             Auction.optout_asset,
             asset=asset_id,
-            suggested_params=sp,
+            suggested_params=self.suggested_params(txn_count=2),
             lease=create_lease(),
         )
 
@@ -424,14 +418,10 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         if not self._is_asset_opted_in(asset_id):
             self._fund_asset_optin()
 
-            sp = self._app_client.client.suggested_params()
-            sp.fee = sp.min_fee * 2
-            sp.flat_fee = True
-
             self._app_client.call(
                 Auction.optin_asset,
                 asset=asset_id,
-                suggested_params=sp,
+                suggested_params=self.suggested_params(txn_count=2),
                 lease=create_lease(),
             )
 
@@ -475,7 +465,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             receiver=self.contract_address,
             asset_id=asset_id,
             amount=amount,
-            suggested_params=self._app_client.client.suggested_params,
+            suggested_params=self.suggested_params(),
         )
         atc = AtomicTransactionComposer()
         self._app_client.add_transaction(atc, asset_transfer_txn)
@@ -506,14 +496,11 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                 "asset withdrawal is only allowed when auction status is 'New'"
             )
 
-        sp = self._app_client.client.suggested_params()
-        sp.fee = sp.min_fee * 2
-        sp.flat_fee = True
         self._app_client.call(
             Auction.withdraw_asset,
             asset=asset_id,
             amount=amount,
-            suggested_params=sp,
+            suggested_params=self.suggested_params(txn_count=2),
         )
 
         return self._get_asset_holding(asset_id)
@@ -602,10 +589,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         if not app_state.is_ended():
             raise AssertionError("auction cannot be finalized because it has not ended")
 
-        sp = self._app_client.get_suggested_params()
-        sp.fee = sp.min_fee * 2
-        sp.flat_fee = True
-
+        sp = self.suggested_params(txn_count=2)
         if app_state.is_sold():
             # close out auction assets to the highest bidder
             for asset in self.get_auction_assets():

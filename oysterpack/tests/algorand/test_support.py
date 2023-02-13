@@ -107,7 +107,7 @@ class AlgorandTestSupport:
             metadata_hash=metadata_hash(),
             total_base_units=total_base_units,
             decimals=decimals,
-            suggested_params=sandbox.get_algod_client().suggested_params,
+            suggested_params=sandbox.get_algod_client().suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = sandbox.get_algod_client().send_transaction(signed_txn)

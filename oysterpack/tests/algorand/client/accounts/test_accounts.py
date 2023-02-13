@@ -19,7 +19,7 @@ class MyTestCase(AlgorandTestSupport, unittest.TestCase):
             total_base_units=100000000,
             manager=account,
             reserve=account,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -56,7 +56,7 @@ class MyTestCase(AlgorandTestSupport, unittest.TestCase):
             total_base_units=100000000,
             manager=account,
             reserve=account,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)

@@ -1,4 +1,4 @@
-from typing import Final
+from typing import Final, Any
 
 from beaker import (
     Application,
@@ -6,6 +6,7 @@ from beaker import (
     Authorize,
     external,
 )
+from beaker.consts import algo
 from beaker.decorators import create, delete
 from pyteal import (
     TealType,
@@ -239,8 +240,8 @@ class Auction(_AuctionState, _AuctionAuth):
         -----
         - transaction fees = 0.002 ALGO
         - contract must be prefunded to pay for contract storage costs with at least 0.2 ALGO:
-          - 0.1 ALGO for contract account storage
-          - 0.1 ALGO for asset holding storage
+          - 0.1 ALGO for contract account storage (1 time cost)
+          - 0.1 ALGO for asset holding storage (for each asset holding)
         """
         return Seq(
             Assert(self.is_new()),
@@ -276,10 +277,6 @@ class Auction(_AuctionState, _AuctionAuth):
         Notes
         -----
         - transaction fees = 0.002 ALGO
-
-        :param asset:
-        :param amount:
-        :return:
         """
         return Seq(
             Assert(self.is_new()),
@@ -502,3 +499,33 @@ class Auction(_AuctionState, _AuctionAuth):
             Reject(),
             close_out_asset(),
         )
+
+
+def auction_storage_fees() -> int:
+    """
+    Computes Auction contract storage fees required to be reserved by the creator's account.
+
+    The Auction creator's Algorand account's min balance requirement will increase by this amount.
+    :return:
+    """
+
+    account_base_fee = int(0.1 * algo)
+    per_state_entry_fee = int(0.025 * algo)
+    per_state_int_entry_fee = int(0.0035 * algo)
+    per_state_byte_slice_entry_fee = int(0.025 * algo)
+
+    global_declared_state: dict[str, Any] = Auction().application_spec()["schema"][
+        "global"
+    ]["declared"]
+    total_state_entries = len(global_declared_state)
+    total_int_entries = len(
+        [entry for entry in global_declared_state.values() if entry["type"] == "uint64"]
+    )
+    total_byte_slice_entries = total_state_entries - total_int_entries
+
+    return (
+        account_base_fee
+        + (per_state_entry_fee * total_state_entries)
+        + (per_state_int_entry_fee * total_int_entries)
+        + (per_state_byte_slice_entry_fee * total_byte_slice_entries)
+    )

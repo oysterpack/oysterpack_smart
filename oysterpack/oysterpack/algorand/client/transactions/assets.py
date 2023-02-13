@@ -5,16 +5,17 @@ from algosdk.transaction import (
     AssetCreateTxn,
     AssetUpdateTxn,
     AssetCloseOutTxn,
+    SuggestedParams,
 )
 
 from oysterpack.algorand.client.model import Address, AssetId
-from oysterpack.algorand.client.transactions import GetSuggestedParams, create_lease
+from oysterpack.algorand.client.transactions import create_lease
 
 
 def create(
     *,
     sender: Address,
-    suggested_params: GetSuggestedParams,
+    suggested_params: SuggestedParams,
     unit_name: str,
     asset_name: str,
     total_base_units: int,
@@ -40,7 +41,7 @@ def create(
         freeze=freeze,
         clawback=clawback,
         default_frozen=default_frozen,
-        sp=suggested_params(),
+        sp=suggested_params,
         lease=create_lease(),
     )
 
@@ -53,7 +54,7 @@ def update(
     reserve: Address | None,
     freeze: Address | None,
     clawback: Address | None,
-    suggested_params: GetSuggestedParams,
+    suggested_params: SuggestedParams,
 ) -> AssetUpdateTxn:
     """
     A Reconfiguration Transaction is issued by the asset manager to change the configuration of an already created asset.
@@ -66,7 +67,7 @@ def update(
         reserve=reserve if reserve is not None else "",
         freeze=freeze if freeze is not None else "",
         clawback=clawback if clawback is not None else "",
-        sp=suggested_params(),
+        sp=suggested_params,
         lease=create_lease(),
     )
 
@@ -75,10 +76,13 @@ def opt_in(
     *,
     account: Address,
     asset_id: AssetId,
-    suggested_params: GetSuggestedParams,
+    suggested_params: SuggestedParams,
 ) -> AssetOptInTxn:
     return AssetOptInTxn(
-        sender=account, index=asset_id, sp=suggested_params(), lease=create_lease()
+        sender=account,
+        index=asset_id,
+        sp=suggested_params,
+        lease=create_lease(),
     )
 
 
@@ -87,13 +91,13 @@ def close_out(
     account: Address,
     close_to: Address | None = None,
     asset_id: AssetId,
-    suggested_params: GetSuggestedParams,
+    suggested_params: SuggestedParams,
 ) -> AssetCloseOutTxn:
     return AssetCloseOutTxn(
         sender=account,
         receiver=close_to if close_to else algosdk.account.generate_account()[1],
         index=asset_id,
-        sp=suggested_params(),
+        sp=suggested_params,
         lease=create_lease(),
     )
 
@@ -104,7 +108,7 @@ def transfer(
     receiver: Address,
     asset_id: AssetId,
     amount: int,
-    suggested_params: GetSuggestedParams,
+    suggested_params: SuggestedParams,
     note: str | None = None,
 ) -> AssetTransferTxn:
     return AssetTransferTxn(
@@ -113,6 +117,6 @@ def transfer(
         index=asset_id,
         amt=amount,
         note=None if note is None else note.encode(),
-        sp=suggested_params(),
+        sp=suggested_params,
         lease=create_lease(),
     )

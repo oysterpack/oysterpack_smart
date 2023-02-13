@@ -42,7 +42,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
             metadata_hash=self.metadata_hash(),
             total_base_units=total_base_units,
             decimals=decimals,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -74,7 +74,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
             metadata_hash=self.metadata_hash(),
             total_base_units=total_base_units,
             decimals=decimals,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -126,7 +126,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
             reserve=reserve,
             freeze=freeze,
             clawback=clawback,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -149,7 +149,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         txn = assets.opt_in(
             account=account,
             asset_id=asset_id,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -169,7 +169,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         txn = assets.opt_in(
             account=account,
             asset_id=asset_id,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -180,7 +180,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
             receiver=account,
             asset_id=asset_id,
             amount=1000,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -206,7 +206,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         txn = assets.opt_in(
             account=account,
             asset_id=asset_id,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -217,7 +217,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         txn = assets.close_out(
             account=account,
             asset_id=asset_id,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -234,7 +234,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         txn = assets.opt_in(
             account=account,
             asset_id=asset_id,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -247,7 +247,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
             account=account,
             close_to=close_to,
             asset_id=asset_id,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)

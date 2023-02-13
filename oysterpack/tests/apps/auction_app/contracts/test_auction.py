@@ -16,6 +16,7 @@ from oysterpack.apps.auction_app.client.auction_client import (
 from oysterpack.apps.auction_app.contracts.auction import (
     Auction,
     AuctionStatus,
+    auction_storage_fees,
 )
 from tests.algorand.test_support import AlgorandTestSupport
 
@@ -236,7 +237,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         txn = assets.opt_in(
             account=Address(seller.address),
             asset_id=gold_asset_id,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -248,7 +249,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             receiver=Address(seller.address),
             asset_id=gold_asset_id,
             amount=1_000_000,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -496,7 +497,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 account=Address(bidder.address),
                 asset_id=bid_asset_id,
                 close_to=bid_asset_manager_address,
-                suggested_params=self.algod_client.suggested_params,
+                suggested_params=self.algod_client.suggested_params(),
             )
             signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
             txid = self.algod_client.send_transaction(signed_txn)
@@ -764,6 +765,22 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 AuctionStatus.Finalized, seller_app_client.get_auction_state().status
             )
 
+    def test_auction_creation_storage_fees(self):
+        accounts = sandbox.get_accounts()
+        creator = accounts.pop()
+        seller = accounts.pop()
+
+        account_info_1 = self.algod_client.account_info(creator.address)
+        creator_app_client = self.sandbox_application_client(
+            Auction(), signer=creator.signer
+        )
+        creator_app_client.create(seller=seller.address)
+        account_info_2 = self.algod_client.account_info(creator.address)
+        expected_auction_storage_fees = (
+            account_info_2["min-balance"] - account_info_1["min-balance"]
+        )
+        self.assertEqual(expected_auction_storage_fees, auction_storage_fees())
+
     def _optin_asset_and_seed_balance(
         self,
         receiver: Address,
@@ -775,7 +792,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         txn = assets.opt_in(
             account=receiver,
             asset_id=asset_id,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -787,7 +804,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             receiver=receiver,
             asset_id=asset_id,
             amount=amount,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(asset_transfer_txn)
         txid = self.algod_client.send_transaction(signed_txn)

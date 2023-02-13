@@ -1,11 +1,8 @@
-from typing import NewType
-
 from algosdk.transaction import PaymentTxn
 
 from oysterpack.algorand.client.accounts import Address
-from oysterpack.algorand.client.transactions import GetSuggestedParams, create_lease
-
-MicroAlgos = NewType("MicroAlgos", int)
+from oysterpack.algorand.client.model import MicroAlgos
+from oysterpack.algorand.client.transactions import SuggestedParams, create_lease
 
 
 def transfer_algo(
@@ -13,7 +10,7 @@ def transfer_algo(
     sender: Address,
     receiver: Address,
     amount: MicroAlgos,
-    suggested_params: GetSuggestedParams,
+    suggested_params: SuggestedParams,
     note: str | None = None
 ) -> PaymentTxn:
     """
@@ -24,7 +21,7 @@ def transfer_algo(
         sender=sender,
         receiver=receiver,
         amt=amount,
-        sp=suggested_params(),
+        sp=suggested_params,
         lease=create_lease(),
         note=None if note is None else note.encode(),
     )

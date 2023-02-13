@@ -22,7 +22,7 @@ class WalletTransactionSignerTestCase(AlgorandTestSupport, unittest.TestCase):
         account2 = self.sandbox_default_wallet.list_keys()[1]
         account3 = self.sandbox_default_wallet.list_keys()[2]
 
-        suggested_params = self.algod_client.suggested_params
+        suggested_params = self.algod_client.suggested_params()
 
         txn1 = transfer_algo(
             suggested_params=suggested_params,
@@ -56,7 +56,7 @@ class WalletTransactionSignerTestCase(AlgorandTestSupport, unittest.TestCase):
         account2 = self.sandbox_default_wallet.list_keys()[1]
         account3 = self.sandbox_default_wallet.list_keys()[2]
 
-        suggested_params = self.algod_client.suggested_params
+        suggested_params = self.algod_client.suggested_params()
 
         txn1 = transfer_algo(
             suggested_params=suggested_params,

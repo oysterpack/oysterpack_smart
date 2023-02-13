@@ -42,7 +42,7 @@ class RekeyTestCase(AlgorandTestSupport, unittest.TestCase):
         txn = rekey(
             account=account,
             rekey_to=rekey_to,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = txn.sign(private_key)
         txn_id = self.algod_client.send_transaction(signed_txn)
@@ -55,7 +55,8 @@ class RekeyTestCase(AlgorandTestSupport, unittest.TestCase):
 
         # revoke the rekeyed account
         txn = rekey_back(
-            account=account, suggested_params=self.algod_client.suggested_params
+            account=account,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = txn.sign(self.sandbox_default_wallet.export_key(rekey_to))
         txn_id = self.algod_client.send_transaction(signed_txn)

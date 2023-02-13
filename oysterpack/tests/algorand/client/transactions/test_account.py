@@ -3,6 +3,7 @@ import unittest
 from algosdk.account import generate_account
 from algosdk.transaction import wait_for_confirmation
 
+from oysterpack.algorand.client.model import Address, MicroAlgos
 from oysterpack.algorand.client.transactions.account import close_account
 from oysterpack.algorand.client.transactions.payment import transfer_algo
 from tests.algorand.test_support import AlgorandTestSupport
@@ -16,9 +17,9 @@ class CloseAccountTestCase(AlgorandTestSupport, unittest.TestCase):
         # fund account2
         txn = transfer_algo(
             sender=account,
-            receiver=account2,
-            amount=1000000,
-            suggested_params=self.algod_client.suggested_params,
+            receiver=Address(account2),
+            amount=MicroAlgos(1000000),
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -29,9 +30,9 @@ class CloseAccountTestCase(AlgorandTestSupport, unittest.TestCase):
 
         # close account
         txn = close_account(
-            account=account2,
+            account=Address(account2),
             close_to=account,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = txn.sign(private_key)
         txid = self.algod_client.send_transaction(signed_txn)

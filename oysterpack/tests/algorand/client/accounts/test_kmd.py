@@ -22,7 +22,7 @@ from oysterpack.algorand.client.accounts.kmd import (
     WalletSession,
     create_kmd_client,
 )
-from oysterpack.algorand.client.model import Mnemonic
+from oysterpack.algorand.client.model import Mnemonic, Address
 from oysterpack.algorand.client.transactions import payment
 from oysterpack.algorand.client.transactions.rekey import rekey
 from tests.algorand.test_support import AlgorandTestSupport
@@ -337,7 +337,7 @@ class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
             sender=rekey_to,
             receiver=account,
             amount=1000000,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
 
         signed_txn = sandbox_default_wallet.sign_transaction(txn)
@@ -346,9 +346,9 @@ class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
 
         # rekey the account
         txn = rekey(
-            account=account,
+            account=Address(account),
             rekey_to=rekey_to,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = txn.sign(private_key)
         txn_id = self.algod_client.send_transaction(signed_txn)

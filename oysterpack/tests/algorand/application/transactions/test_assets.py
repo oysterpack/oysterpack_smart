@@ -124,6 +124,7 @@ def create_test_asset() -> tuple[AssetId, Address]:
         m.update(b"asset metadata")
         return m.digest()
 
+    sandbox.get_accounts().pop()
     sender = Address(sandbox.get_accounts().pop().address)
     manager = reserve = freeze = clawback = sender
     total_base_units = 1_000_000_000_000_000
@@ -143,7 +144,7 @@ def create_test_asset() -> tuple[AssetId, Address]:
         metadata_hash=metadata_hash(),
         total_base_units=total_base_units,
         decimals=decimals,
-        suggested_params=sandbox.get_algod_client().suggested_params,
+        suggested_params=sandbox.get_algod_client().suggested_params(),
     )
     signed_txn = kmd.get_sandbox_default_wallet().sign_transaction(txn)
     txid = sandbox.get_algod_client().send_transaction(signed_txn)
@@ -239,7 +240,7 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
             sender=Address(asset_manager_address),
             receiver=app_client.get_application_account_info()["address"],
             asset_id=asset_id,
-            suggested_params=app_client.client.suggested_params,
+            suggested_params=app_client.client.suggested_params(),
             amount=10000,
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
@@ -291,21 +292,24 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         total_txn_fees += 2000  # app transferred assets
         total_txn_fees += 2000  # optout
         total_txn_fees += 2000  # delete
-        self.assertEqual(account_starting_balance - account_balance, total_txn_fees)
+        self.assertEqual(total_txn_fees, account_starting_balance - account_balance)
 
-    def test_execute_optin_optout(self):
-        self.optin_optout_test(
-            Foo.execute_optin_asset,
-            Foo.execute_optout_asset,
-            Foo.execute_asset_transfer,
-        )
+    def test_optin_optout(self):
+        with self.subTest("execute"):
+            self.optin_optout_test(
+                Foo.execute_optin_asset,
+                Foo.execute_optout_asset,
+                Foo.execute_asset_transfer,
+            )
 
-    def test_submit_optin_optout(self):
-        self.optin_optout_test(
-            Foo.submit_optin_asset,
-            Foo.submit_optout_asset,
-            Foo.submit_asset_transfer,
-        )
+        # TODO: why does this test fail when run with coverage?
+        # when this test is run manually, it passes
+        with self.subTest("submit"):
+            self.optin_optout_test(
+                Foo.submit_optin_asset,
+                Foo.submit_optout_asset,
+                Foo.submit_asset_transfer,
+            )
 
 
 if __name__ == "__main__":

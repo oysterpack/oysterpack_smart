@@ -2,8 +2,9 @@ import unittest
 
 import algosdk
 
+from oysterpack.algorand.client.model import MicroAlgos
 from tests.algorand.test_support import AlgorandTestSupport
-from oysterpack.algorand.client.transactions.payment import transfer_algo, MicroAlgos
+from oysterpack.algorand.client.transactions.payment import transfer_algo
 
 
 class PaymentTestCase(AlgorandTestSupport, unittest.TestCase):
@@ -17,7 +18,7 @@ class PaymentTestCase(AlgorandTestSupport, unittest.TestCase):
             sender=sender,
             receiver=receiver,
             amount=amount,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -46,7 +47,7 @@ class PaymentTestCase(AlgorandTestSupport, unittest.TestCase):
             receiver=receiver,
             amount=amount,
             note=note,
-            suggested_params=self.algod_client.suggested_params,
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)

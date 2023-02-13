@@ -1,5 +1,6 @@
 from typing import Final
 
+from algosdk.transaction import OnComplete
 from beaker import Application, AppPrecompile, ApplicationStateValue, external
 from beaker.application import get_method_signature
 from beaker.decorators import create
@@ -13,6 +14,7 @@ from pyteal import (
     Int,
     Assert,
     InnerTxn,
+    TxnType,
 )
 from pyteal.ast import abi
 
@@ -79,4 +81,29 @@ class AuctionManager(Application):
                 extra_fields=self.auction.get_create_config() | {TxnField.fee: Int(0)},
             ),
             output.set(InnerTxn.created_application_id()),
+        )
+
+    @external
+    def delete_finalized_auction(self, auction: abi.Application) -> Expr:
+        """
+        Inner Transactions
+        ------------------
+        1. Close out Auction ALGO account to this contract
+        2. Delete the Auction contract
+
+        Notes
+        -----
+        - Auction contract must have been created by this contract.
+        - Auction status must be `Finalized
+        - When Auction contract is deleted, its ALGO account is closed out to this contract
+        - Transaction fees = 0.003 ALGO
+
+        """
+        return InnerTxnBuilder.Execute(
+            {
+                TxnField.type_enum: TxnType.ApplicationCall,
+                TxnField.application_id: auction.application_id(),
+                TxnField.on_completion: Int(OnComplete.DeleteApplicationOC.value),
+                TxnField.fee: Int(0),
+            }
         )

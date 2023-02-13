@@ -22,7 +22,7 @@ from oysterpack.algorand.client.accounts.kmd import (
     WalletSession,
 )
 from oysterpack.algorand.client.model import Address, AssetId
-from oysterpack.algorand.client.transactions import assets as client_assets
+from oysterpack.algorand.client.transactions import assets as client_assets, assets
 from oysterpack.core.logging import configure_logging
 
 configure_logging(level=logging.INFO)
@@ -116,3 +116,31 @@ class AlgorandTestSupport:
         )
 
         return AssetId(tx_info["asset-index"]), Address(manager)
+
+    def _optin_asset_and_seed_balance(
+        self,
+        receiver: Address,
+        asset_id: AssetId,
+        amount: int,
+        asset_reserve_address: Address,
+    ):
+        txn = assets.opt_in(
+            account=receiver,
+            asset_id=asset_id,
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        # transfer assets to the seller account
+        asset_transfer_txn = assets.transfer(
+            sender=asset_reserve_address,
+            receiver=receiver,
+            asset_id=asset_id,
+            amount=amount,
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        signed_txn = self.sandbox_default_wallet.sign_transaction(asset_transfer_txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)

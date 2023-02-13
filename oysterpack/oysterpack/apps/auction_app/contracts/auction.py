@@ -317,8 +317,17 @@ class Auction(_AuctionState, _AuctionAuth):
         :return:
         """
 
+        handle_is_new = Seq(
+            total_assets := AccountParam.totalAssets(self.address),
+            If(
+                total_assets.value() == Int(0),  # all assets have been closed out
+                self.status.set(Int(AuctionStatus.Finalized.value)),
+                self.status.set(Int(AuctionStatus.Cancelled.value)),
+            ),
+        )
+
         return Cond(
-            [self.is_new(), self.status.set(Int(AuctionStatus.Cancelled.value))],
+            [self.is_new(), handle_is_new],
             [self.is_cancelled(), Approve()],
         )
 

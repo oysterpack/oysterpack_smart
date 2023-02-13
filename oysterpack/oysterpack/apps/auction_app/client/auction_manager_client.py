@@ -11,6 +11,7 @@ from oysterpack.algorand.client.transactions.payment import transfer_algo, Micro
 from oysterpack.apps.auction_app.client.auction_client import AuctionClient
 from oysterpack.apps.auction_app.contracts.auction import auction_storage_fees, Auction
 from oysterpack.apps.auction_app.contracts.auction_manager import AuctionManager
+from oysterpack.apps.auction_app.model.auction import AuctionStatus
 from oysterpack.apps.client import AppClient
 
 
@@ -75,6 +76,23 @@ class AuctionManagerClient(AppClient):
 
         return AuctionClient.from_client(
             self._app_client.prepare(app=Auction(), app_id=auction_app_id)
+        )
+
+    def delete_finalized_auction(self, app_id: AppId):
+        auction_client = AuctionClient.from_client(
+            self._app_client.prepare(app_id=app_id)
+        )
+        auction_state = auction_client.get_auction_state()
+        if auction_state.status != AuctionStatus.Finalized:
+            raise AssertionError("auction is not finalized")
+
+        app_info = self._app_client.client.application_info(app_id)
+        print(app_info)
+
+        self._app_client.call(
+            AuctionManager.delete_finalized_auction,
+            auction=app_id,
+            suggested_params=self.suggested_params(txn_count=3),
         )
 
 

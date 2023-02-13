@@ -6,7 +6,7 @@ from algosdk.transaction import wait_for_confirmation
 from beaker import sandbox
 
 from oysterpack.algorand.client.accounts import get_asset_holding
-from oysterpack.algorand.client.model import Address, AssetId
+from oysterpack.algorand.client.model import Address
 from oysterpack.algorand.client.transactions import assets
 from oysterpack.apps.auction_app.client.auction_client import (
     AuctionClient,
@@ -289,7 +289,6 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             asset_id=gold_asset_id,
             amount=starting_asset_balance,
             asset_reserve_address=asset_manager_address,
-            auction_client=seller_app_client,
         )
         seller_app_client.deposit_asset(gold_asset_id, starting_asset_balance)
 
@@ -347,7 +346,6 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             asset_id=gold_asset_id,
             amount=starting_asset_balance,
             asset_reserve_address=gold_asset_manager_address,
-            auction_client=seller_app_client,
         )
 
         self._optin_asset_and_seed_balance(
@@ -355,7 +353,6 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
             asset_reserve_address=bid_asset_manager_address,
-            auction_client=seller_app_client,
         )
 
         start_time = datetime.now(UTC) + timedelta(days=1)
@@ -434,21 +431,18 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             asset_id=gold_asset_id,
             amount=starting_asset_balance,
             asset_reserve_address=gold_asset_manager_address,
-            auction_client=seller_app_client,
         )
         self._optin_asset_and_seed_balance(
             receiver=Address(seller.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
             asset_reserve_address=bid_asset_manager_address,
-            auction_client=seller_app_client,
         )
         self._optin_asset_and_seed_balance(
             receiver=Address(bidder.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
             asset_reserve_address=bid_asset_manager_address,
-            auction_client=seller_app_client,
         )
 
         min_bid = 10_000
@@ -563,21 +557,18 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             asset_id=gold_asset_id,
             amount=starting_asset_balance,
             asset_reserve_address=gold_asset_manager_address,
-            auction_client=seller_app_client,
         )
         self._optin_asset_and_seed_balance(
             receiver=Address(seller.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
             asset_reserve_address=bid_asset_manager_address,
-            auction_client=seller_app_client,
         )
         self._optin_asset_and_seed_balance(
             receiver=Address(bidder.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
             asset_reserve_address=bid_asset_manager_address,
-            auction_client=seller_app_client,
         )
 
         min_bid = 10_000
@@ -625,8 +616,37 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             with self.assertRaises(AuthError):
                 creator_app_client.cancel()
 
-        with self.subTest("seller can cancel the auction while auction status=New"):
+        with self.subTest(
+            "cancelling the auction when it has no asset holdings sets its status to Finalized"
+        ):
             seller_app_client.cancel()
+            auction_state = seller_app_client.get_auction_state()
+            self.assertEqual(AuctionStatus.Finalized, auction_state.status)
+
+        with self.subTest(
+            "if the Auction has asset-holdings, then the status will set to Cancelled"
+        ):
+            creator_app_client = self.sandbox_application_client(
+                Auction(), signer=creator.signer
+            )
+            creator_app_client.create(seller=seller.address)
+            seller_app_client = AuctionClient.from_client(
+                creator_app_client.prepare(signer=seller.signer)
+            )
+
+            gold_asset_id, gold_asset_manager_address = self.create_test_asset("GOLD$")
+            starting_asset_balance = 1_000_000
+            self._optin_asset_and_seed_balance(
+                receiver=Address(seller.address),
+                asset_id=gold_asset_id,
+                amount=starting_asset_balance,
+                asset_reserve_address=gold_asset_manager_address,
+            )
+            seller_app_client.set_bid_asset(gold_asset_id, 10_000)
+
+            # ACT
+            seller_app_client.cancel()
+            # ASSERT
             auction_state = seller_app_client.get_auction_state()
             self.assertEqual(AuctionStatus.Cancelled, auction_state.status)
 
@@ -659,21 +679,18 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 asset_id=gold_asset_id,
                 amount=starting_asset_balance,
                 asset_reserve_address=gold_asset_manager_address,
-                auction_client=seller_app_client,
             )
             self._optin_asset_and_seed_balance(
                 receiver=Address(seller.address),
                 asset_id=bid_asset_id,
                 amount=starting_asset_balance,
                 asset_reserve_address=bid_asset_manager_address,
-                auction_client=seller_app_client,
             )
             self._optin_asset_and_seed_balance(
                 receiver=Address(bidder.address),
                 asset_id=bid_asset_id,
                 amount=starting_asset_balance,
                 asset_reserve_address=bid_asset_manager_address,
-                auction_client=seller_app_client,
             )
 
             min_bid = 10_000
@@ -780,35 +797,6 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             account_info_2["min-balance"] - account_info_1["min-balance"]
         )
         self.assertEqual(expected_auction_storage_fees, auction_storage_fees())
-
-    def _optin_asset_and_seed_balance(
-        self,
-        receiver: Address,
-        asset_id: AssetId,
-        amount: int,
-        asset_reserve_address: Address,
-        auction_client: AuctionClient,
-    ):
-        txn = assets.opt_in(
-            account=receiver,
-            asset_id=asset_id,
-            suggested_params=self.algod_client.suggested_params(),
-        )
-        signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
-        txid = self.algod_client.send_transaction(signed_txn)
-        wait_for_confirmation(self.algod_client, txid)
-
-        # transfer assets to the seller account
-        asset_transfer_txn = assets.transfer(
-            sender=asset_reserve_address,
-            receiver=receiver,
-            asset_id=asset_id,
-            amount=amount,
-            suggested_params=self.algod_client.suggested_params(),
-        )
-        signed_txn = self.sandbox_default_wallet.sign_transaction(asset_transfer_txn)
-        txid = self.algod_client.send_transaction(signed_txn)
-        wait_for_confirmation(self.algod_client, txid)
 
 
 if __name__ == "__main__":

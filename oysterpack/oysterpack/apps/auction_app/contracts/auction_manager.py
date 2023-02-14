@@ -1,7 +1,13 @@
 from typing import Final
 
 from algosdk.transaction import OnComplete
-from beaker import Application, AppPrecompile, ApplicationStateValue, external
+from beaker import (
+    Application,
+    AppPrecompile,
+    ApplicationStateValue,
+    external,
+    Authorize,
+)
 from beaker.application import get_method_signature
 from beaker.decorators import create
 from pyteal import (
@@ -15,9 +21,11 @@ from pyteal import (
     Assert,
     InnerTxn,
     TxnType,
+    Global,
 )
 from pyteal.ast import abi
 
+from oysterpack.algorand.application.transactions import payments
 from oysterpack.apps.auction_app.contracts.auction import Auction, auction_storage_fees
 
 
@@ -107,3 +115,17 @@ class AuctionManager(Application):
                 TxnField.fee: Int(0),
             }
         )
+
+    @external(authorize=Authorize.only(Global.creator_address()))
+    def withdraw_algo(self, amount: abi.Uint64) -> Expr:
+        """
+        Used by the creator to withdraw available ALGO from the treasury.
+
+        The treasury is the surplus ALGO balance above the contract's min balance.
+
+        Notes
+        -----
+        - transaction fees = 0.002 ALGO
+        """
+
+        return InnerTxnBuilder.Execute(payments.transfer(Txn.sender(), amount.get()))

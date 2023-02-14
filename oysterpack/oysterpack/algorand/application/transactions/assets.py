@@ -154,6 +154,7 @@ def transfer_txn_fields(
         TxnField.asset_receiver: asset_receiver(),
         TxnField.asset_amount: asset_amount(),
         TxnField.xfer_asset: xfer_asset(),
+        TxnField.fee: Int(0),
     }
 
 

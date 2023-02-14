@@ -46,6 +46,9 @@ class AppClient:
     def get_application_state(self) -> dict[bytes | str, bytes | str | int]:
         return self._app_client.get_application_state()
 
+    def get_application_info(self) -> dict[str, Any]:
+        return self._app_client.client.application_info(self.app_id)
+
     def suggested_params(self, txn_count: int = 1) -> SuggestedParams:
         """
         Uses flat fees based on the min fee and number of transactions.

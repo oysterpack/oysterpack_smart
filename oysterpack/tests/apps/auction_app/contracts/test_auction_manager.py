@@ -8,6 +8,7 @@ from oysterpack.apps.auction_app.client.auction_manager_client import (
     AuctionManagerClient,
     create_auction_manager,
 )
+from oysterpack.apps.auction_app.contracts.auction import auction_storage_fees
 from oysterpack.apps.auction_app.contracts.auction_manager import AuctionManager
 from oysterpack.apps.auction_app.model.auction import AuctionStatus
 from tests.algorand.test_support import AlgorandTestSupport
@@ -99,9 +100,9 @@ class AuctionFactoryTestCase(AlgorandTestSupport, unittest.TestCase):
             account_manager_algo_balance_1 = self.algod_client.account_info(
                 auction_manager_client.contract_address
             )["amount"]
-            auction_algo_balance = self.algod_client.account_info(
-                seller_auction_client.contract_address
-            )["amount"]
+            auction_algo_balance = seller_auction_client.get_application_account_info()[
+                "amount"
+            ]
             # ACT
             auction_manager_client.delete_finalized_auction(
                 seller_auction_client.app_id
@@ -114,11 +115,25 @@ class AuctionFactoryTestCase(AlgorandTestSupport, unittest.TestCase):
             self.assertEqual("application does not exist", str(err.exception))
 
             # ASSERT that the Auction ALGO account was closed out to the AuctionManager
-            account_manager_algo_balance_2 = self.algod_client.account_info(
-                auction_manager_client.contract_address
-            )["amount"]
+            account_manager_algo_balance_2 = (
+                auction_manager_client.get_application_account_info()["amount"]
+            )
             expected_balance = account_manager_algo_balance_1 + auction_algo_balance
+            self.assertGreater(
+                account_manager_algo_balance_2, account_manager_algo_balance_1
+            )
             self.assertEqual(expected_balance, account_manager_algo_balance_2)
+
+            treasury_balance = auction_manager_client.get_treasury_balance()
+            self.assertEqual(
+                auction_algo_balance + auction_storage_fees(), treasury_balance
+            )
+
+            auction_manager_client.withdraw()
+            app_account_info = auction_manager_client.get_application_account_info()
+            self.assertEqual(
+                app_account_info["amount"], app_account_info["min-balance"]
+            )
 
 
 if __name__ == "__main__":

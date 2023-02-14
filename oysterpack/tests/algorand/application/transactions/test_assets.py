@@ -158,7 +158,7 @@ def create_test_asset() -> tuple[AssetId, Address]:
 
 
 class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
-    def optin_optout_test(
+    def optin_optout_test_template(
         self,
         optin: Callable[..., Expr],
         optout: Callable[..., Expr],
@@ -180,7 +180,7 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         # create asset
         asset_id, asset_manager_address = create_test_asset()
 
-        account_starting_balance = app_client.client.account_info(app_client.sender)[
+        account_starting_balance = self.algod_client.account_info(app_client.sender)[
             "amount"
         ]
 
@@ -189,7 +189,7 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
 
         def log(event: str):
             app_account_info = app_client.get_application_account_info()
-            account_balance = app_client.client.account_info(app_client.sender)[
+            account_balance = self.algod_client.account_info(app_client.sender)[
                 "amount"
             ]
             pp(
@@ -220,7 +220,7 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         log("funded app")
 
         # transaction must pay for opt-in inner transaction
-        sp = app_client.client.suggested_params()
+        sp = self.algod_client.suggested_params()
         sp.fee = sp.min_fee * 2
         sp.flat_fee = True
         app_client.call(optin, asset=asset_id, suggested_params=sp)
@@ -294,22 +294,21 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         total_txn_fees += 2000  # delete
         self.assertEqual(total_txn_fees, account_starting_balance - account_balance)
 
-    def test_optin_optout(self):
-        with self.subTest("execute"):
-            self.optin_optout_test(
-                Foo.execute_optin_asset,
-                Foo.execute_optout_asset,
-                Foo.execute_asset_transfer,
-            )
+    def test_execute_optin_optout(self):
+        self.optin_optout_test_template(
+            Foo.execute_optin_asset,
+            Foo.execute_optout_asset,
+            Foo.execute_asset_transfer,
+        )
 
+    def test_submit_optin_optout(self):
         # TODO: why does this test fail when run with coverage?
         # when this test is run manually, it passes
-        with self.subTest("submit"):
-            self.optin_optout_test(
-                Foo.submit_optin_asset,
-                Foo.submit_optout_asset,
-                Foo.submit_asset_transfer,
-            )
+        self.optin_optout_test_template(
+            Foo.submit_optin_asset,
+            Foo.submit_optout_asset,
+            Foo.submit_asset_transfer,
+        )
 
 
 if __name__ == "__main__":

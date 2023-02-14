@@ -20,8 +20,6 @@ from pyteal import (
     Subroutine,
     App,
     Bytes,
-    TxnField,
-    TxnType,
     AccountParam,
     Cond,
     Approve,
@@ -34,11 +32,13 @@ from pyteal import (
 )
 from pyteal.ast import abi
 
+from oysterpack.algorand.application.transactions import payments
 from oysterpack.algorand.application.transactions.assets import (
     execute_optin,
     execute_optout,
     execute_transfer,
 )
+from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.apps.auction_app.model.auction import AuctionStatus
 
 
@@ -70,21 +70,14 @@ class _AuctionState:
         default=Int(0),
     )
 
+    # NOTE: The latest confirmed block UNIX timestamp is used on-chain (Global.latest_timstamp()).
     start_time: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64,
-        descr="""
-            Auction start time specified as a UNIX timestamp.
-             
-            NOTE: The latest confirmed block UNIX timestamp is used on-chain (Global.latest_timstamp()).
-            """,
+        descr="Auction start time specified as a UNIX timestamp.",
     )
     end_time: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64,
-        descr="""
-            Auction end time specified as a UNIX timestamp.
-             
-            NOTE: The latest confirmed block UNIX timestamp is used on-chain (Global.latest_timstamp()).
-            """,
+        descr="Auction end time specified as a UNIX timestamp.",
     )
 
     def is_new(self) -> Expr:
@@ -169,14 +162,7 @@ class Auction(Application, _AuctionState, _AuctionAuth):
             ),
             Assert(total_assets.value() == Int(0)),
             # close out ALGO balance to the creator
-            InnerTxnBuilder.Execute(
-                {
-                    TxnField.type_enum: TxnType.Payment,
-                    TxnField.receiver: Global.creator_address(),
-                    TxnField.close_remainder_to: Global.creator_address(),
-                    TxnField.amount: Int(0),
-                }
-            ),
+            InnerTxnBuilder.Execute(payments.close_out(Global.creator_address())),
         )
 
     @external(authorize=_AuctionAuth.is_seller)
@@ -506,7 +492,7 @@ class Auction(Application, _AuctionState, _AuctionAuth):
         )
 
 
-def auction_storage_fees() -> int:
+def auction_storage_fees() -> MicroAlgos:
     """
     Computes Auction contract storage fees required to be reserved by the creator's account.
 
@@ -528,7 +514,7 @@ def auction_storage_fees() -> int:
     )
     total_byte_slice_entries = total_state_entries - total_int_entries
 
-    return (
+    return MicroAlgos(
         account_base_fee
         + (per_state_entry_fee * total_state_entries)
         + (per_state_int_entry_fee * total_int_entries)

@@ -60,17 +60,13 @@ class AuctionManagerClient(AppClient):
             suggested_params=self.suggested_params(),
         )
 
-        sp = self._app_client.client.suggested_params()
-        sp.fee = 2 * sp.min_fee
-        sp.flat_fee = True
-
         auction_app_id = self._app_client.call(
             AuctionManager.create_auction,
             storage_fees=TransactionWithSigner(
                 payment_txn,
                 cast(TransactionSigner, self._app_client.signer),
             ),
-            suggested_params=sp,
+            suggested_params=self.suggested_params(txn_count=2),
             lease=create_lease(),
         ).return_value
 
@@ -86,13 +82,31 @@ class AuctionManagerClient(AppClient):
         if auction_state.status != AuctionStatus.Finalized:
             raise AssertionError("auction is not finalized")
 
-        app_info = self._app_client.client.application_info(app_id)
-        print(app_info)
-
         self._app_client.call(
             AuctionManager.delete_finalized_auction,
             auction=app_id,
             suggested_params=self.suggested_params(txn_count=3),
+        )
+
+    def get_treasury_balance(self) -> MicroAlgos:
+        app_account_info = self.get_application_account_info()
+        balance: int = app_account_info["amount"]
+        min_balance: int = app_account_info["min-balance"]
+        return MicroAlgos(balance - min_balance)
+
+    def withdraw(self, amount: MicroAlgos | None = None):
+        """
+        if no amount is specified, then the full available amount will be withdrawn
+        :param amount:
+        :return:
+        """
+        if amount is None:
+            amount = self.get_treasury_balance()
+
+        self._app_client.call(
+            AuctionManager.withdraw_algo,
+            amount=amount,
+            suggested_params=self.suggested_params(txn_count=2),
         )
 
 

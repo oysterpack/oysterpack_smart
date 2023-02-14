@@ -50,7 +50,7 @@ class Foo(Application):
 
     @external
     def execute_asset_transfer(
-        self, receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
+            self, receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
     ):
         return execute_transfer(receiver, asset, amount)
 
@@ -80,10 +80,10 @@ class Foo(Application):
 
     @external
     def submit_asset_transfer(
-        self,
-        receiver: abi.Account,
-        asset: abi.Asset,
-        amount: abi.Uint64,
+            self,
+            receiver: abi.Account,
+            asset: abi.Asset,
+            amount: abi.Uint64,
     ):
         return Seq(
             InnerTxnBuilder.Begin(),
@@ -153,10 +153,10 @@ def create_test_asset() -> tuple[AssetId, Address]:
 
 class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
     def optin_optout_test_template(
-        self,
-        optin: Callable[..., Expr],
-        optout: Callable[..., Expr],
-        transfer: Callable[..., Expr],
+            self,
+            optin: Callable[..., Expr],
+            optout: Callable[..., Expr],
+            transfer: Callable[..., Expr],
     ):
         """
         Test template
@@ -296,8 +296,6 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         else:  # account received ALGO rewards, which resulted in ending balance > starting balance
             pass
 
-    # TODO: usually passes, but fails intermittently
-    # The final assertion that checks account ALGO balances after the contract is deleted fails
     def test_execute_optin_optout(self):
         self.optin_optout_test_template(
             Foo.execute_optin_asset,
@@ -306,12 +304,6 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         )
 
     def test_submit_optin_optout(self):
-        # TODO: why does this test almost alaways fails when run with coverage?
-        # The final assertion that checks account ALGO balances after the contract is deleted fails
-        # The test usually passes when run manually, but it also fails intermittently.
-        # Even though transactions are final, this implies there is some sort of race condition ???
-        #
-        # NOTE: the same test run using InnerTransactionBuilder.Execute always passes.
         self.optin_optout_test_template(
             Foo.submit_optin_asset,
             Foo.submit_optout_asset,

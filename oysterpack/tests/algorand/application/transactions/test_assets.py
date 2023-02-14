@@ -20,8 +20,8 @@ from pyteal import (
 )
 from pyteal.ast import abi
 
-from oysterpack.algorand.application.transactions import payments
-from oysterpack.algorand.application.transactions.assets import (
+from oysterpack.algorand.application.transactions import payment
+from oysterpack.algorand.application.transactions.asset import (
     execute_optin,
     execute_transfer,
     execute_optout,
@@ -100,7 +100,7 @@ class Foo(Application):
             ),
             Assert(total_assets.value() == Int(0)),
             # close out the account back to the creator
-            InnerTxnBuilder.Execute(payments.close_out(Global.creator_address())),
+            InnerTxnBuilder.Execute(payment.close_out(Global.creator_address())),
         )
 
 

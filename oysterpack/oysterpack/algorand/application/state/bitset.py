@@ -1,3 +1,7 @@
+"""
+Bitset data structure that can be used to store application state.
+"""
+
 from abc import ABC, abstractmethod
 from copy import copy
 
@@ -7,6 +11,10 @@ from pyteal.ast import abi
 
 
 class BitSetState(ABC):
+    """
+    Defines BitSet interface for storing state.
+    """
+
     @abstractmethod
     def set_bits(self, mask: abi.Uint64) -> Expr:
         """
@@ -39,7 +47,9 @@ class BitSetState(ABC):
 
 class ApplicationBitSet(ApplicationStateValue, BitSetState):
     """
-    BitSet with 64 bits
+    Used to store application global state in a bitset data structure.
+
+    BitSet has 64 bits.
     """
 
     def __init__(self, descr: str | None = None):
@@ -103,7 +113,7 @@ def decode_bit_mask(mask: int) -> set[int]:
     :param mask:
     :return: bits that are set
     """
-    assert mask >= 0 and mask <= 1 << 63, "mask must be within the uint64 range"
+    assert 0 <= mask <= (1 << 63), "mask must be within the uint64 range"
     if mask == 0:
         return set()
     return {

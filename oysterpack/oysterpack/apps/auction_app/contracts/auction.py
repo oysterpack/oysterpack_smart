@@ -36,8 +36,8 @@ from pyteal import (
 )
 from pyteal.ast import abi
 
-from oysterpack.algorand.application.transactions import payments
-from oysterpack.algorand.application.transactions.assets import (
+from oysterpack.algorand.application.transactions import payment
+from oysterpack.algorand.application.transactions.asset import (
     execute_optin,
     execute_optout,
     execute_transfer,
@@ -181,7 +181,7 @@ class Auction(Application, _AuctionState):
             ),
             Assert(total_assets.value() == Int(0)),
             # close out ALGO balance to the creator
-            InnerTxnBuilder.Execute(payments.close_out(Global.creator_address())),
+            InnerTxnBuilder.Execute(payment.close_out(Global.creator_address())),
         )
 
     @external(authorize=is_seller)

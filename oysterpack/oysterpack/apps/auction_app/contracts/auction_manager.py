@@ -4,7 +4,6 @@ Auction Manager smart contract
 
 from typing import Final
 
-from algosdk.transaction import OnComplete
 from beaker import (
     Application,
     AppPrecompile,
@@ -24,12 +23,12 @@ from pyteal import (
     Int,
     Assert,
     InnerTxn,
-    TxnType,
     Global,
 )
 from pyteal.ast import abi
 
-from oysterpack.algorand.application.transactions import payments
+from oysterpack.algorand.application.transactions import payment
+from oysterpack.algorand.application.transactions.application import execute_delete_app
 from oysterpack.apps.auction_app.contracts.auction import Auction, auction_storage_fees
 
 
@@ -80,7 +79,10 @@ class AuctionManager(Application):
 
     @external
     def create_auction(
-        self, storage_fees: abi.PaymentTransaction, *, output: abi.Uint64
+        self,
+        storage_fees: abi.PaymentTransaction,
+        *,
+        output: abi.Uint64,
     ) -> Expr:
         """
         Creates a new Auction contract for the seller. The transaction sender is the seller.
@@ -127,14 +129,7 @@ class AuctionManager(Application):
         - Transaction fees = 0.003 ALGO
 
         """
-        return InnerTxnBuilder.Execute(
-            {
-                TxnField.type_enum: TxnType.ApplicationCall,
-                TxnField.application_id: auction.application_id(),
-                TxnField.on_completion: Int(OnComplete.DeleteApplicationOC.value),
-                TxnField.fee: Int(0),
-            }
-        )
+        return execute_delete_app(auction.application_id())
 
     @external(authorize=Authorize.only(Global.creator_address()))
     def withdraw_algo(self, amount: abi.Uint64) -> Expr:
@@ -148,4 +143,4 @@ class AuctionManager(Application):
         - transaction fees = 0.002 ALGO
         """
 
-        return InnerTxnBuilder.Execute(payments.transfer(Txn.sender(), amount.get()))
+        return InnerTxnBuilder.Execute(payment.transfer(Txn.sender(), amount.get()))

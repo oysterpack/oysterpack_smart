@@ -1,3 +1,7 @@
+"""
+Provides support to manage account permissions.
+"""
+
 from copy import copy
 
 from pyteal import Expr
@@ -10,6 +14,8 @@ class AccountPermissions(AccountBitSet):
     """
     Permissions are represented as a bit set.
     Thus, this provides 64 permissions for applications, which should be sufficient for most cases.
+
+    Permissions are stored as account local state.
     """
 
     def __init__(self):
@@ -19,26 +25,19 @@ class AccountPermissions(AccountBitSet):
         """
         Grants user the specified permissions.
         """
-        return super().set_bits(permissions)
+        return self.set_bits(permissions)
 
     def revoke(self, permissions: abi.Uint64) -> Expr:
         """
         revokes the specified permissions from the user
         """
-        return super().clear_bits(permissions)
+        return self.clear_bits(permissions)
 
     def revoke_all(self) -> Expr:
         """
         revokes all user permissions
         """
-        return super().clear()
-
-    def contains(self, permissions: abi.Uint64) -> Expr:
-        """
-        If the account has the specified permissions, then Int(1) is returned.
-        Otherwise, Int(0) is returned.
-        """
-        return super().contains(permissions)
+        return self.clear()
 
     def __getitem__(self, acct: Expr) -> "AccountPermissions":
         asv = copy(self)

@@ -1,3 +1,7 @@
+"""
+Provides support for constructing asset related transactions within smart contracts
+"""
+
 from typing import cast
 
 from pyteal import TxnField, InnerTxnBuilder, TxnType, Int, Expr, Global
@@ -64,9 +68,9 @@ def optout_txn_fields(
             return Global.creator_address()
         if isinstance(close_to, Expr):
             return close_to
-        if type(close_to) is abi.Account:
+        if isinstance(close_to, abi.Account):
             return close_to.address()
-        if type(close_to) is abi.Address:
+        if isinstance(close_to, abi.Address):
             return cast(abi.Address, close_to).get()
         raise ValueError(
             f"close_to type must be: abi.Account | abi.Address | Expr | None: {type(close_to)}"
@@ -127,9 +131,9 @@ def transfer_txn_fields(
     def asset_receiver() -> Expr:
         if isinstance(receiver, Expr):
             return receiver
-        if type(receiver) is abi.Account:
+        if isinstance(receiver, abi.Account):
             return receiver.address()
-        if type(receiver) is abi.Address:
+        if isinstance(receiver, abi.Address):
             return receiver.get()
         raise ValueError(
             f"receiver type must be: abi.Account | abi.Address | Expr : {type(receiver)}"
@@ -138,14 +142,14 @@ def transfer_txn_fields(
     def xfer_asset() -> Expr:
         if isinstance(asset, Expr):
             return asset
-        if type(asset) is abi.Asset:
+        if isinstance(asset, abi.Asset):
             return asset.asset_id()
         raise ValueError(f"asset type must be: abi.Asset | Expr : {type(asset)}")
 
     def asset_amount() -> Expr:
         if isinstance(amount, Expr):
             return amount
-        if type(amount) is abi.Uint64:
+        if isinstance(amount, abi.Uint64):
             return amount.get()
         raise ValueError(f"amount type must be: abi.Uint64 | Expr : {type(amount)}")
 

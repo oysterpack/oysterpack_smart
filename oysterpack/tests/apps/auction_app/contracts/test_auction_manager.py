@@ -10,11 +10,11 @@ from oysterpack.apps.auction_app.client.auction_manager_client import (
 )
 from oysterpack.apps.auction_app.contracts.auction import auction_storage_fees
 from oysterpack.apps.auction_app.contracts.auction_manager import AuctionManager
-from oysterpack.apps.auction_app.model.auction import AuctionStatus
+from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from tests.algorand.test_support import AlgorandTestSupport
 
 
-class AuctionFactoryTestCase(AlgorandTestSupport, unittest.TestCase):
+class AuctionManagerTestCase(AlgorandTestSupport, unittest.TestCase):
     def test_create(self):
         logger = super().get_logger("test_create")
         # SETUP
@@ -95,7 +95,7 @@ class AuctionFactoryTestCase(AlgorandTestSupport, unittest.TestCase):
             seller_auction_client.cancel()
             seller_auction_client.finalize()
             auction_state = seller_auction_client.get_auction_state()
-            self.assertEqual(auction_state.status, AuctionStatus.Finalized)
+            self.assertEqual(auction_state.status, AuctionStatus.FINALIZED)
 
             account_manager_algo_balance_1 = self.algod_client.account_info(
                 auction_manager_client.contract_address

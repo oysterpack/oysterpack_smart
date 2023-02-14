@@ -16,6 +16,9 @@ check:
 	mypy oysterpack
 	mypy tests
 
+pylint:
+	pylint ./oysterpack
+
 pydoc:
 	poetry run python -m pydoc -b
 

@@ -1,12 +1,13 @@
 import unittest
 from datetime import datetime, UTC, timedelta
+from typing import cast
 
 from algosdk.error import AlgodHTTPError
 from algosdk.transaction import wait_for_confirmation
 from beaker import sandbox
 
 from oysterpack.algorand.client.accounts import get_asset_holding
-from oysterpack.algorand.client.model import Address
+from oysterpack.algorand.client.model import Address, AssetHolding
 from oysterpack.algorand.client.transactions import assets
 from oysterpack.apps.auction_app.client.auction_client import (
     AuctionClient,
@@ -42,7 +43,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         app_state = creator_app_client.get_application_state()
         logger.info(f"app_state: {app_state}")
         self.assertEqual(seller.address, auction_client.get_seller_address())
-        self.assertEqual(app_state[Auction.status.str_key()], AuctionStatus.New.value)
+        self.assertEqual(app_state[Auction.status.str_key()], AuctionStatus.NEW.value)
 
     def test_set_bid_asset(self):
         # SETUP
@@ -64,6 +65,8 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         bid_asset_id, _asset_manager_address = self.create_test_asset("USD$")
         min_bid = 1_000_000
 
+        self.assertIsNone(seller_app_client.get_bid_asset_holding())
+
         with self.subTest("only the seller can set the bid asset"):
             with self.assertRaises(AuthError):
                 creator_app_client.set_bid_asset(bid_asset_id, min_bid)
@@ -79,13 +82,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             self.assertEqual(app_state.bid_asset_id, bid_asset_id)
             self.assertEqual(app_state.min_bid, min_bid)
 
-            app_assets = seller_app_client.get_application_account_info()["assets"]
-            self.assertEqual(len(app_assets), 1)
+            bid_asset_holding = seller_app_client.get_bid_asset_holding()
+            self.assertIsNotNone(bid_asset_holding)
             self.assertEqual(
-                len(
-                    [asset for asset in app_assets if asset["asset-id"] == bid_asset_id]
-                ),
-                1,
+                cast(AssetHolding, bid_asset_holding).asset_id, bid_asset_id
             )
 
         with self.subTest("setting the bid asset again to the same values is a noop "):
@@ -106,13 +106,8 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             self.assertEqual(bid_asset_id, app_state.bid_asset_id)
             self.assertEqual(min_bid, app_state.min_bid)
 
-            app_assets = seller_app_client.get_application_account_info()["assets"]
-            self.assertEqual(len(app_assets), 1)
             self.assertEqual(
-                len(
-                    [asset for asset in app_assets if asset["asset-id"] == bid_asset_id]
-                ),
-                1,
+                seller_app_client.get_bid_asset_holding().asset_id, bid_asset_id
             )
 
     def test_optout_asset(self):
@@ -391,7 +386,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         with self.subTest("auction is prepared to commit"):
             seller_app_client.commit(start_time, end_time)
             auction_state = seller_app_client.get_auction_state()
-            self.assertEqual(AuctionStatus.Committed, auction_state.status)
+            self.assertEqual(AuctionStatus.COMMITTED, auction_state.status)
             self.assertEqual(
                 int(start_time.timestamp()), int(auction_state.start_time.timestamp())
             )
@@ -595,7 +590,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
 
         seller_app_client.accept_bid()
         auction_state = seller_app_client.get_auction_state()
-        self.assertEqual(AuctionStatus.BidAccepted, auction_state.status)
+        self.assertEqual(AuctionStatus.BID_ACCEPTED, auction_state.status)
 
     def test_cancel(self):
         # SETUP
@@ -621,7 +616,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         ):
             seller_app_client.cancel()
             auction_state = seller_app_client.get_auction_state()
-            self.assertEqual(AuctionStatus.Finalized, auction_state.status)
+            self.assertEqual(AuctionStatus.FINALIZED, auction_state.status)
 
         with self.subTest(
             "if the Auction has asset-holdings, then the status will set to Cancelled"
@@ -648,7 +643,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             seller_app_client.cancel()
             # ASSERT
             auction_state = seller_app_client.get_auction_state()
-            self.assertEqual(AuctionStatus.Cancelled, auction_state.status)
+            self.assertEqual(AuctionStatus.CANCELLED, auction_state.status)
 
     def test_finalize(self):
         # SETUP
@@ -733,7 +728,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             )
             self.assertEqual(auction_account_info["total-assets-opted-in"], 0)
             self.assertEqual(
-                AuctionStatus.Finalized, seller_app_client.get_auction_state().status
+                AuctionStatus.FINALIZED, seller_app_client.get_auction_state().status
             )
             # check auction assets were transferred to highest bidder
             auction_bidder_assets = dict(
@@ -779,7 +774,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             )
             self.assertEqual(auction_account_info["total-assets-opted-in"], 0)
             self.assertEqual(
-                AuctionStatus.Finalized, seller_app_client.get_auction_state().status
+                AuctionStatus.FINALIZED, seller_app_client.get_auction_state().status
             )
 
     def test_auction_creation_storage_fees(self):

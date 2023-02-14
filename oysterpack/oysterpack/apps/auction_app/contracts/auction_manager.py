@@ -1,3 +1,7 @@
+"""
+Auction Manager smart contract
+"""
+
 from typing import Final
 
 from algosdk.transaction import OnComplete
@@ -30,8 +34,24 @@ from oysterpack.apps.auction_app.contracts.auction import Auction, auction_stora
 
 
 class AuctionManager(Application):
+    """
+    Use Cases
+    ---------
+    - Sellers can create new Auction smart contract instances
+      - auction creation fees can be looked up
+    - Anyone can delete finalized Auctions
+    - AuctionManager creator can withdraw funds from the treasury
+
+    Revenue Model
+    -------------
+    Revenue is collected from fees paid by sellers to cover Auction smart contract storage fees.
+    The storage fees are retained by the Auction Manager as revenue.
+    """
+
+    # pylint: disable=invalid-name
     auction: Final[AppPrecompile] = AppPrecompile(Auction())
 
+    # pylint: disable=invalid-name
     auction_min_balance: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64,
         static=True,

@@ -1,3 +1,7 @@
+"""
+Auction model classes
+"""
+
 from enum import IntEnum, auto
 
 
@@ -19,27 +23,27 @@ class AuctionStatus(IntEnum):
         is closed out to the seller.
     """
 
-    New = auto()
-    Committed = auto()
-    Cancelled = auto()
-    BidAccepted = auto()
+    NEW = auto()
+    COMMITTED = auto()
+    CANCELLED = auto()
+    BID_ACCEPTED = auto()
 
     # All assets have transferred out of the contracts.
     #
     # If status == Sold, then:
     # 1. payment is transferred from the buyer's escrow account to the seller
     # 2. assets are transferred from the seller's escrow to the
-    Finalized = auto()
+    FINALIZED = auto()
 
     def __repr__(self) -> str:
         match (self):
-            case AuctionStatus.New:
-                return f"New({AuctionStatus.New.value})"
-            case AuctionStatus.Committed:
-                return f"Committed({AuctionStatus.Committed.value})"
-            case AuctionStatus.Cancelled:
-                return f"Cancelled({AuctionStatus.Cancelled.value})"
-            case AuctionStatus.BidAccepted:
-                return f"BidAccepted({AuctionStatus.BidAccepted.value})"
-            case AuctionStatus.Finalized:
-                return f"Finalized({AuctionStatus.Finalized.value})"
+            case AuctionStatus.NEW:
+                return f"New({AuctionStatus.NEW.value})"
+            case AuctionStatus.COMMITTED:
+                return f"Committed({AuctionStatus.COMMITTED.value})"
+            case AuctionStatus.CANCELLED:
+                return f"Cancelled({AuctionStatus.CANCELLED.value})"
+            case AuctionStatus.BID_ACCEPTED:
+                return f"BidAccepted({AuctionStatus.BID_ACCEPTED.value})"
+            case AuctionStatus.FINALIZED:
+                return f"Finalized({AuctionStatus.FINALIZED.value})"

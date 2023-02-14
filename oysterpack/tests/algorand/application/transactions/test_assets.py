@@ -50,7 +50,7 @@ class Foo(Application):
 
     @external
     def execute_asset_transfer(
-            self, receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
+        self, receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
     ):
         return execute_transfer(receiver, asset, amount)
 
@@ -80,10 +80,10 @@ class Foo(Application):
 
     @external
     def submit_asset_transfer(
-            self,
-            receiver: abi.Account,
-            asset: abi.Asset,
-            amount: abi.Uint64,
+        self,
+        receiver: abi.Account,
+        asset: abi.Asset,
+        amount: abi.Uint64,
     ):
         return Seq(
             InnerTxnBuilder.Begin(),
@@ -153,10 +153,10 @@ def create_test_asset() -> tuple[AssetId, Address]:
 
 class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
     def optin_optout_test_template(
-            self,
-            optin: Callable[..., Expr],
-            optout: Callable[..., Expr],
-            transfer: Callable[..., Expr],
+        self,
+        optin: Callable[..., Expr],
+        optout: Callable[..., Expr],
+        transfer: Callable[..., Expr],
     ):
         """
         Test template

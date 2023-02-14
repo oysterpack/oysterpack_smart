@@ -1,3 +1,7 @@
+"""
+Auction application client
+"""
+
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from pprint import pformat
@@ -19,59 +23,87 @@ from oysterpack.algorand.client.transactions import create_lease, assets
 from oysterpack.algorand.client.transactions.assets import opt_in
 from oysterpack.algorand.params import MinimumBalance
 from oysterpack.apps.auction_app.contracts.auction import Auction
-from oysterpack.apps.auction_app.model.auction import AuctionStatus
+from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.client import AppClient
 
 
 @dataclass
 class InvalidAssetId(Exception):
+    """Raised for invalid asset ID"""
+
     asset_id: AssetId
 
 
 class AuthError(Exception):
-    pass
+    """User is not authorized"""
 
 
 class AuctionState:
+    """
+    Auction application state
+    """
+
     def __init__(self, state: dict[bytes | str, bytes | str | int]):
+        """
+        :param state: application state retrieved using AlgodClient
+        """
         self.__state = state
 
     @property
     def status(self) -> AuctionStatus:
+        """
+        :return: AuctionStatus
+        """
         match self.__state[Auction.status.str_key()]:
-            case AuctionStatus.New.value:
-                return AuctionStatus.New
-            case AuctionStatus.Cancelled.value:
-                return AuctionStatus.Cancelled
-            case AuctionStatus.Committed.value:
-                return AuctionStatus.Committed
-            case AuctionStatus.BidAccepted.value:
-                return AuctionStatus.BidAccepted
-            case AuctionStatus.Finalized.value:
-                return AuctionStatus.Finalized
+            case AuctionStatus.NEW.value:
+                return AuctionStatus.NEW
+            case AuctionStatus.CANCELLED.value:
+                return AuctionStatus.CANCELLED
+            case AuctionStatus.COMMITTED.value:
+                return AuctionStatus.COMMITTED
+            case AuctionStatus.BID_ACCEPTED.value:
+                return AuctionStatus.BID_ACCEPTED
+            case AuctionStatus.FINALIZED.value:
+                return AuctionStatus.FINALIZED
             case _:
                 raise ValueError(self.__state[Auction.status.str_key()])
 
     @property
     def seller_address(self) -> Address:
+        """
+        :return: Address
+        """
         return self._encode_address(
             cast(str, self.__state[Auction.seller_address.str_key()])
         )
 
     @property
     def bid_asset_id(self) -> AssetId | None:
+        """
+        Bid asset is the asset that the seller is accepting as payment.
+
+        :return: None means not configured
+        """
         if Auction.bid_asset_id.str_key() in self.__state.keys():
             return AssetId(cast(int, self.__state[Auction.bid_asset_id.str_key()]))
         return None
 
     @property
     def min_bid(self) -> int | None:
+        """
+        The minimum bid that the seller will accept.
+
+        :return: None means not configured
+        """
         if Auction.min_bid.str_key() in self.__state.keys():
             return cast(int, self.__state[Auction.min_bid.str_key()])
         return None
 
     @property
     def highest_bidder_address(self) -> Address | None:
+        """
+        :return: Address | None
+        """
         if Auction.highest_bidder_address.str_key() in self.__state.keys():
             value = cast(str, self.__state[Auction.highest_bidder_address.str_key()])
             return self._encode_address(value) if value else None
@@ -79,12 +111,20 @@ class AuctionState:
 
     @property
     def highest_bid(self) -> int:
+        """
+        :return: highest bid amount - zero means no bid yet
+        """
         if Auction.highest_bid.str_key() in self.__state.keys():
             return cast(int, self.__state[Auction.highest_bid.str_key()])
         return 0
 
     @property
     def start_time(self) -> datetime | None:
+        """
+        When the bidding session starts.
+
+        :return: None means not configured
+        """
         if Auction.start_time.str_key() in self.__state.keys():
             value = cast(int, self.__state[Auction.start_time.str_key()])
             return datetime.fromtimestamp(value, UTC) if value else None
@@ -92,15 +132,23 @@ class AuctionState:
 
     @property
     def end_time(self) -> datetime | None:
+        """
+        When the bidding session ends.
+
+        :return: None means not configured
+        """
         if Auction.end_time.str_key() in self.__state.keys():
             value = cast(int, self.__state[Auction.end_time.str_key()])
             return datetime.fromtimestamp(value, UTC) if value else None
         return None
 
     def is_bidding_open(self) -> bool:
+        """
+        :return: True if the Auction is Committed and the current time is within the bidding session window.
+        """
         if self.start_time and self.end_time:
             return (
-                self.status == AuctionStatus.Committed
+                self.status == AuctionStatus.COMMITTED
                 and self.start_time <= datetime.now(UTC) < self.end_time
             )
         return False
@@ -110,36 +158,45 @@ class AuctionState:
         :return: True if the auction has ended, but not yet fully finalized
         """
         if self.status in [
-            AuctionStatus.BidAccepted,
-            AuctionStatus.Cancelled,
+            AuctionStatus.BID_ACCEPTED,
+            AuctionStatus.CANCELLED,
         ]:
             return True
 
         return (
-            self.status == AuctionStatus.Committed
+            self.status == AuctionStatus.COMMITTED
             # if status is committed, then `end_time` is not None
             and datetime.now(UTC) > self.end_time  # type: ignore
         )
 
     def is_sold(self) -> bool:
-        if self.status == AuctionStatus.BidAccepted:
+        """
+        :return: True if the Auction has sold
+        """
+
+        if self.status == AuctionStatus.BID_ACCEPTED:
             return True
 
         return (
-            self.status == AuctionStatus.Committed
+            self.status == AuctionStatus.COMMITTED
             # if status is committed, then `end_time` is not None
             and datetime.now(UTC) > self.end_time  # type: ignore
             and self.highest_bid > 0
         )
 
     def _encode_address(self, hex_encoded_address_bytes: str) -> Address:
-        return Address(
-            encode_address(
-                # seller address is stored as bytes in the contract
-                # beaker's ApplicationClient will return the bytes as a hex encoded string
-                bytes.fromhex(hex_encoded_address_bytes)
-            )
-        )
+        """
+        Helper function to encode an address stored in the app's global state as a standard Algorand address.
+
+        Notes
+        -----
+        - seller address is stored as bytes in the contract
+        - beaker's ApplicationClient will return the bytes as a hex encoded string
+
+        :param hex_encoded_address_bytes:
+        :return:
+        """
+        return Address(encode_address(bytes.fromhex(hex_encoded_address_bytes)))
 
     def __repr__(self):
         return pformat(
@@ -220,29 +277,48 @@ class _AuctionClient(AppClient):
 
 class _AuctionClientSupport(AppClient):
     def get_auction_state(self) -> AuctionState:
+        """
+        :return: AuctionState
+        """
         return AuctionState(self.get_application_state())
 
     def get_auction_assets(self) -> list[AssetHolding]:
-        assets = [
+        """
+        The auction's assets that are for sale are returned, i.e., all asset holdings excluding the bid asset.
+
+        :return: list[AssetHolding]
+        """
+        auction_assets = [
             AssetHolding.from_data(asset)
             for asset in self.get_application_account_info()["assets"]
         ]
         bid_asset_id = self.get_auction_state().bid_asset_id
         if bid_asset_id:
-            # TODO: adding mypy ignore because mypy is complaining about `asset.asset_id`, even though it is valid
-            return [asset for asset in assets if asset.asset_id != bid_asset_id]  # type: ignore
-        return assets
+            return [asset for asset in auction_assets if asset.asset_id != bid_asset_id]
+        return auction_assets
 
-    def get_bid_asset_holding(self) -> AssetHolding:
+    def get_bid_asset_holding(self) -> AssetHolding | None:
+        """
+        :return: None if the bid asset is not configured
+        """
         bid_asset_id = self.get_auction_state().bid_asset_id
-        bid_asset_holding = self._app_client.client.account_asset_info(
-            self.contract_address, bid_asset_id
-        )
-        return AssetHolding.from_data(bid_asset_holding["asset-holding"])
+        try:
+            bid_asset_holding = self._app_client.client.account_asset_info(
+                self.contract_address, bid_asset_id
+            )
+            return AssetHolding.from_data(bid_asset_holding["asset-holding"])
+        except AlgodHTTPError as err:
+            if err.code == 404:
+                return None
+            raise
 
 
 # TODO: add standardized transaction notes
 class AuctionBidder(_AuctionClientSupport):
+    """
+    Auction client used for placing bids.
+    """
+
     def __init__(
         self,
         app_id: AppId,
@@ -260,6 +336,13 @@ class AuctionBidder(_AuctionClientSupport):
 
     @classmethod
     def from_client(cls, app_client: ApplicationClient) -> "AuctionBidder":
+        """
+        :param app_client: ApplicationClient.app_id must reference an Auction instance
+        """
+
+        if app_client.app_id == 0:
+            raise AssertionError("ApplicationClient.app_id must not be 0")
+
         return cls(
             AppId(app_client.app_id),
             app_client.client,
@@ -268,6 +351,14 @@ class AuctionBidder(_AuctionClientSupport):
         )
 
     def bid(self, amount: int):
+        """
+        Used to submit a bid.
+
+        Notes
+        -----
+        - Auction bidding session must be open
+        - The bid must be higher than the current highest bid.
+        """
         auction_state = AuctionState(self.get_application_state())
         if not auction_state.is_bidding_open():
             raise AssertionError("auction is not open for bidding")
@@ -285,12 +376,12 @@ class AuctionBidder(_AuctionClientSupport):
             suggested_params=self.suggested_params(),
         )
 
-        sp = self.suggested_params()
+        suggested_params = self.suggested_params()
 
         if auction_state.highest_bidder_address:
             highest_bidder = auction_state.highest_bidder_address
             # transaction fees need to cover the inner transaction to refund the highest bidder
-            sp.fee = sp.min_fee * 2
+            suggested_params.fee = suggested_params.min_fee * 2
         else:
             highest_bidder = Address(ZERO_ADDRESS)
 
@@ -303,10 +394,16 @@ class AuctionBidder(_AuctionClientSupport):
             highest_bidder=highest_bidder,
             bid_asset=auction_state.bid_asset_id,
             sender=self._app_client.sender,
-            suggested_params=sp,
+            suggested_params=suggested_params,
         )
 
     def optin_auction_assets(self):
+        """
+        Opts in the bidder account into all the auction's assets.
+
+        NOTE: if the bidder wins the auction, the bidder will need to opt in the auction's assets in order to be
+              able to receive them.
+        """
         bidder = self._app_client.sender
         for asset in self.get_auction_assets():
             try:
@@ -329,8 +426,19 @@ class AuctionBidder(_AuctionClientSupport):
 
 # TODO: add standardized transaction notes
 class AuctionClient(_AuctionClient, _AuctionClientSupport):
+    """
+    Auction application client
+    """
+
     @classmethod
     def from_client(cls, app_client: ApplicationClient) -> "AuctionClient":
+        """
+        :param app_client: ApplicationClient.app_id must reference an Auction instance
+        """
+
+        if app_client.app_id == 0:
+            raise AssertionError("ApplicationClient.app_id must not be 0")
+
         return cls(
             AppId(app_client.app_id),
             app_client.client,
@@ -339,6 +447,9 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         )
 
     def get_seller_address(self) -> Address:
+        """
+        Returns auction seller address
+        """
         return self.get_auction_state().seller_address
 
     def set_bid_asset(self, asset_id: AssetId, min_bid: int):
@@ -364,11 +475,11 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             self.optout_asset(app_state.bid_asset_id)
 
         # transaction fees need to cover the inner transaction to opt in the bid asset
-        sp = self.suggested_params(txn_count=2)
+        suggested_params = self.suggested_params(txn_count=2)
 
         # if only the min bid is being changed, then no bid asset opt in is needed
         if app_state.bid_asset_id and app_state.bid_asset_id == asset_id:
-            sp.fee = sp.min_fee
+            suggested_params.fee = suggested_params.min_fee
         else:
             self._fund_asset_optin()
 
@@ -376,7 +487,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             Auction.set_bid_asset,
             bid_asset=asset_id,
             min_bid=min_bid,
-            suggested_params=sp,
+            suggested_params=suggested_params,
             lease=create_lease(),
         )
 
@@ -447,7 +558,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         app_state = self.get_auction_state()
         if app_state.seller_address != self._app_client.sender:
             raise AuthError
-        if app_state.status != AuctionStatus.New:
+        if app_state.status != AuctionStatus.NEW:
             raise AssertionError(
                 "asset deposit is only allowed when auction status is 'New'"
             )
@@ -491,7 +602,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         if app_state.seller_address != self._app_client.sender:
             raise AuthError
 
-        if app_state.status != AuctionStatus.New:
+        if app_state.status != AuctionStatus.NEW:
             raise AssertionError(
                 "asset withdrawal is only allowed when auction status is 'New'"
             )
@@ -530,7 +641,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         if app_state.seller_address != self._app_client.sender:
             raise AuthError
 
-        if app_state.status != AuctionStatus.New:
+        if app_state.status != AuctionStatus.NEW:
             raise AssertionError(
                 "auction can only be commited when auction status is 'New'"
             )
@@ -561,8 +672,12 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         )
 
     def accept_bid(self):
+        """
+        Enables the seller to accept a bid before the bidding session is over.
+        """
+
         app_state = self.get_auction_state()
-        if app_state.status != AuctionStatus.Committed:
+        if app_state.status != AuctionStatus.COMMITTED:
             raise AssertionError("auction status must be `Committed`")
         if app_state.highest_bid == 0:
             raise AssertionError("auction has no bid")
@@ -572,8 +687,17 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         self._app_client.call(Auction.accept_bid)
 
     def cancel(self):
+        """
+        Enables the seller to cancel the auction.
+
+        Notes
+        -----
+        - an auction cannot be cancelled once it is committed
+        - auction storage fees will not be refunded
+        """
+
         app_state = self.get_auction_state()
-        if app_state.status != AuctionStatus.New:
+        if app_state.status != AuctionStatus.NEW:
             raise AssertionError(
                 "auction can only be commited when auction status is 'New'"
             )
@@ -583,13 +707,20 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         self._app_client.call(Auction.cancel)
 
     def finalize(self):
+        """
+        Used to finalize the auction once it has reached an end state:
+        - cancelled
+        - bid accepted
+        - bidding session is over
+        """
+
         app_state = self.get_auction_state()
-        if app_state.status == AuctionStatus.Finalized:
+        if app_state.status == AuctionStatus.FINALIZED:
             return
         if not app_state.is_ended():
             raise AssertionError("auction cannot be finalized because it has not ended")
 
-        sp = self.suggested_params(txn_count=2)
+        suggested_params = self.suggested_params(txn_count=2)
         if app_state.is_sold():
             # close out auction assets to the highest bidder
             for asset in self.get_auction_assets():
@@ -597,7 +728,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                     Auction.finalize,
                     asset=asset.asset_id,
                     close_to=app_state.highest_bidder_address,
-                    suggested_params=sp,
+                    suggested_params=suggested_params,
                     lease=create_lease(),
                 )
             # close out the bid asset to the seller
@@ -605,7 +736,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                 Auction.finalize,
                 asset=app_state.bid_asset_id,
                 close_to=app_state.seller_address,
-                suggested_params=sp,
+                suggested_params=suggested_params,
                 lease=create_lease(),
             )
         else:
@@ -615,7 +746,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                     Auction.finalize,
                     asset=asset.asset_id,
                     close_to=app_state.seller_address,
-                    suggested_params=sp,
+                    suggested_params=suggested_params,
                     lease=create_lease(),
                 )
             if app_state.bid_asset_id:
@@ -625,7 +756,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                         Auction.finalize,
                         asset=app_state.bid_asset_id,
                         close_to=app_state.seller_address,
-                        suggested_params=sp,
+                        suggested_params=suggested_params,
                         lease=create_lease(),
                     )
                 except AlgodHTTPError as err:
@@ -633,5 +764,8 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                         raise
 
     def latest_timestamp(self) -> datetime:
+        """
+        The timestamp for the latest confirmed block that is used to determine the bidding session window.
+        """
         result = self._app_client.call(Auction.latest_timestamp)
         return datetime.fromtimestamp(result.return_value, UTC)

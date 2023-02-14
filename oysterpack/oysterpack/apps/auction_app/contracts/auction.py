@@ -1,3 +1,7 @@
+"""
+Auction smart contract
+"""
+
 from typing import Final, Any
 
 from beaker import (
@@ -39,13 +43,15 @@ from oysterpack.algorand.application.transactions.assets import (
     execute_transfer,
 )
 from oysterpack.algorand.client.model import MicroAlgos
-from oysterpack.apps.auction_app.model.auction import AuctionStatus
+from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 
 
 class _AuctionState:
+    # pylint: disable=invalid-name
+
     status: Final[ApplicationStateValue] = ApplicationStateValue(
         stack_type=TealType.uint64,
-        default=Int(AuctionStatus.New.value),
+        default=Int(AuctionStatus.NEW.value),
     )
 
     seller_address: Final[ApplicationStateValue] = ApplicationStateValue(
@@ -81,33 +87,38 @@ class _AuctionState:
     )
 
     def is_new(self) -> Expr:
-        return self.status.get() == Int(AuctionStatus.New.value)
+        """
+        :return: True if status is New
+        """
+        return self.status.get() == Int(AuctionStatus.NEW.value)
 
     def is_committed(self) -> Expr:
-        return self.status.get() == Int(AuctionStatus.Committed.value)
+        """
+        :return: True if status is Committed
+        """
+        return self.status.get() == Int(AuctionStatus.COMMITTED.value)
 
     def is_bid_accepted(self) -> Expr:
-        return self.status.get() == Int(AuctionStatus.BidAccepted.value)
+        """
+        :return: True if status is BidAccepted
+        """
+        return self.status.get() == Int(AuctionStatus.BID_ACCEPTED.value)
 
     def is_cancelled(self) -> Expr:
-        return self.status.get() == Int(AuctionStatus.Cancelled.value)
+        """
+        :return: True if status is Cancelled
+        """
+        return self.status.get() == Int(AuctionStatus.CANCELLED.value)
 
     def is_finalized(self) -> Expr:
-        return self.status.get() == Int(AuctionStatus.Finalized.value)
-
-
-class _AuctionAuth:
-    @Subroutine(TealType.uint64)
-    @staticmethod
-    def is_seller(sender: Expr) -> Expr:
         """
-        Used as an authorization subroutine
+        :return: True if status is Finalized
         """
-        return sender == App.globalGet(Bytes("seller_address"))
+        return self.status.get() == Int(AuctionStatus.FINALIZED.value)
 
 
 # TODO: add standardized transaction notes
-class Auction(Application, _AuctionState, _AuctionAuth):
+class Auction(Application, _AuctionState):
     """
     Auction is used to sell asset holdings escrowed by this contract to the highest bidder.
 
@@ -118,8 +129,16 @@ class Auction(Application, _AuctionState, _AuctionAuth):
     When the auction is finalized, the ALGO paid for storage costs will be closed out to the creator address.
     """
 
+    @Subroutine(TealType.uint64)
+    @staticmethod
+    def is_seller(sender: Expr) -> Expr:
+        """
+        Used as an authorization subroutine
+        """
+        return sender == App.globalGet(Bytes("seller_address"))
+
     @create
-    def create(self, seller: abi.Account) -> Expr:
+    def create(self, seller: abi.Account) -> Expr:  # pylint: disable=arguments-differ
         """
         Initializes the application global state.
 
@@ -165,7 +184,7 @@ class Auction(Application, _AuctionState, _AuctionAuth):
             InnerTxnBuilder.Execute(payments.close_out(Global.creator_address())),
         )
 
-    @external(authorize=_AuctionAuth.is_seller)
+    @external(authorize=is_seller)
     def set_bid_asset(self, bid_asset: abi.Asset, min_bid: abi.Uint64) -> Expr:
         """
         Opts in the bid asset, only if it has not yet been opted in.
@@ -212,7 +231,7 @@ class Auction(Application, _AuctionState, _AuctionAuth):
             ),
         )
 
-    @external(authorize=_AuctionAuth.is_seller)
+    @external(authorize=is_seller)
     def optin_asset(self, asset: abi.Asset) -> Expr:
         """
         Opt in asset to be sold in the auction.
@@ -230,7 +249,7 @@ class Auction(Application, _AuctionState, _AuctionAuth):
             execute_optin(asset),
         )
 
-    @external(authorize=_AuctionAuth.is_seller)
+    @external(authorize=is_seller)
     def optout_asset(self, asset: abi.Asset) -> Expr:
         """
         Closes out the asset to the seller
@@ -251,7 +270,7 @@ class Auction(Application, _AuctionState, _AuctionAuth):
             ),
         )
 
-    @external(authorize=_AuctionAuth.is_seller)
+    @external(authorize=is_seller)
     def withdraw_asset(self, asset: abi.Asset, amount: abi.Uint64) -> Expr:
         """
         Assets can only be withdrawn when auction status is `New`
@@ -265,8 +284,15 @@ class Auction(Application, _AuctionState, _AuctionAuth):
             execute_transfer(Txn.sender(), asset, amount),
         )
 
-    @external(authorize=_AuctionAuth.is_seller)
+    @external(authorize=is_seller)
     def commit(self, start_time: abi.Uint64, end_time: abi.Uint64) -> Expr:
+        """
+        When the seller is done setting up the auction, the final step is to commit the auction.
+        Once the auction is committed, it can no longer be changed.
+
+        :param start_time: when the bidding session starts
+        :param end_time: when the bidding session ends
+        """
         return Seq(
             Assert(
                 self.is_new(),
@@ -286,10 +312,10 @@ class Auction(Application, _AuctionState, _AuctionAuth):
             ),
             self.start_time.set(start_time.get()),
             self.end_time.set(end_time.get()),
-            self.status.set(Int(AuctionStatus.Committed.value)),
+            self.status.set(Int(AuctionStatus.COMMITTED.value)),
         )
 
-    @external(authorize=_AuctionAuth.is_seller)
+    @external(authorize=is_seller)
     def cancel(self) -> Expr:
         """
         The auction cannot be cancelled once it has been committed.
@@ -303,8 +329,8 @@ class Auction(Application, _AuctionState, _AuctionAuth):
             total_assets := AccountParam.totalAssets(self.address),
             If(
                 total_assets.value() == Int(0),  # all assets have been closed out
-                self.status.set(Int(AuctionStatus.Finalized.value)),
-                self.status.set(Int(AuctionStatus.Cancelled.value)),
+                self.status.set(Int(AuctionStatus.FINALIZED.value)),
+                self.status.set(Int(AuctionStatus.CANCELLED.value)),
             ),
         )
 
@@ -348,7 +374,7 @@ class Auction(Application, _AuctionState, _AuctionAuth):
         """
         return Seq(
             Assert(
-                self.status.get() == Int(AuctionStatus.Committed.value),
+                self.status.get() == Int(AuctionStatus.COMMITTED.value),
                 # check auction bidding has started
                 Global.latest_timestamp() >= self.start_time.get(),
                 Global.latest_timestamp() <= self.end_time.get(),
@@ -382,7 +408,7 @@ class Auction(Application, _AuctionState, _AuctionAuth):
             self.highest_bid.set(bid.get().asset_amount()),
         )
 
-    @external(authorize=_AuctionAuth.is_seller)
+    @external(authorize=is_seller)
     def accept_bid(self) -> Expr:
         """
         The seller may choose to accept the current highest bid and end the auction early.
@@ -396,11 +422,11 @@ class Auction(Application, _AuctionState, _AuctionAuth):
         """
         return Seq(
             Assert(
-                self.status.get() == Int(AuctionStatus.Committed.value),
+                self.status.get() == Int(AuctionStatus.COMMITTED.value),
                 self.highest_bid.get() > Int(0),
                 Global.latest_timestamp() <= self.end_time.get(),
             ),
-            self.status.set(Int(AuctionStatus.BidAccepted.value)),
+            self.status.set(Int(AuctionStatus.BID_ACCEPTED.value)),
         )
 
     @external(read_only=True)
@@ -433,7 +459,7 @@ class Auction(Application, _AuctionState, _AuctionAuth):
             return Or(
                 self.is_bid_accepted(),
                 And(
-                    self.status.get() == Int(AuctionStatus.Committed.value),
+                    self.status.get() == Int(AuctionStatus.COMMITTED.value),
                     Global.latest_timestamp() > self.end_time.get(),
                     self.highest_bid.get() > Int(0),
                 ),
@@ -460,7 +486,7 @@ class Auction(Application, _AuctionState, _AuctionAuth):
             return Or(
                 self.is_cancelled(),
                 And(
-                    self.status.get() == Int(AuctionStatus.Committed.value),
+                    self.status.get() == Int(AuctionStatus.COMMITTED.value),
                     Global.latest_timestamp() > self.end_time.get(),
                     self.highest_bid.get() == Int(0),
                 ),
@@ -481,7 +507,7 @@ class Auction(Application, _AuctionState, _AuctionAuth):
                 total_assets := AccountParam.totalAssets(self.address),
                 If(
                     total_assets.value() == Int(0),  # all assets have been closed out
-                    self.status.set(Int(AuctionStatus.Finalized.value)),
+                    self.status.set(Int(AuctionStatus.FINALIZED.value)),
                 ),
             )
 

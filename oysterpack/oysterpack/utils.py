@@ -1,3 +1,8 @@
+"""
+Contains utility helper functions
+"""
+
+
 def full_class_name(__obj) -> str:
     "Returns the fully qualified class name for the specified object"
 

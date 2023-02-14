@@ -11,8 +11,6 @@ from pyteal import (
     Expr,
     Global,
     InnerTxnBuilder,
-    TxnField,
-    TxnType,
     Int,
     If,
     AssetHolding,
@@ -22,6 +20,7 @@ from pyteal import (
 )
 from pyteal.ast import abi
 
+from oysterpack.algorand.application.transactions import payments
 from oysterpack.algorand.application.transactions.assets import (
     execute_optin,
     execute_transfer,
@@ -81,7 +80,10 @@ class Foo(Application):
 
     @external
     def submit_asset_transfer(
-        self, receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
+        self,
+        receiver: abi.Account,
+        asset: abi.Asset,
+        amount: abi.Uint64,
     ):
         return Seq(
             InnerTxnBuilder.Begin(),
@@ -98,15 +100,7 @@ class Foo(Application):
             ),
             Assert(total_assets.value() == Int(0)),
             # close out the account back to the creator
-            InnerTxnBuilder.Execute(
-                {
-                    TxnField.type_enum: TxnType.Payment,
-                    TxnField.receiver: Global.creator_address(),
-                    TxnField.close_remainder_to: Global.creator_address(),
-                    TxnField.amount: Int(0),
-                    TxnField.fee: Int(0),
-                }
-            ),
+            InnerTxnBuilder.Execute(payments.close_out(Global.creator_address())),
         )
 
 
@@ -294,6 +288,8 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         total_txn_fees += 2000  # delete
         self.assertEqual(total_txn_fees, account_starting_balance - account_balance)
 
+    # TODO: usually passes, but fails intermittently
+    # The final assertion that checks account ALGO balances after the contract is deleted fails
     def test_execute_optin_optout(self):
         self.optin_optout_test_template(
             Foo.execute_optin_asset,
@@ -303,6 +299,7 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
 
     def test_submit_optin_optout(self):
         # TODO: why does this test almost alaways fails when run with coverage?
+        # The final assertion that checks account ALGO balances after the contract is deleted fails
         # The test usually passes when run manually, but it also fails intermittently.
         # Even though transactions are final, this implies there is some sort of race condition ???
         #

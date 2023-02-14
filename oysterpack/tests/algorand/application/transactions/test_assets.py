@@ -81,7 +81,10 @@ class Foo(Application):
 
     @external
     def submit_asset_transfer(
-        self, receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
+        self,
+        receiver: abi.Account,
+        asset: abi.Asset,
+        amount: abi.Uint64,
     ):
         return Seq(
             InnerTxnBuilder.Begin(),

@@ -1,3 +1,7 @@
+"""
+Provides client side support for constructing account related transactions
+"""
+
 from algosdk.constants import ZERO_ADDRESS
 from algosdk.transaction import PaymentTxn
 

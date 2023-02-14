@@ -2,7 +2,6 @@
 Provides support to create Algorand transactions.
 """
 
-import functools
 from typing import Callable
 
 from algosdk.transaction import SuggestedParams
@@ -21,9 +20,15 @@ def create_lease() -> bytes:
 
 
 def suggested_params_with_flat_flee(
-    algod_client: AlgodClient, txn_count: int = 1
+    algod_client: AlgodClient,
+    txn_count: int = 1,
 ) -> SuggestedParams:
-    sp = algod_client.suggested_params()
-    sp.fee = sp.min_fee * txn_count
-    sp.flat_fee = True
-    return sp
+    """
+    Returns a suggested txn params using the min flat fee.
+
+    :param txn_count: specifies how many transactions to pay for
+    """
+    suggested_params = algod_client.suggested_params()
+    suggested_params.fee = suggested_params.min_fee * txn_count
+    suggested_params.flat_fee = True
+    return suggested_params

@@ -1,3 +1,7 @@
+"""
+Provides client side support for constructing asset related transactions
+"""
+
 import algosdk.account
 from algosdk.transaction import (
     AssetOptInTxn,
@@ -28,6 +32,11 @@ def create(
     metadata_hash: bytes | None = None,
     url: str | None = None,
 ) -> AssetCreateTxn:
+    """
+    Constructs an asset creation transaction.
+
+    https://developer.algorand.org/docs/get-details/asa/#creating-an-asset
+    """
     return AssetCreateTxn(
         sender=sender,
         unit_name=unit_name,
@@ -57,7 +66,9 @@ def update(
     suggested_params: SuggestedParams,
 ) -> AssetUpdateTxn:
     """
-    A Reconfiguration Transaction is issued by the asset manager to change the configuration of an already created asset.
+    Constructs a transaction to update the asset configuration.
+
+    https://developer.algorand.org/docs/get-details/asa/#modifying-an-asset
     """
 
     return AssetUpdateTxn(
@@ -78,6 +89,12 @@ def opt_in(
     asset_id: AssetId,
     suggested_params: SuggestedParams,
 ) -> AssetOptInTxn:
+    """
+    Used to construct a transaction to opt in the asset for the specified account.
+
+    https://developer.algorand.org/docs/get-details/asa/#receiving-an-asset
+    """
+
     return AssetOptInTxn(
         sender=account,
         index=asset_id,
@@ -93,6 +110,13 @@ def close_out(
     asset_id: AssetId,
     suggested_params: SuggestedParams,
 ) -> AssetCloseOutTxn:
+    """
+    Constructs a  transaction to close out the asset, i.e., opt-out.
+
+    https://developer.algorand.org/docs/get-details/asa/#revoking-an-asset
+
+    :param close_to: any remaining balance is transferred to this account
+    """
     return AssetCloseOutTxn(
         sender=account,
         receiver=close_to if close_to else algosdk.account.generate_account()[1],
@@ -111,6 +135,11 @@ def transfer(
     suggested_params: SuggestedParams,
     note: str | None = None,
 ) -> AssetTransferTxn:
+    """
+    Constructs an asset transfer transaction.
+
+    https://developer.algorand.org/docs/get-details/asa/#transferring-an-asset
+    """
     return AssetTransferTxn(
         sender=sender,
         receiver=receiver,

@@ -1,3 +1,7 @@
+"""
+Provides client side support to construct account rekeying transactions
+"""
+
 from algosdk.transaction import PaymentTxn, SuggestedParams
 
 from oysterpack.algorand.client.accounts import Address

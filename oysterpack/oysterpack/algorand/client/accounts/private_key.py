@@ -1,3 +1,10 @@
+"""
+AlgoPrivateKey adds the capability to encrypt private messages using the same Algorand private key that is used
+to sign messages. Specifically, AlgoPrivateKet supports authenticated encryption, i.e., box encryption:
+
+https://doc.libsodium.org/public-key_cryptography/authenticated_encryption
+"""
+
 import base64
 from typing import NewType
 
@@ -14,12 +21,13 @@ from oysterpack.algorand.client.model import Address, Mnemonic
 EncryptionAddress = NewType("EncryptionAddress", Address)
 
 # public signing key encoded as a base32 address
+# standars Algorand address
 SigningAddress = NewType("SigningAddress", Address)
 
 
 class AlgoPrivateKey(PrivateKey):
     """
-    Algorand private key can be used to sign and encrypt messages.
+    Algorand private keys can be used to sign and encrypt messages.
 
     Messages are encrypted using box encryption using the recipient's encryption address.
     The encrypted message can only be decrypted by the intended recipient using its private key
@@ -33,13 +41,13 @@ class AlgoPrivateKey(PrivateKey):
                                  2. raw bytes
                                  3. Mnemonic
         """
-        if type(algo_private_key) is str:
+        if isinstance(algo_private_key, str):
             super().__init__(
                 base64.b64decode(algo_private_key)[: constants.key_len_bytes]
             )
-        elif type(algo_private_key) is bytes:
+        elif isinstance(algo_private_key, bytes):
             super().__init__(algo_private_key[: constants.key_len_bytes])
-        elif type(algo_private_key) is Mnemonic:
+        elif isinstance(algo_private_key, Mnemonic):
             super().__init__(
                 base64.b64decode(algo_private_key.to_private_key())[
                     : constants.key_len_bytes
@@ -68,6 +76,11 @@ class AlgoPrivateKey(PrivateKey):
 
     @property
     def signing_key(self) -> SigningKey:
+        """
+        NOTE: This is the same signing key used to sign Algorand transactions.
+
+        :return: private key used to sign messages
+        """
         return SigningKey(bytes(self))
 
     @property
@@ -77,25 +90,42 @@ class AlgoPrivateKey(PrivateKey):
 
         :return: base32 encoded public signing address
         """
-        return SigningAddress(encode_address(bytes(self.signing_key.verify_key)))
+        return SigningAddress(
+            Address(encode_address(bytes(self.signing_key.verify_key)))
+        )
 
     def encrypt(self, msg: bytes, recipient: EncryptionAddress) -> EncryptedMessage:
+        """
+        Encrypts a message that can only be decrypted by the recipient's private key
+        """
         return Box(self, encryption_address_to_public_key(recipient)).encrypt(msg)
 
     def decrypt(self, msg: EncryptedMessage, sender: EncryptionAddress) -> bytes:
+        """
+        Decrypts a message that was encrypted by the sender.
+        """
         return Box(self, encryption_address_to_public_key(sender)).decrypt(
             msg.ciphertext, msg.nonce
         )
 
     def sign(self, msg: bytes) -> SignedMessage:
+        """
+        Signs the message.
+        """
         return self.signing_key.sign(msg)
 
 
 def encryption_address_to_public_key(address: EncryptionAddress) -> PublicKey:
+    """
+    EncryptionAddress -> PublicKey
+    """
     return PublicKey(decode_address(address))
 
 
 def signing_address_to_verify_key(address: SigningAddress) -> VerifyKey:
+    """
+    SigningAddress -> VerifyKey
+    """
     return VerifyKey(decode_address(address))
 
 

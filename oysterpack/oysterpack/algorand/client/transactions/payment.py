@@ -1,3 +1,7 @@
+"""
+Provides support for constructing client side Algorand transactions related to payments
+"""
+
 from algosdk.transaction import PaymentTxn
 
 from oysterpack.algorand.client.accounts import Address

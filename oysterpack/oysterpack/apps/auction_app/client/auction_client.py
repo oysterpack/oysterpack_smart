@@ -5,7 +5,7 @@ Auction application client
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from pprint import pformat
-from typing import cast, Optional
+from typing import cast
 
 from algosdk.atomic_transaction_composer import (
     TransactionSigner,
@@ -15,10 +15,9 @@ from algosdk.atomic_transaction_composer import (
 from algosdk.constants import ZERO_ADDRESS
 from algosdk.encoding import encode_address
 from algosdk.error import AlgodHTTPError
-from algosdk.v2client.algod import AlgodClient
 from beaker.client import ApplicationClient
 
-from oysterpack.algorand.client.model import Address, AppId, AssetId, AssetHolding
+from oysterpack.algorand.client.model import Address, AssetId, AssetHolding, MicroAlgos
 from oysterpack.algorand.client.transactions import create_lease, asset
 from oysterpack.algorand.client.transactions.asset import opt_in
 from oysterpack.algorand.params import MinimumBalance
@@ -218,20 +217,14 @@ class AuctionState:
 
 
 class _AuctionClient(AppClient):
-    def __init__(
-        self,
-        app_id: AppId,
-        algod_client: AlgodClient,
-        signer: TransactionSigner,
-        sender: Address | None = None,
-    ):
-        super().__init__(
-            app=Auction(),
-            app_id=app_id,
-            algod_client=algod_client,
-            signer=signer,
-            sender=sender,
-        )
+    def __init__(self, app_client: ApplicationClient):
+        if app_client.app_id == 0:
+            raise AssertionError("ApplicationClient.app_id must not be 0")
+
+        if not isinstance(app_client.app, Auction):
+            raise AssertionError("ApplicationClient.app must be an instance of Auction")
+
+        super().__init__(app_client)
 
     def _fund_asset_optin(self):
         """
@@ -241,7 +234,7 @@ class _AuctionClient(AppClient):
         account_info = self.get_application_account_info()
         algo_balance = cast(int, account_info["amount"])
         min_balance = cast(int, account_info["min-balance"])
-        self.fund(min_balance + MinimumBalance.ASSET_OPT_IN - algo_balance)
+        self.fund(MicroAlgos(min_balance + MinimumBalance.ASSET_OPT_IN - algo_balance))
 
     def _assert_valid_asset_id(self, asset_id: AssetId):
         if not self._is_asset_id_valid(asset_id):
@@ -319,36 +312,14 @@ class AuctionBidder(_AuctionClientSupport):
     Auction client used for placing bids.
     """
 
-    def __init__(
-        self,
-        app_id: AppId,
-        algod_client: AlgodClient,
-        signer: TransactionSigner,
-        sender: Address | None = None,
-    ):
-        super().__init__(
-            app=Auction(),
-            app_id=app_id,
-            algod_client=algod_client,
-            signer=signer,
-            sender=sender,
-        )
-
-    @classmethod
-    def from_client(cls, app_client: ApplicationClient) -> "AuctionBidder":
-        """
-        :param app_client: ApplicationClient.app_id must reference an Auction instance
-        """
-
+    def __init__(self, app_client: ApplicationClient):
         if app_client.app_id == 0:
             raise AssertionError("ApplicationClient.app_id must not be 0")
 
-        return cls(
-            AppId(app_client.app_id),
-            app_client.client,
-            cast(TransactionSigner, app_client.signer),
-            cast(Optional[Address], app_client.sender),
-        )
+        if not isinstance(app_client.app, Auction):
+            raise AssertionError("ApplicationClient.app must be an instance of Auction")
+
+        super().__init__(app_client)
 
     def bid(self, amount: int):
         """
@@ -431,22 +402,6 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
     """
     Auction application client
     """
-
-    @classmethod
-    def from_client(cls, app_client: ApplicationClient) -> "AuctionClient":
-        """
-        :param app_client: ApplicationClient.app_id must reference an Auction instance
-        """
-
-        if app_client.app_id == 0:
-            raise AssertionError("ApplicationClient.app_id must not be 0")
-
-        return cls(
-            AppId(app_client.app_id),
-            app_client.client,
-            cast(TransactionSigner, app_client.signer),
-            cast(Optional[Address], app_client.sender),
-        )
 
     def get_seller_address(self) -> Address:
         """

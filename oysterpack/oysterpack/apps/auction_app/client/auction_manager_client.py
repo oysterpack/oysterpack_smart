@@ -2,7 +2,7 @@
 Auction Manager application client
 """
 
-from typing import cast, Optional
+from typing import cast
 
 from algosdk.atomic_transaction_composer import TransactionSigner, TransactionWithSigner
 from algosdk.v2client.algod import AlgodClient
@@ -24,27 +24,16 @@ class AuctionManagerClient(AppClient):
     AuctionManager application client
     """
 
-    def __init__(
-        self,
-        app_id: AppId,
-        algod_client: AlgodClient,
-        signer: TransactionSigner,
-        sender: Address | None = None,
-    ):
-        """
+    def __init__(self, app_client: ApplicationClient):
+        if app_client.app_id == 0:
+            raise AssertionError("ApplicationClient.app_id must not be 0")
 
-        :param app_id: AuctionManager application ID
-        :param algod_client: AlgodClient
-        :param signer: TransactionSigner
-        :param sender: Address
-        """
-        super().__init__(
-            app=AuctionManager(),
-            app_id=app_id,
-            algod_client=algod_client,
-            signer=signer,
-            sender=sender,
-        )
+        if not isinstance(app_client.app, AuctionManager):
+            raise AssertionError(
+                "ApplicationClient.app must be an instance of AuctionManager"
+            )
+
+        super().__init__(app_client)
 
     def prepare(
         self,
@@ -54,24 +43,8 @@ class AuctionManagerClient(AppClient):
         """
         Used to make a copy of the current AuctionManagerClient with a new sender and/or signer.
         """
-        return AuctionManagerClient.from_client(
+        return AuctionManagerClient(
             self._app_client.prepare(sender=sender, signer=signer)
-        )
-
-    @classmethod
-    def from_client(cls, app_client: ApplicationClient) -> "AuctionManagerClient":
-        """
-        :param app_client: ApplicationClient.app_id must reference an AuctionManager instance
-        """
-
-        if app_client.app_id == 0:
-            raise AssertionError("ApplicationClient.app_id must not be 0`")
-
-        return cls(
-            AppId(app_client.app_id),
-            app_client.client,
-            cast(TransactionSigner, app_client.signer),
-            cast(Optional[Address], app_client.sender),
         )
 
     def get_auction_creation_fees(self) -> int:
@@ -104,7 +77,7 @@ class AuctionManagerClient(AppClient):
             lease=create_lease(),
         ).return_value
 
-        return AuctionClient.from_client(
+        return AuctionClient(
             self._app_client.prepare(app=Auction(), app_id=auction_app_id)
         )
 
@@ -118,8 +91,8 @@ class AuctionManagerClient(AppClient):
         :param app_id: Auction AppId
         """
 
-        auction_client = AuctionClient.from_client(
-            self._app_client.prepare(app_id=app_id)
+        auction_client = AuctionClient(
+            self._app_client.prepare(app=Auction(), app_id=app_id)
         )
         auction_state = auction_client.get_auction_state()
         if auction_state.status != AuctionStatus.FINALIZED:
@@ -177,4 +150,4 @@ def create_auction_manager(
     )
     app_client.create()
     app_client.fund(int(0.1 * algo))
-    return AuctionManagerClient.from_client(app_client)
+    return AuctionManagerClient(app_client)

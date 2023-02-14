@@ -1,8 +1,11 @@
+"""
+Provides support for logging
+"""
+
 import logging
 import time
 
 
-# TODO: add support to log App ID, app version, PID, thread ID
 def configure_logging(level: int = logging.WARNING):
     """
     Confifues logging format and log level.

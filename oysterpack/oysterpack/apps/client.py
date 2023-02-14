@@ -4,11 +4,8 @@ Provides client side support to interact with Algorand smart contracts, i.e., ap
 
 from typing import Any
 
-from algosdk.atomic_transaction_composer import TransactionSigner
 from algosdk.logic import get_application_address
 from algosdk.transaction import SuggestedParams
-from algosdk.v2client.algod import AlgodClient
-from beaker import Application
 from beaker.client import ApplicationClient
 
 from oysterpack.algorand.client.model import AppId, Address, MicroAlgos
@@ -20,20 +17,13 @@ class AppClient:
     Algorand application client
     """
 
-    def __init__(
-        self,
-        app: Application,
-        app_id: AppId,
-        algod_client: AlgodClient,
-        signer: TransactionSigner,
-        sender: Address | None = None,
-    ):
+    def __init__(self, app_client: ApplicationClient):
         self._app_client = ApplicationClient(
-            app=app,
-            app_id=app_id,
-            client=algod_client,
-            signer=signer,
-            sender=sender,
+            app=app_client.app,
+            app_id=app_client.app_id,
+            signer=app_client.signer,
+            sender=app_client.sender,
+            client=app_client.client,
         )
 
     @property

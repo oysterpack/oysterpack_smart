@@ -23,7 +23,7 @@ class AuctionManagerTestCase(AlgorandTestSupport, unittest.TestCase):
 
         # ACT
         app_client.create()
-        auction_manager_client = AuctionManagerClient.from_client(app_client)
+        auction_manager_client = AuctionManagerClient(app_client)
         logger.info(
             f"auction creation fees = {auction_manager_client.get_auction_creation_fees()} microalgos"
         )

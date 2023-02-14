@@ -37,7 +37,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
 
         # ACT
         creator_app_client.create(seller=seller.address)
-        auction_client = AuctionClient.from_client(creator_app_client)
+        auction_client = AuctionClient(creator_app_client)
 
         # ASSERT
         app_state = creator_app_client.get_application_state()
@@ -57,10 +57,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             Auction(), signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
-        seller_app_client = AuctionClient.from_client(
+        seller_app_client = AuctionClient(
             creator_app_client.prepare(signer=seller.signer)
         )
-        creator_app_client = AuctionClient.from_client(creator_app_client)
+        creator_app_client = AuctionClient(creator_app_client)
 
         bid_asset_id, _asset_manager_address = self.create_test_asset("USD$")
         min_bid = 1_000_000
@@ -120,10 +120,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             Auction(), signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
-        seller_app_client = AuctionClient.from_client(
+        seller_app_client = AuctionClient(
             creator_app_client.prepare(signer=seller.signer)
         )
-        creator_app_client = AuctionClient.from_client(creator_app_client)
+        creator_app_client = AuctionClient(creator_app_client)
 
         bid_asset_id, _asset_manager_address = self.create_test_asset("USD$")
         min_bid = 1_000_000
@@ -156,10 +156,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             Auction(), signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
-        seller_app_client = AuctionClient.from_client(
+        seller_app_client = AuctionClient(
             creator_app_client.prepare(signer=seller.signer)
         )
-        creator_app_client = AuctionClient.from_client(creator_app_client)
+        creator_app_client = AuctionClient(creator_app_client)
 
         gold_asset_id, _asset_manager_address = self.create_test_asset("GOLD$")
 
@@ -221,10 +221,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             Auction(), signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
-        seller_app_client = AuctionClient.from_client(
+        seller_app_client = AuctionClient(
             creator_app_client.prepare(signer=seller.signer)
         )
-        creator_app_client = AuctionClient.from_client(creator_app_client)
+        creator_app_client = AuctionClient(creator_app_client)
 
         gold_asset_id, asset_manager_address = self.create_test_asset("GOLD$")
 
@@ -270,10 +270,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             Auction(), signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
-        seller_app_client = AuctionClient.from_client(
+        seller_app_client = AuctionClient(
             creator_app_client.prepare(signer=seller.signer)
         )
-        creator_app_client = AuctionClient.from_client(creator_app_client)
+        creator_app_client = AuctionClient(creator_app_client)
 
         gold_asset_id, asset_manager_address = self.create_test_asset("GOLD$")
 
@@ -326,10 +326,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             Auction(), signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
-        seller_app_client = AuctionClient.from_client(
+        seller_app_client = AuctionClient(
             creator_app_client.prepare(signer=seller.signer)
         )
-        creator_app_client = AuctionClient.from_client(creator_app_client)
+        creator_app_client = AuctionClient(creator_app_client)
 
         gold_asset_id, gold_asset_manager_address = self.create_test_asset("GOLD$")
         bid_asset_id, bid_asset_manager_address = self.create_test_asset("USD$")
@@ -409,12 +409,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             Auction(), signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
-        seller_app_client = AuctionClient.from_client(
+        seller_app_client = AuctionClient(
             creator_app_client.prepare(signer=seller.signer)
         )
-        auction_bidder = AuctionBidder.from_client(
-            creator_app_client.prepare(signer=bidder.signer)
-        )
+        auction_bidder = AuctionBidder(creator_app_client.prepare(signer=bidder.signer))
 
         gold_asset_id, gold_asset_manager_address = self.create_test_asset("GOLD$")
         bid_asset_id, bid_asset_manager_address = self.create_test_asset("USD$")
@@ -499,7 +497,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
 
             # submit a new high bid using the bid asset manager account
             assert bid_asset_manager_address != bidder.address
-            auction_bidder_2 = AuctionBidder.from_client(
+            auction_bidder_2 = AuctionBidder(
                 creator_app_client.prepare(
                     signer=self.sandbox_default_wallet_transaction_signer(),
                     sender=bid_asset_manager_address,
@@ -535,12 +533,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             Auction(), signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
-        seller_app_client = AuctionClient.from_client(
+        seller_app_client = AuctionClient(
             creator_app_client.prepare(signer=seller.signer)
         )
-        auction_bidder = AuctionBidder.from_client(
-            creator_app_client.prepare(signer=bidder.signer)
-        )
+        auction_bidder = AuctionBidder(creator_app_client.prepare(signer=bidder.signer))
 
         gold_asset_id, gold_asset_manager_address = self.create_test_asset("GOLD$")
         bid_asset_id, bid_asset_manager_address = self.create_test_asset("USD$")
@@ -602,10 +598,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             Auction(), signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
-        seller_app_client = AuctionClient.from_client(
+        seller_app_client = AuctionClient(
             creator_app_client.prepare(signer=seller.signer)
         )
-        creator_app_client = AuctionClient.from_client(creator_app_client)
+        creator_app_client = AuctionClient(creator_app_client)
 
         with self.subTest("only seller is authorized to cancel the auction"):
             with self.assertRaises(AuthError):
@@ -625,7 +621,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 Auction(), signer=creator.signer
             )
             creator_app_client.create(seller=seller.address)
-            seller_app_client = AuctionClient.from_client(
+            seller_app_client = AuctionClient(
                 creator_app_client.prepare(signer=seller.signer)
             )
 
@@ -657,10 +653,10 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 Auction(), signer=creator.signer
             )
             creator_app_client.create(seller=seller.address)
-            seller_app_client = AuctionClient.from_client(
+            seller_app_client = AuctionClient(
                 creator_app_client.prepare(signer=seller.signer)
             )
-            auction_bidder = AuctionBidder.from_client(
+            auction_bidder = AuctionBidder(
                 creator_app_client.prepare(signer=bidder.signer)
             )
 

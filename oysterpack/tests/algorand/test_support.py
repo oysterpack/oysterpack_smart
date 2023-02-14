@@ -22,7 +22,7 @@ from oysterpack.algorand.client.accounts.kmd import (
     WalletSession,
 )
 from oysterpack.algorand.client.model import Address, AssetId
-from oysterpack.algorand.client.transactions import assets as client_assets, assets
+from oysterpack.algorand.client.transactions import asset as client_assets, asset
 from oysterpack.core.logging import configure_logging
 
 configure_logging(level=logging.INFO)
@@ -124,7 +124,7 @@ class AlgorandTestSupport:
         amount: int,
         asset_reserve_address: Address,
     ):
-        txn = assets.opt_in(
+        txn = asset.opt_in(
             account=receiver,
             asset_id=asset_id,
             suggested_params=self.algod_client.suggested_params(),
@@ -134,7 +134,7 @@ class AlgorandTestSupport:
         wait_for_confirmation(self.algod_client, txid)
 
         # transfer assets to the seller account
-        asset_transfer_txn = assets.transfer(
+        asset_transfer_txn = asset.transfer(
             sender=asset_reserve_address,
             receiver=receiver,
             asset_id=asset_id,

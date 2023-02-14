@@ -1,4 +1,4 @@
-pre-commit: format check sandbox-reset test
+pre-commit: format check pylint-errors-only sandbox-reset test
 
 test:
 	coverage run -m unittest
@@ -18,6 +18,9 @@ check:
 
 pylint:
 	pylint ./oysterpack
+
+pylint-errors-only:
+	pylint -E ./oysterpack ./tests
 
 pydoc:
 	poetry run python -m pydoc -b

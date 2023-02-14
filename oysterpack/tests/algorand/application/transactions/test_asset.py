@@ -30,7 +30,7 @@ from oysterpack.algorand.application.transactions.asset import (
     set_transfer_txn_fields,
 )
 from oysterpack.algorand.client.model import AssetId, Address
-from oysterpack.algorand.client.transactions import assets as client_assets
+from oysterpack.algorand.client.transactions import asset as client_assets
 from tests.algorand.test_support import AlgorandTestSupport
 
 

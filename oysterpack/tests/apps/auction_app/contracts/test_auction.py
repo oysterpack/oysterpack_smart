@@ -8,7 +8,7 @@ from beaker import sandbox
 
 from oysterpack.algorand.client.accounts import get_asset_holding
 from oysterpack.algorand.client.model import Address, AssetHolding
-from oysterpack.algorand.client.transactions import assets
+from oysterpack.algorand.client.transactions import asset
 from oysterpack.apps.auction_app.client.auction_client import (
     AuctionClient,
     AuthError,
@@ -229,7 +229,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         gold_asset_id, asset_manager_address = self.create_test_asset("GOLD$")
 
         # opt in GOLD$ for the seller account
-        txn = assets.opt_in(
+        txn = asset.opt_in(
             account=Address(seller.address),
             asset_id=gold_asset_id,
             suggested_params=self.algod_client.suggested_params(),
@@ -239,7 +239,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         wait_for_confirmation(self.algod_client, txid)
 
         # transfer assets to the seller account
-        txn = assets.transfer(
+        txn = asset.transfer(
             sender=asset_manager_address,
             receiver=Address(seller.address),
             asset_id=gold_asset_id,
@@ -480,7 +480,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
 
         with self.subTest("previous bidder account has opted-out of the bid asset"):
             # close out the bid asset on the bidder account back to the bid asset manager account
-            from oysterpack.algorand.client.transactions.assets import close_out
+            from oysterpack.algorand.client.transactions.asset import close_out
 
             txn = close_out(
                 account=Address(bidder.address),

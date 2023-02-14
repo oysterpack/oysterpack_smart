@@ -19,8 +19,8 @@ from algosdk.v2client.algod import AlgodClient
 from beaker.client import ApplicationClient
 
 from oysterpack.algorand.client.model import Address, AppId, AssetId, AssetHolding
-from oysterpack.algorand.client.transactions import create_lease, assets
-from oysterpack.algorand.client.transactions.assets import opt_in
+from oysterpack.algorand.client.transactions import create_lease, asset
+from oysterpack.algorand.client.transactions.asset import opt_in
 from oysterpack.algorand.params import MinimumBalance
 from oysterpack.apps.auction_app.contracts.auction import Auction
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
@@ -368,7 +368,7 @@ class AuctionBidder(_AuctionClientSupport):
                 f"bid is too low - current highest bid is: {auction_state.highest_bid}"
             )
 
-        asset_transfer_txn = assets.transfer(
+        asset_transfer_txn = asset.transfer(
             sender=cast(Address, self._app_client.sender),
             receiver=self.contract_address,
             asset_id=cast(AssetId, auction_state.bid_asset_id),
@@ -405,14 +405,16 @@ class AuctionBidder(_AuctionClientSupport):
               able to receive them.
         """
         bidder = self._app_client.sender
-        for asset in self.get_auction_assets():
+        for auction_asset in self.get_auction_assets():
             try:
-                self._app_client.client.account_asset_info(bidder, asset.asset_id)
+                self._app_client.client.account_asset_info(
+                    bidder, auction_asset.asset_id
+                )
             except AlgodHTTPError as err:
                 if err.code == 404:  # bidder account is not opted in
                     txn = opt_in(
                         account=bidder,
-                        asset_id=asset.asset_id,
+                        asset_id=auction_asset.asset_id,
                         suggested_params=self.suggested_params(),
                     )
                     atc = AtomicTransactionComposer()
@@ -571,7 +573,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
 
         # transfer the asset
         # the transfer will fail if there are insufficient funds
-        asset_transfer_txn = assets.transfer(
+        asset_transfer_txn = asset.transfer(
             sender=Address(cast(str, self._app_client.sender)),
             receiver=self.contract_address,
             asset_id=asset_id,
@@ -723,10 +725,10 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         suggested_params = self.suggested_params(txn_count=2)
         if app_state.is_sold():
             # close out auction assets to the highest bidder
-            for asset in self.get_auction_assets():
+            for auction_asset in self.get_auction_assets():
                 self._app_client.call(
                     Auction.finalize,
-                    asset=asset.asset_id,
+                    asset=auction_asset.asset_id,
                     close_to=app_state.highest_bidder_address,
                     suggested_params=suggested_params,
                     lease=create_lease(),
@@ -741,10 +743,10 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             )
         else:
             # close out auction assets to the seller
-            for asset in self.get_auction_assets():
+            for auction_asset in self.get_auction_assets():
                 self._app_client.call(
                     Auction.finalize,
-                    asset=asset.asset_id,
+                    asset=auction_asset.asset_id,
                     close_to=app_state.seller_address,
                     suggested_params=suggested_params,
                     lease=create_lease(),

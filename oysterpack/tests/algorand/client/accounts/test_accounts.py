@@ -4,7 +4,7 @@ from algosdk.account import generate_account
 from algosdk.transaction import wait_for_confirmation
 
 from oysterpack.algorand.client.accounts import get_asset_holdings, get_asset_holding
-from oysterpack.algorand.client.transactions import assets
+from oysterpack.algorand.client.transactions import asset
 from tests.algorand.test_support import AlgorandTestSupport
 
 
@@ -12,7 +12,7 @@ class MyTestCase(AlgorandTestSupport, unittest.TestCase):
     def test_get_asset_holdings(self):
         # create asset
         account = self.sandbox_default_wallet.list_keys()[0]
-        txn = assets.create(
+        txn = asset.create(
             sender=account,
             asset_name="GOLD",
             unit_name="GOLD",
@@ -49,7 +49,7 @@ class MyTestCase(AlgorandTestSupport, unittest.TestCase):
     def test_get_asset_holding(self):
         # create asset
         account = self.sandbox_default_wallet.list_keys()[0]
-        txn = assets.create(
+        txn = asset.create(
             sender=account,
             asset_name="GOLD",
             unit_name="GOLD",

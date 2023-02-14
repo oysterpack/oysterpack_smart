@@ -5,7 +5,7 @@ from algosdk.encoding import base64
 from algosdk.transaction import wait_for_confirmation
 
 from oysterpack.algorand.client.accounts import Address, get_asset_holding
-from oysterpack.algorand.client.transactions import assets
+from oysterpack.algorand.client.transactions import asset
 from tests.algorand.test_support import AlgorandTestSupport
 
 
@@ -17,7 +17,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         m.update(b"asset metadata")
         return m.digest()
 
-    def create_asset(self) -> tuple[assets.AssetId, Address]:
+    def create_asset(self) -> tuple[asset.AssetId, Address]:
         """
         Creates a new asset using the first account in the sandbox default wallet as the administrative accounts.
 
@@ -30,7 +30,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         asset_name = "GOLD"
         unit_name = "GLD"
         url = "https://meld.gold/"
-        txn = assets.create(
+        txn = asset.create(
             sender=sender,
             manager=manager,
             reserve=reserve,
@@ -49,7 +49,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         tx_info = wait_for_confirmation(
             algod_client=self.algod_client, txid=txid, wait_rounds=4
         )
-        return (assets.AssetId(tx_info["asset-index"]), Address(manager))
+        return (asset.AssetId(tx_info["asset-index"]), Address(manager))
 
     def test_create(self):
         sender = self.sandbox_default_wallet.list_keys()[0]
@@ -62,7 +62,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         asset_name = "GOLD"
         unit_name = "GLD"
         url = "https://meld.gold/"
-        txn = assets.create(
+        txn = asset.create(
             sender=sender,
             manager=manager,
             reserve=reserve,
@@ -119,7 +119,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         _, reserve = generate_account()
         _, freeze = generate_account()
         _, clawback = generate_account()
-        txn = assets.update(
+        txn = asset.update(
             sender=manager,
             asset_id=asset_id,
             manager=new_manager,
@@ -146,7 +146,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
     def test_opt_in(self):
         asset_id, _manager = self.create_asset()
         account = self.sandbox_default_wallet.list_keys()[1]
-        txn = assets.opt_in(
+        txn = asset.opt_in(
             account=account,
             asset_id=asset_id,
             suggested_params=self.algod_client.suggested_params(),
@@ -166,7 +166,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         account = self.sandbox_default_wallet.list_keys()[1]
 
         # opt in the account
-        txn = assets.opt_in(
+        txn = asset.opt_in(
             account=account,
             asset_id=asset_id,
             suggested_params=self.algod_client.suggested_params(),
@@ -175,7 +175,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         txid = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(algod_client=self.algod_client, txid=txid, wait_rounds=4)
 
-        txn = assets.transfer(
+        txn = asset.transfer(
             sender=manager,
             receiver=account,
             asset_id=asset_id,
@@ -203,7 +203,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         account = self.sandbox_default_wallet.list_keys()[1]
 
         # opt in
-        txn = assets.opt_in(
+        txn = asset.opt_in(
             account=account,
             asset_id=asset_id,
             suggested_params=self.algod_client.suggested_params(),
@@ -214,7 +214,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         self.assertIsNotNone(get_asset_holding(account, asset_id, self.algod_client))
 
         # close out
-        txn = assets.close_out(
+        txn = asset.close_out(
             account=account,
             asset_id=asset_id,
             suggested_params=self.algod_client.suggested_params(),
@@ -231,7 +231,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
         account = self.sandbox_default_wallet.list_keys()[1]
 
         # opt in
-        txn = assets.opt_in(
+        txn = asset.opt_in(
             account=account,
             asset_id=asset_id,
             suggested_params=self.algod_client.suggested_params(),
@@ -243,7 +243,7 @@ class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
 
         # close out
         _, close_to = generate_account()
-        txn = assets.close_out(
+        txn = asset.close_out(
             account=account,
             close_to=close_to,
             asset_id=asset_id,

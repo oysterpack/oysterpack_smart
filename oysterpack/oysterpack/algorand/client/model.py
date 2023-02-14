@@ -22,6 +22,10 @@ MicroAlgos = NewType("MicroAlgos", int)
 
 
 class AppId(int):
+    """
+    Algorand smart contract application ID
+    """
+
     def to_address(self) -> Address:
         """
         Generates the smart contract's Algorand address from its app ID
@@ -33,6 +37,10 @@ class AppId(int):
 
 @dataclass(slots=True)
 class AssetHolding:
+    """
+    Account asset holding.
+    """
+
     amount: int
     asset_id: AssetId
     is_frozen: bool
@@ -89,6 +97,9 @@ class Mnemonic:
 
     @classmethod
     def from_word_list(cls, word_list: str) -> "Mnemonic":
+        """
+        :param word_list: 25 word whitespace delimited list
+        """
         return cls(tuple(word_list.strip().split()))  # type: ignore
 
     def __post_init__(self):

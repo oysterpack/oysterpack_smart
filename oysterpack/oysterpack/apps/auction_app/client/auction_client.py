@@ -241,7 +241,7 @@ class _AuctionClient(AppClient):
         account_info = self.get_application_account_info()
         algo_balance = cast(int, account_info["amount"])
         min_balance = cast(int, account_info["min-balance"])
-        self.fund(min_balance + MinimumBalance.asset_opt_in - algo_balance)
+        self.fund(min_balance + MinimumBalance.ASSET_OPT_IN - algo_balance)
 
     def _assert_valid_asset_id(self, asset_id: AssetId):
         if not self._is_asset_id_valid(asset_id):

@@ -36,14 +36,4 @@ class AuctionStatus(IntEnum):
     FINALIZED = auto()
 
     def __repr__(self) -> str:
-        match (self):
-            case AuctionStatus.NEW:
-                return f"New({AuctionStatus.NEW.value})"
-            case AuctionStatus.COMMITTED:
-                return f"Committed({AuctionStatus.COMMITTED.value})"
-            case AuctionStatus.CANCELLED:
-                return f"Cancelled({AuctionStatus.CANCELLED.value})"
-            case AuctionStatus.BID_ACCEPTED:
-                return f"BidAccepted({AuctionStatus.BID_ACCEPTED.value})"
-            case AuctionStatus.FINALIZED:
-                return f"Finalized({AuctionStatus.FINALIZED.value})"
+        return f"{self.name}({self.value})"

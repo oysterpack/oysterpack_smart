@@ -302,8 +302,11 @@ class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
         )
 
     def test_submit_optin_optout(self):
-        # TODO: why does this test fail when run with coverage?
-        # when this test is run manually, it passes
+        # TODO: why does this test almost alaways fails when run with coverage?
+        # The test usually passes when run manually, but it also fails intermittently.
+        # Even though transactions are final, this implies there is some sort of race condition ???
+        #
+        # NOTE: the same test run using InnerTransactionBuilder.Execute always passes.
         self.optin_optout_test_template(
             Foo.submit_optin_asset,
             Foo.submit_optout_asset,

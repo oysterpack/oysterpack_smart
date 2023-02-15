@@ -31,6 +31,7 @@ def create(
     default_frozen: bool = False,
     metadata_hash: bytes | None = None,
     url: str | None = None,
+    note: bytes | None = None,
 ) -> AssetCreateTxn:
     """
     Constructs an asset creation transaction.
@@ -51,6 +52,7 @@ def create(
         clawback=clawback,
         default_frozen=default_frozen,
         sp=suggested_params,
+        note=note,
         lease=create_lease(),
     )
 
@@ -64,6 +66,7 @@ def update(
     freeze: Address | None,
     clawback: Address | None,
     suggested_params: SuggestedParams,
+    note: bytes | None = None,
 ) -> AssetUpdateTxn:
     """
     Constructs a transaction to update the asset configuration.
@@ -79,6 +82,7 @@ def update(
         freeze=freeze if freeze is not None else "",
         clawback=clawback if clawback is not None else "",
         sp=suggested_params,
+        note=note,
         lease=create_lease(),
     )
 
@@ -88,6 +92,7 @@ def opt_in(
     account: Address,
     asset_id: AssetId,
     suggested_params: SuggestedParams,
+    note: bytes | None = None,
 ) -> AssetOptInTxn:
     """
     Used to construct a transaction to opt in the asset for the specified account.
@@ -99,6 +104,7 @@ def opt_in(
         sender=account,
         index=asset_id,
         sp=suggested_params,
+        note=note,
         lease=create_lease(),
     )
 
@@ -109,6 +115,7 @@ def close_out(
     close_to: Address | None = None,
     asset_id: AssetId,
     suggested_params: SuggestedParams,
+    note: bytes | None = None,
 ) -> AssetCloseOutTxn:
     """
     Constructs a  transaction to close out the asset, i.e., opt-out.
@@ -122,6 +129,7 @@ def close_out(
         receiver=close_to if close_to else algosdk.account.generate_account()[1],
         index=asset_id,
         sp=suggested_params,
+        note=note,
         lease=create_lease(),
     )
 
@@ -133,7 +141,7 @@ def transfer(
     asset_id: AssetId,
     amount: int,
     suggested_params: SuggestedParams,
-    note: str | None = None,
+    note: bytes | None = None,
 ) -> AssetTransferTxn:
     """
     Constructs an asset transfer transaction.
@@ -145,7 +153,7 @@ def transfer(
         receiver=receiver,
         index=asset_id,
         amt=amount,
-        note=None if note is None else note.encode(),
+        note=note,
         sp=suggested_params,
         lease=create_lease(),
     )

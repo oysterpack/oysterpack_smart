@@ -129,6 +129,8 @@ class Auction(Application, _AuctionState):
     When the auction is finalized, the ALGO paid for storage costs will be closed out to the creator address.
     """
 
+    APP_NAME: Final[str] = "oysterpack.Auction"
+
     @Subroutine(TealType.uint64)
     @staticmethod
     def is_seller(sender: Expr) -> Expr:

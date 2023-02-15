@@ -1,28 +1,31 @@
 @startuml oysterpack.apps.auction_app.client.auction_client.AuctionClient
 set namespaceSeparator none
 class "AuctionClient" as oysterpack.apps.auction_app.client.auction_client.AuctionClient {
-  accept_bid()
-  cancel()
-  commit(start_time: datetime | None, end_time: datetime)
-  deposit_asset(asset_id: AssetId, amount: int) -> AssetHolding
-  finalize()
-  get_seller_address() -> Address
-  latest_timestamp() -> datetime
-  optin_asset(asset_id: AssetId)
-  optout_asset(asset_id: AssetId)
-  set_bid_asset(asset_id: AssetId, min_bid: int)
-  withdraw_asset(asset_id: AssetId, amount: int) -> AssetHolding
+  + accept_bid()
+  + cancel()
+  + commit(start_time: datetime | None, end_time: datetime)
+  + deposit_asset(asset_id: AssetId, amount: int) -> AssetHolding
+  + finalize()
+  + get_seller_address() -> Address
+  + latest_timestamp() -> datetime
+  + optin_asset(asset_id: AssetId)
+  + optout_asset(asset_id: AssetId)
+  + set_bid_asset(asset_id: AssetId, min_bid: int)
+  + withdraw_asset(asset_id: AssetId, amount: int) -> AssetHolding
 }
 class "_AuctionClient" as oysterpack.apps.auction_app.client.auction_client._AuctionClient {
 }
 class "_AuctionClientSupport" as oysterpack.apps.auction_app.client.auction_client._AuctionClientSupport {
-  get_auction_assets() -> list[AssetHolding]
-  get_auction_state() -> AuctionState
-  get_bid_asset_holding() -> AssetHolding | None
+  + get_auction_assets() -> list[AssetHolding]
+  + get_auction_state() -> AuctionState
+  + get_bid_asset_holding() -> AssetHolding | None
 }
 class "AuctionBidder" as oysterpack.apps.auction_app.client.auction_client.AuctionBidder {
-  bid(amount: int)
-  optin_auction_assets()
+  + bid(amount: int) -> ABIResult
+  + optin_auction_assets() -> list[TxnId]
+  ==
+  + BID_NOTE: AppTxnNote
+  + OPTIN_AUCTION_ASSETS_NOTE: AppTxnNote
 }
 class "oysterpack.apps.client.AppClient" as oysterpack.apps.client.AppClient #yellow {
   app_id

@@ -1,14 +1,16 @@
+import base64
 import unittest
 from datetime import datetime, UTC, timedelta
 from typing import cast
 
-from algosdk.error import AlgodHTTPError
 from algosdk.transaction import wait_for_confirmation
 from beaker import sandbox
+from beaker.client import LogicException
 
 from oysterpack.algorand.client.accounts import get_asset_holding
 from oysterpack.algorand.client.model import Address, AssetHolding
 from oysterpack.algorand.client.transactions import asset
+from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.apps.auction_app.client.auction_client import (
     AuctionClient,
     AuthError,
@@ -308,12 +310,11 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 seller_app_client.withdraw_asset(gold_asset_id, -1)
 
         with self.subTest("seller tries to over withdraw"):
-            with self.assertRaises(AlgodHTTPError) as err:
+            with self.assertRaises(LogicException) as err:
                 seller_app_client.withdraw_asset(gold_asset_id, starting_asset_balance)
-            self.assertEqual(err.exception.code, 400)
             self.assertTrue(
                 "underflow on subtracting 1000000 from sender amount 900000"
-                in str(err.exception)
+                in err.exception.msg
             )
 
     def test_commit(self):
@@ -453,10 +454,14 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
         seller_app_client.commit(start_time, end_time)
 
         with self.subTest("first bid is minimum bid"):
-            auction_bidder.bid(min_bid)
+            result = auction_bidder.bid(min_bid)
             auction_state = seller_app_client.get_auction_state()
             self.assertEqual(auction_state.highest_bid, min_bid)
             self.assertEqual(auction_state.highest_bidder_address, bidder.address)
+            # check the txn note
+            txn = self.algod_client.pending_transaction_info(result.tx_id)
+            note = base64.b64decode(txn["txn"]["txn"]["note"])
+            self.assertEqual(AuctionBidder.BID_NOTE, AppTxnNote.decode(note))
 
         with self.subTest("submit higher bid"):
             prior_highest_bid = seller_app_client.get_auction_state().highest_bid
@@ -705,8 +710,15 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             start_time = seller_app_client.latest_timestamp()
             end_time = start_time + timedelta(days=3)
             seller_app_client.commit(start_time, end_time)
+            # bidder opts in auction assets
+            txids = auction_bidder.optin_auction_assets()
+            # check transaction note
+            for txid in txids:
+                txn_info = self.algod_client.pending_transaction_info(txid)
+                note = base64.b64decode(txn_info["txn"]["txn"]["note"])
+                self.assertEqual(AuctionBidder.OPTIN_AUCTION_ASSETS_NOTE.encode(), note)
+
             # place bid
-            auction_bidder.optin_auction_assets()
             auction_bidder.bid(auction_bidder.get_auction_state().min_bid)
             # accet bid
             seller_app_client.accept_bid()

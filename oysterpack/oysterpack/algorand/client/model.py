@@ -20,6 +20,8 @@ BoxKey = NewType("BoxKey", bytes)
 
 MicroAlgos = NewType("MicroAlgos", int)
 
+TxnId = NewType("TxnId", str)
+
 
 class AppId(int):
     """

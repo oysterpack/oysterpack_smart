@@ -47,6 +47,8 @@ class AuctionManager(Application):
     The storage fees are retained by the Auction Manager as revenue.
     """
 
+    APP_NAME: Final[str] = "oysterpack.AuctionManager"
+
     # pylint: disable=invalid-name
     auction: Final[AppPrecompile] = AppPrecompile(Auction())
 

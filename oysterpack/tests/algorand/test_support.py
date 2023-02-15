@@ -11,6 +11,7 @@ from algosdk import kmd, wallet
 from algosdk.atomic_transaction_composer import TransactionSigner
 from algosdk.transaction import wait_for_confirmation
 from algosdk.v2client.algod import AlgodClient
+from algosdk.v2client.indexer import IndexerClient
 from beaker import sandbox, Application
 from beaker.client import ApplicationClient
 from beaker.sandbox.kmd import get_sandbox_default_wallet
@@ -31,6 +32,7 @@ configure_logging(level=logging.INFO)
 class AlgorandTestSupport:
     kmd_client: Final[kmd.KMDClient] = sandbox.kmd.get_client()
     algod_client: Final[AlgodClient] = sandbox.get_algod_client()
+    indexer: Final[IndexerClient] = sandbox.get_indexer_client()
     sandbox_default_wallet: Final[wallet.Wallet] = get_sandbox_default_wallet()
 
     def get_logger(self, name: str) -> Logger:

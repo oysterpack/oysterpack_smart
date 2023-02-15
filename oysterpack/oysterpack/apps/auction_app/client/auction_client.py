@@ -5,21 +5,30 @@ Auction application client
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from pprint import pformat
-from typing import cast
+from typing import cast, Final
 
 from algosdk.atomic_transaction_composer import (
     TransactionSigner,
     AtomicTransactionComposer,
     TransactionWithSigner,
+    ABIResult,
 )
 from algosdk.constants import ZERO_ADDRESS
 from algosdk.encoding import encode_address
 from algosdk.error import AlgodHTTPError
+from beaker.application import get_method_signature
 from beaker.client import ApplicationClient
 
-from oysterpack.algorand.client.model import Address, AssetId, AssetHolding, MicroAlgos
+from oysterpack.algorand.client.model import (
+    Address,
+    AssetId,
+    AssetHolding,
+    MicroAlgos,
+    TxnId,
+)
 from oysterpack.algorand.client.transactions import create_lease, asset
 from oysterpack.algorand.client.transactions.asset import opt_in
+from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.algorand.params import MinimumBalance
 from oysterpack.apps.auction_app.contracts.auction import Auction
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
@@ -306,11 +315,19 @@ class _AuctionClientSupport(AppClient):
             raise
 
 
-# TODO: add standardized transaction notes
 class AuctionBidder(_AuctionClientSupport):
     """
     Auction client used for placing bids.
     """
+
+    BID_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app_name=Auction.APP_NAME, method_signature=get_method_signature(Auction.bid)
+    )
+
+    OPTIN_AUCTION_ASSETS_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app_name=Auction.APP_NAME,
+        method_signature="optin_auction_assets",
+    )
 
     def __init__(self, app_client: ApplicationClient):
         if app_client.app_id == 0:
@@ -321,7 +338,7 @@ class AuctionBidder(_AuctionClientSupport):
 
         super().__init__(app_client)
 
-    def bid(self, amount: int):
+    def bid(self, amount: int) -> ABIResult:
         """
         Used to submit a bid.
 
@@ -356,7 +373,7 @@ class AuctionBidder(_AuctionClientSupport):
         else:
             highest_bidder = Address(ZERO_ADDRESS)
 
-        self._app_client.call(
+        return self._app_client.call(
             Auction.bid,
             bid=TransactionWithSigner(
                 asset_transfer_txn,
@@ -366,16 +383,18 @@ class AuctionBidder(_AuctionClientSupport):
             bid_asset=auction_state.bid_asset_id,
             sender=self._app_client.sender,
             suggested_params=suggested_params,
+            note=self.BID_NOTE.encode(),
         )
 
-    def optin_auction_assets(self):
+    def optin_auction_assets(self) -> list[TxnId]:
         """
         Opts in the bidder account into all the auction's assets.
 
         NOTE: if the bidder wins the auction, the bidder will need to opt in the auction's assets in order to be
               able to receive them.
         """
-        bidder = self._app_client.sender
+        bidder = cast(Address, self._app_client.sender)
+        txids: list[TxnId] = []
         for auction_asset in self.get_auction_assets():
             try:
                 self._app_client.client.account_asset_info(
@@ -387,14 +406,20 @@ class AuctionBidder(_AuctionClientSupport):
                         account=bidder,
                         asset_id=auction_asset.asset_id,
                         suggested_params=self.suggested_params(),
+                        note=AuctionBidder.OPTIN_AUCTION_ASSETS_NOTE.encode(),
                     )
                     atc = AtomicTransactionComposer()
                     atc.add_transaction(
-                        TransactionWithSigner(txn, self._app_client.signer)
+                        TransactionWithSigner(
+                            txn, cast(TransactionSigner, self._app_client.signer)
+                        )
                     )
-                    atc.execute(self._app_client.client, 4)
+                    result = atc.execute(self._app_client.client, 4)
+                    txids += cast(list[TxnId], result.tx_ids)
                 else:
                     raise
+
+        return txids
 
 
 # TODO: add standardized transaction notes

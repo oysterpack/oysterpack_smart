@@ -1,5 +1,5 @@
 """
-Provides support for
+Provides support for constructing application related transactions
 """
 
 from algosdk.transaction import OnComplete

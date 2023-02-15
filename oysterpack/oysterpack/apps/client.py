@@ -25,6 +25,10 @@ class AppClient:
             sender=app_client.sender,
             client=app_client.client,
         )
+        # building the app compiles the app to generate source maps
+        # this enables AlgodHttpError to be mapped to LogicException, which contains more error information
+        # that traces back to the TEAL source code
+        self._app_client.build()
 
     @property
     def contract_address(self) -> Address:

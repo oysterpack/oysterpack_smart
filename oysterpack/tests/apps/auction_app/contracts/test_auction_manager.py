@@ -38,7 +38,7 @@ class AuctionManagerTestCase(AlgorandTestSupport, unittest.TestCase):
             algod_client=self.algod_client,
             signer=creator.signer,
         )
-        seller_app_client = creator_app_client.prepare(signer=seller.signer)
+        seller_app_client = creator_app_client.copy(signer=seller.signer)
 
         # ACT
         seller_auction_client = seller_app_client.create_auction()
@@ -60,7 +60,7 @@ class AuctionManagerTestCase(AlgorandTestSupport, unittest.TestCase):
             algod_client=self.algod_client,
             signer=creator.signer,
         )
-        seller_app_client = auction_manager_client.prepare(signer=seller.signer)
+        seller_app_client = auction_manager_client.copy(signer=seller.signer)
 
         # ACT
         seller_auction_client = seller_app_client.create_auction()

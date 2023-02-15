@@ -1,0 +1,57 @@
+@startuml classes
+set namespaceSeparator none
+class "Auction" as oysterpack.apps.auction_app.contracts.auction.Auction {
+  + create(seller: abi.Account) -> Expr
+  ..(authorize=Authorize.only(Global.creator_address()))..
+  + delete() -> Expr
+  ..Auction Setup (authorize=is_seller)..
+  + optin_asset(asset: abi.Asset) -> Expr
+  + optout_asset(asset: abi.Asset) -> Expr
+  + set_bid_asset(bid_asset: abi.Asset, min_bid: abi.Uint64) -> Expr
+  + withdraw_asset(asset: abi.Asset, amount: abi.Uint64) -> Expr
+  + cancel() -> Expr
+  + commit(start_time: abi.Uint64, end_time: abi.Uint64) -> Expr
+  ..
+  + bid(bid: abi.AssetTransferTransaction, highest_bidder: abi.Account, bid_asset: abi.Asset) -> Expr
+  ..(authorize=is_seller)..
+  + accept_bid() -> Expr
+  ..
+  + finalize(asset: abi.Asset, close_to: abi.Account) -> Expr
+  ..read only..
+  + latest_timestamp() -> Expr
+  ..auth..
+  - is_seller(sender: Expr) -> Expr
+}
+class "AuctionManager" as oysterpack.apps.auction_app.contracts.auction_manager.AuctionManager {
+  + auction : Final[AppPrecompile]
+  + auction_min_balance : Final[ApplicationStateValue]
+  + create() -> Expr
+  + create_auction(storage_fees: abi.PaymentTransaction) -> Expr
+  + delete_finalized_auction(auction: abi.Application) -> Expr
+  + get_auction_creation_fees() -> Expr
+  + withdraw_algo(amount: abi.Uint64) -> Expr
+}
+class "AuctionStatus" as oysterpack.apps.auction_app.contracts.auction_status.AuctionStatus {
+  + NEW
+  + CANCELLED
+  + COMMITTED
+  + BID_ACCEPTED
+  + FINALIZED
+}
+class "_AuctionState" as oysterpack.apps.auction_app.contracts.auction._AuctionState {
+  + bid_asset_id : Final[ApplicationStateValue]
+  + end_time : Final[ApplicationStateValue]
+  + highest_bid : Final[ApplicationStateValue]
+  + highest_bidder_address : Final[ApplicationStateValue]
+  + min_bid : Final[ApplicationStateValue]
+  + seller_address : Final[ApplicationStateValue]
+  + start_time : Final[ApplicationStateValue]
+  + status : Final[ApplicationStateValue]
+  - is_bid_accepted() -> Expr
+  - is_cancelled() -> Expr
+  - is_committed() -> Expr
+  - is_finalized() -> Expr
+  - is_new() -> Expr
+}
+oysterpack.apps.auction_app.contracts.auction.Auction --|> oysterpack.apps.auction_app.contracts.auction._AuctionState
+@enduml

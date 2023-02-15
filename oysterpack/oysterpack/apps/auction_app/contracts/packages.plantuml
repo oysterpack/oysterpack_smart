@@ -1,0 +1,14 @@
+@startuml packages
+set namespaceSeparator none
+package "oysterpack.apps.auction_app.contracts" as oysterpack.apps.auction_app.contracts {
+    package "auction" as oysterpack.apps.auction_app.contracts.auction {
+    }
+    package "auction_manager" as oysterpack.apps.auction_app.contracts.auction_manager {
+    }
+    package "auction_status" as oysterpack.apps.auction_app.contracts.auction_status {
+    }
+}
+
+oysterpack.apps.auction_app.contracts.auction --> oysterpack.apps.auction_app.contracts.auction_status
+oysterpack.apps.auction_app.contracts.auction_manager --> oysterpack.apps.auction_app.contracts.auction
+@enduml

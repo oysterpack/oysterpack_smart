@@ -1,0 +1,11 @@
+@startuml packages
+set namespaceSeparator none
+package "oysterpack.apps.auction_app.client" as oysterpack.apps.auction_app.client {
+    package "auction_client" as oysterpack.apps.auction_app.client.auction_client {
+    }
+    package "auction_manager_client" as oysterpack.apps.auction_app.client.auction_manager_client {
+    }
+}
+
+oysterpack.apps.auction_app.client.auction_manager_client --> oysterpack.apps.auction_app.client.auction_client
+@enduml

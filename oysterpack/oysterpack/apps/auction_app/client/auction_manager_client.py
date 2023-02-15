@@ -35,25 +35,25 @@ class AuctionManagerClient(AppClient):
 
         super().__init__(app_client)
 
-    def prepare(
+    def copy(
         self,
-        sender: Address | None = None,
         signer: TransactionSigner | None = None,
+        sender: Address | None = None,
     ):
         """
-        Used to make a copy of the current AuctionManagerClient with a new sender and/or signer.
+        Makes a copy of this client allowing the sender and signer to be overridden.
         """
         return AuctionManagerClient(
             self._app_client.prepare(sender=sender, signer=signer)
         )
 
-    def get_auction_creation_fees(self) -> int:
+    def get_auction_creation_fees(self) -> MicroAlgos:
         """
         :return: Auction storage fees that are requires to create an Auction app instance
         """
-        return self._app_client.call(
-            AuctionManager.get_auction_creation_fees
-        ).return_value
+        return MicroAlgos(
+            self._app_client.call(AuctionManager.get_auction_creation_fees).return_value
+        )
 
     def create_auction(self) -> AuctionClient:
         """

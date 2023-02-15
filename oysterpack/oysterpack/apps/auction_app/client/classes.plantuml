@@ -1,0 +1,56 @@
+@startuml classes
+set namespaceSeparator none
+class "AuctionBidder" as oysterpack.apps.auction_app.client.auction_client.AuctionBidder {
+  bid(amount: int)
+  optin_auction_assets()
+}
+class "AuctionClient" as oysterpack.apps.auction_app.client.auction_client.AuctionClient {
+  accept_bid()
+  cancel()
+  commit(start_time: datetime | None, end_time: datetime)
+  deposit_asset(asset_id: AssetId, amount: int) -> AssetHolding
+  finalize()
+  get_seller_address() -> Address
+  latest_timestamp() -> datetime
+  optin_asset(asset_id: AssetId)
+  optout_asset(asset_id: AssetId)
+  set_bid_asset(asset_id: AssetId, min_bid: int)
+  withdraw_asset(asset_id: AssetId, amount: int) -> AssetHolding
+}
+class "AuctionManagerClient" as oysterpack.apps.auction_app.client.auction_manager_client.AuctionManagerClient {
+  create_auction() -> AuctionClient
+  delete_finalized_auction(app_id: AppId)
+  get_auction_creation_fees() -> MicroAlgos
+  get_treasury_balance() -> MicroAlgos
+  copy(sender: Address | None, signer: TransactionSigner | None)
+  withdraw(amount: MicroAlgos | None)
+}
+class "AuctionState" as oysterpack.apps.auction_app.client.auction_client.AuctionState {
+  bid_asset_id
+  end_time
+  highest_bid
+  highest_bidder_address
+  min_bid
+  seller_address
+  start_time
+  status
+  is_bidding_open() -> bool
+  is_ended() -> bool
+  is_sold() -> bool
+}
+class "<color:red>AuthError</color>" as oysterpack.apps.auction_app.client.auction_client.AuthError {
+}
+class "<color:red>InvalidAssetId</color>" as oysterpack.apps.auction_app.client.auction_client.InvalidAssetId {
+  asset_id : AssetId
+}
+class "_AuctionClient" as oysterpack.apps.auction_app.client.auction_client._AuctionClient {
+}
+class "_AuctionClientSupport" as oysterpack.apps.auction_app.client.auction_client._AuctionClientSupport {
+  get_auction_assets() -> list[AssetHolding]
+  get_auction_state() -> AuctionState
+  get_bid_asset_holding() -> AssetHolding | None
+}
+oysterpack.apps.auction_app.client.auction_client.AuctionBidder --|> oysterpack.apps.auction_app.client.auction_client._AuctionClientSupport
+oysterpack.apps.auction_app.client.auction_client.AuctionClient --|> oysterpack.apps.auction_app.client.auction_client._AuctionClient
+oysterpack.apps.auction_app.client.auction_client.AuctionClient --|> oysterpack.apps.auction_app.client.auction_client._AuctionClientSupport
+@enduml

@@ -6,10 +6,10 @@ from algosdk.account import generate_account
 from beaker.application import Application
 
 from oysterpack.algorand.client.model import AppId, Mnemonic
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 
 
-class AccountModelTestCase(AlgorandTestSupport, unittest.TestCase):
+class AccountModelTestCase(AlgorandTestCase):
     def test_valid_mnemonic(self):
         def word_list() -> Iterable[str]:
             return map(str, range(25))
@@ -48,7 +48,7 @@ class Foo(Application):
     pass
 
 
-class AppIdTestCase(AlgorandTestSupport, unittest.TestCase):
+class AppIdTestCase(AlgorandTestCase):
     def test_to_address(self):
         app_client = self.sandbox_application_client(Foo())
 

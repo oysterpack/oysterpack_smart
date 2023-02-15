@@ -1,4 +1,3 @@
-import base64
 import unittest
 from datetime import datetime, UTC, timedelta
 from typing import cast
@@ -10,7 +9,6 @@ from beaker.client import LogicException
 from oysterpack.algorand.client.accounts import get_asset_holding
 from oysterpack.algorand.client.model import Address, AssetHolding
 from oysterpack.algorand.client.transactions import asset
-from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.apps.auction_app.client.auction_client import (
     AuctionClient,
     AuthError,
@@ -21,10 +19,10 @@ from oysterpack.apps.auction_app.contracts.auction import (
     AuctionStatus,
     auction_storage_fees,
 )
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 
 
-class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
+class AuctionTestCase(AlgorandTestCase):
     def test_create(self):
         # SETUP
         logger = super().get_logger("test_create")
@@ -74,7 +72,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
                 creator_app_client.set_bid_asset(bid_asset_id, min_bid)
 
         with self.subTest("the bid can be set when the auction status is new"):
-            seller_app_client.set_bid_asset(
+            result = seller_app_client.set_bid_asset(
                 bid_asset_id,
                 min_bid,
             )
@@ -83,12 +81,13 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             logger.info(f"app_state: {app_state}")
             self.assertEqual(app_state.bid_asset_id, bid_asset_id)
             self.assertEqual(app_state.min_bid, min_bid)
-
+            # checks the Auction bid asset holding
             bid_asset_holding = seller_app_client.get_bid_asset_holding()
             self.assertIsNotNone(bid_asset_holding)
             self.assertEqual(
                 cast(AssetHolding, bid_asset_holding).asset_id, bid_asset_id
             )
+            self.assert_app_txn_note(AuctionClient.SET_BID_ASSET_NOTE, result.tx_info)
 
         with self.subTest("setting the bid asset again to the same values is a noop "):
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
@@ -458,10 +457,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             auction_state = seller_app_client.get_auction_state()
             self.assertEqual(auction_state.highest_bid, min_bid)
             self.assertEqual(auction_state.highest_bidder_address, bidder.address)
-            # check the txn note
-            txn = self.algod_client.pending_transaction_info(result.tx_id)
-            note = base64.b64decode(txn["txn"]["txn"]["note"])
-            self.assertEqual(AuctionBidder.BID_NOTE, AppTxnNote.decode(note))
+            self.assert_app_txn_note(AuctionBidder.BID_NOTE, result.tx_info)
 
         with self.subTest("submit higher bid"):
             prior_highest_bid = seller_app_client.get_auction_state().highest_bid
@@ -712,11 +708,7 @@ class AuctionTestCase(AlgorandTestSupport, unittest.TestCase):
             seller_app_client.commit(start_time, end_time)
             # bidder opts in auction assets
             txids = auction_bidder.optin_auction_assets()
-            # check transaction note
-            for txid in txids:
-                txn_info = self.algod_client.pending_transaction_info(txid)
-                note = base64.b64decode(txn_info["txn"]["txn"]["note"])
-                self.assertEqual(AuctionBidder.OPTIN_AUCTION_ASSETS_NOTE.encode(), note)
+            self.assert_app_txn_notes(AuctionBidder.OPTIN_AUCTION_ASSETS_NOTE, txids)
 
             # place bid
             auction_bidder.bid(auction_bidder.get_auction_state().min_bid)

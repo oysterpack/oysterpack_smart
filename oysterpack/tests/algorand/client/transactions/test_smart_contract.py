@@ -6,10 +6,10 @@ from oysterpack.algorand.client.transactions.smart_contract import (
     base64_decode_int,
     base64_decode_str,
 )
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 
 
-class SmartContractTestCase(AlgorandTestSupport, unittest.TestCase):
+class SmartContractTestCase(AlgorandTestCase):
     def test_base64_encode_decode_arg(self):
         with self.subTest("encode str"):
             arg = "data"

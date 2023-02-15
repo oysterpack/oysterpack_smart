@@ -6,10 +6,10 @@ from algosdk.transaction import wait_for_confirmation
 from oysterpack.algorand.client.model import Address, MicroAlgos
 from oysterpack.algorand.client.transactions.account import close_account
 from oysterpack.algorand.client.transactions.payment import transfer_algo
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 
 
-class CloseAccountTestCase(AlgorandTestSupport, unittest.TestCase):
+class CloseAccountTestCase(AlgorandTestCase):
     def test_close_account(self):
         account = self.sandbox_default_wallet.list_keys()[0]
         private_key, account2 = generate_account()

@@ -25,10 +25,10 @@ from oysterpack.algorand.client.accounts.kmd import (
 from oysterpack.algorand.client.model import Mnemonic, Address
 from oysterpack.algorand.client.transactions import payment
 from oysterpack.algorand.client.transactions.rekey import rekey
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 
 
-class AlgorandTest(AlgorandTestSupport, unittest.TestCase):
+class AlgorandTest(AlgorandTestCase):
     def test_create_kmd_client(self):
         # create a wallet using valid connection params
         kmd_client = create_kmd_client(
@@ -147,7 +147,7 @@ class AlgorandTest(AlgorandTestSupport, unittest.TestCase):
             )
 
 
-class WalletSessionTests(AlgorandTestSupport, unittest.TestCase):
+class WalletSessionTests(AlgorandTestCase):
     def _create_test_wallet_session(
         self, wallet: Wallet | None = None
     ) -> WalletSession:

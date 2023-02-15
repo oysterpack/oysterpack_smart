@@ -13,10 +13,10 @@ from oysterpack.algorand.client.accounts.kmd import (
 )
 from oysterpack.algorand.client.accounts.kmd import WalletTransactionSigner
 from oysterpack.algorand.client.transactions.payment import transfer_algo
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 
 
-class WalletTransactionSignerTestCase(AlgorandTestSupport, unittest.TestCase):
+class WalletTransactionSignerTestCase(AlgorandTestCase):
     def test_with_atomic_transaction_composer(self):
         account1 = self.sandbox_default_wallet.list_keys()[0]
         account2 = self.sandbox_default_wallet.list_keys()[1]

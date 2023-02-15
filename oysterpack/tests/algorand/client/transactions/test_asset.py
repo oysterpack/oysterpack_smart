@@ -6,10 +6,10 @@ from algosdk.transaction import wait_for_confirmation
 
 from oysterpack.algorand.client.accounts import Address, get_asset_holding
 from oysterpack.algorand.client.transactions import asset
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 
 
-class AssetsTestCase(AlgorandTestSupport, unittest.TestCase):
+class AssetsTestCase(AlgorandTestCase):
     def metadata_hash(self) -> bytes:
         import hashlib
 

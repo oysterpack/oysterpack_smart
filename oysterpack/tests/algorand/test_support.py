@@ -1,11 +1,11 @@
 """
 Unit tests depend on a local sandbox running.
 """
-
 import functools
 import logging
+import unittest
 from logging import Logger
-from typing import Callable, Final
+from typing import Callable, Final, Any
 
 from algosdk import kmd, wallet
 from algosdk.atomic_transaction_composer import TransactionSigner
@@ -22,14 +22,16 @@ from oysterpack.algorand.client.accounts.kmd import (
     WalletTransactionSigner,
     WalletSession,
 )
-from oysterpack.algorand.client.model import Address, AssetId
+from oysterpack.algorand.client.model import Address, AssetId, TxnId
 from oysterpack.algorand.client.transactions import asset as client_assets, asset
+from oysterpack.algorand.client.transactions.note import AppTxnNote
+from oysterpack.algorand.client.transactions.smart_contract import base64_decode_str
 from oysterpack.core.logging import configure_logging
 
 configure_logging(level=logging.INFO)
 
 
-class AlgorandTestSupport:
+class AlgorandTestCase(unittest.TestCase):
     kmd_client: Final[kmd.KMDClient] = sandbox.kmd.get_client()
     algod_client: Final[AlgodClient] = sandbox.get_algod_client()
     indexer: Final[IndexerClient] = sandbox.get_indexer_client()
@@ -146,3 +148,17 @@ class AlgorandTestSupport:
         signed_txn = self.sandbox_default_wallet.sign_transaction(asset_transfer_txn)
         txid = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txid)
+
+    def assert_app_txn_note(self, expected: AppTxnNote, tx_info: dict[str, Any]):
+        self.assertEqual(
+            expected.encode(),
+            base64_decode_str(tx_info["txn"]["txn"]["note"]).encode(),
+        )
+
+    def assert_app_txn_notes(self, expected: AppTxnNote, txids: list[TxnId]):
+        for txid in txids:
+            txn_info = self.algod_client.pending_transaction_info(txid)
+            self.assertEqual(
+                expected.encode(),
+                base64_decode_str(txn_info["txn"]["txn"]["note"]).encode(),
+            )

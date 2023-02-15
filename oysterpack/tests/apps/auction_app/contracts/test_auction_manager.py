@@ -11,10 +11,10 @@ from oysterpack.apps.auction_app.client.auction_manager_client import (
 from oysterpack.apps.auction_app.contracts.auction import auction_storage_fees
 from oysterpack.apps.auction_app.contracts.auction_manager import AuctionManager
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 
 
-class AuctionManagerTestCase(AlgorandTestSupport, unittest.TestCase):
+class AuctionManagerTestCase(AlgorandTestCase):
     def test_create(self):
         logger = super().get_logger("test_create")
         # SETUP

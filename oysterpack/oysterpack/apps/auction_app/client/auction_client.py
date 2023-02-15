@@ -30,6 +30,7 @@ from oysterpack.algorand.client.transactions import create_lease, asset
 from oysterpack.algorand.client.transactions.asset import opt_in
 from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.algorand.params import MinimumBalance
+from oysterpack.apps.auction_app.client.errors import AuthError
 from oysterpack.apps.auction_app.contracts.auction import Auction
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.client import AppClient
@@ -40,10 +41,6 @@ class InvalidAssetId(Exception):
     """Raised for invalid asset ID"""
 
     asset_id: AssetId
-
-
-class AuthError(Exception):
-    """User is not authorized"""
 
 
 class AuctionState:
@@ -428,13 +425,18 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
     Auction application client
     """
 
+    SET_BID_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app_name=Auction.APP_NAME,
+        method_signature=get_method_signature(Auction.set_bid_asset),
+    )
+
     def get_seller_address(self) -> Address:
         """
         Returns auction seller address
         """
         return self.get_auction_state().seller_address
 
-    def set_bid_asset(self, asset_id: AssetId, min_bid: int):
+    def set_bid_asset(self, asset_id: AssetId, min_bid: int) -> ABIResult | None:
         """
         Sets or updates the bidd asset settings.
 
@@ -442,12 +444,12 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
 
         :param asset_id:
         :param min_bid:
-        :return:
+        :return: None is returned if there were no changes needed, i.e., no transaction was submitted
         """
         app_state = self.get_auction_state()
         if app_state.bid_asset_id == asset_id and app_state.min_bid == min_bid:
             # then no changes are needed
-            return
+            return None
 
         if app_state.seller_address != self._app_client.sender:
             raise AuthError
@@ -465,12 +467,13 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         else:
             self._fund_asset_optin()
 
-        self._app_client.call(
+        return self._app_client.call(
             Auction.set_bid_asset,
             bid_asset=asset_id,
             min_bid=min_bid,
             suggested_params=suggested_params,
             lease=create_lease(),
+            note=self.SET_BID_ASSET_NOTE.encode(),
         )
 
     def optout_asset(self, asset_id: AssetId):

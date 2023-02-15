@@ -1,11 +1,11 @@
 import unittest
 
 from oysterpack.algorand.client.accounts import Address, get_auth_address
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 from oysterpack.algorand.client.transactions.rekey import rekey, rekey_back
 
 
-class RekeyTestCase(AlgorandTestSupport, unittest.TestCase):
+class RekeyTestCase(AlgorandTestCase):
     def test_rekey_account_transaction_and_then_revoke_rekeyed_account(self):
         """
         Test Steps

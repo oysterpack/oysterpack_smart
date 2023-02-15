@@ -31,7 +31,7 @@ from oysterpack.algorand.application.transactions.asset import (
 )
 from oysterpack.algorand.client.model import AssetId, Address
 from oysterpack.algorand.client.transactions import asset as client_assets
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 
 
 class Foo(Application):
@@ -151,7 +151,7 @@ def create_test_asset() -> tuple[AssetId, Address]:
     return asset_id, address
 
 
-class AssetOptInOptOutTestCase(AlgorandTestSupport, unittest.TestCase):
+class AssetOptInOptOutTestCase(AlgorandTestCase):
     def optin_optout_test_template(
         self,
         optin: Callable[..., Expr],

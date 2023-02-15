@@ -3,11 +3,11 @@ import unittest
 import algosdk
 
 from oysterpack.algorand.client.model import MicroAlgos
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 from oysterpack.algorand.client.transactions.payment import transfer_algo
 
 
-class PaymentTestCase(AlgorandTestSupport, unittest.TestCase):
+class PaymentTestCase(AlgorandTestCase):
     def test_algo_transfer_transaction(self):
         sender = self.sandbox_default_wallet.list_keys()[0]
         _private_key, receiver = algosdk.account.generate_account()

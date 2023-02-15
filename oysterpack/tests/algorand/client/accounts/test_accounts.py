@@ -5,10 +5,10 @@ from algosdk.transaction import wait_for_confirmation
 
 from oysterpack.algorand.client.accounts import get_asset_holdings, get_asset_holding
 from oysterpack.algorand.client.transactions import asset
-from tests.algorand.test_support import AlgorandTestSupport
+from tests.algorand.test_support import AlgorandTestCase
 
 
-class MyTestCase(AlgorandTestSupport, unittest.TestCase):
+class MyTestCase(AlgorandTestCase):
     def test_get_asset_holdings(self):
         # create asset
         account = self.sandbox_default_wallet.list_keys()[0]

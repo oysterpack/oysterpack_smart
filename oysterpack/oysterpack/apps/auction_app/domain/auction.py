@@ -1,3 +1,7 @@
+"""
+Auction domain model
+"""
+
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -10,6 +14,8 @@ class Auction:
     """
     Auction
     """
+
+    # pylint: disable=too-many-instance-attributes
 
     app_id: AppId
     created_on: datetime

@@ -422,7 +422,6 @@ class AuctionBidder(_AuctionClientSupport):
         return txids
 
 
-# TODO: add standardized transaction notes
 class AuctionClient(_AuctionClient, _AuctionClientSupport):
     """
     Auction application client

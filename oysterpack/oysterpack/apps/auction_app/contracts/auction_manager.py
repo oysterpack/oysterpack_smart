@@ -73,6 +73,9 @@ class AuctionManager(Application):
 
     @external(read_only=True)
     def app_name(self, *, output: abi.String) -> Expr:
+        """
+        Returns the application name
+        """
         return output.set(self.APP_NAME)
 
     @external(read_only=True)

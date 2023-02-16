@@ -116,7 +116,6 @@ class _AuctionState:
         return self.status.get() == Int(AuctionStatus.FINALIZED.value)
 
 
-# TODO: add standardized transaction notes
 class Auction(Application, _AuctionState):
     """
     Auction is used to sell asset holdings escrowed by this contract to the highest bidder.
@@ -187,6 +186,9 @@ class Auction(Application, _AuctionState):
 
     @external(read_only=True)
     def app_name(self, *, output: abi.String) -> Expr:
+        """
+        Returns the application name
+        """
         return output.set(self.APP_NAME)
 
     @external(authorize=is_seller)

@@ -10,8 +10,8 @@ class AppTxnNote:
     Application transaction note
     """
 
-    app_name: str
-    method_signature: str
+    app: str
+    method: str
 
     def __bytes__(self) -> bytes:
         return self.encode()
@@ -19,9 +19,9 @@ class AppTxnNote:
     def encode(self) -> bytes:
         """
         Returns the encoded transaction note using the following format:
-        >>> f"{self.app_name}/{self.method_signature}"
+        >>> f"{self.app}/{self.method}"
         """
-        return f"{self.app_name}/{self.method_signature}".encode()
+        return f"{self.app}/{self.method}".encode()
 
     @classmethod
     def decode(cls, note: bytes) -> "AppTxnNote":
@@ -30,6 +30,6 @@ class AppTxnNote:
         """
         decoded_note = note.decode().split("/")
         return AppTxnNote(
-            app_name=decoded_note[0],
-            method_signature=decoded_note[1],
+            app=decoded_note[0],
+            method=decoded_note[1],
         )

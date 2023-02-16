@@ -318,12 +318,12 @@ class AuctionBidder(_AuctionClientSupport):
     """
 
     BID_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app_name=Auction.APP_NAME, method_signature=get_method_signature(Auction.bid)
+        app=Auction.APP_NAME, method=get_method_signature(Auction.bid)
     )
 
     OPTIN_AUCTION_ASSETS_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app_name=Auction.APP_NAME,
-        method_signature="optin_auction_assets",
+        app=Auction.APP_NAME,
+        method="optin_auction_assets",
     )
 
     def __init__(self, app_client: ApplicationClient):
@@ -426,8 +426,18 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
     """
 
     SET_BID_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app_name=Auction.APP_NAME,
-        method_signature=get_method_signature(Auction.set_bid_asset),
+        app=Auction.APP_NAME,
+        method=get_method_signature(Auction.set_bid_asset),
+    )
+
+    OPTOUT_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method="optout_asset",
+    )
+
+    OPTIN_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method="optin_asset",
     )
 
     def get_seller_address(self) -> Address:
@@ -476,50 +486,53 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             note=self.SET_BID_ASSET_NOTE.encode(),
         )
 
-    def optout_asset(self, asset_id: AssetId):
+    def optout_asset(self, asset_id: AssetId) -> ABIResult | None:
         """
         If the contract does not hold the asset, then this is a noop.
 
         Asserts
         -------
         1. sender is seller
-
-        :param asset_id:
-        :return:
         """
 
         if not self._is_asset_opted_in(asset_id):
-            return
+            return None
 
         if self.get_seller_address() != self._app_client.sender:
             raise AuthError
 
-        self._app_client.call(
+        return self._app_client.call(
             Auction.optout_asset,
             asset=asset_id,
             suggested_params=self.suggested_params(txn_count=2),
             lease=create_lease(),
+            note=self.OPTOUT_ASSET_NOTE.encode(),
         )
 
-    def optin_asset(self, asset_id: AssetId):
+    def optin_asset(self, asset_id: AssetId) -> ABIResult | None:
         """
         If the asset is not already opted in, then opt in the asset.
         Also makes sure the Auction contract is funded to opt in the asset.
+
+        :return : None if the auction already holds the asset
         """
 
         if self.get_seller_address() != self._app_client.sender:
             raise AuthError
 
         self._assert_valid_asset_id(asset_id)
-        if not self._is_asset_opted_in(asset_id):
-            self._fund_asset_optin()
 
-            self._app_client.call(
-                Auction.optin_asset,
-                asset=asset_id,
-                suggested_params=self.suggested_params(txn_count=2),
-                lease=create_lease(),
-            )
+        if self._is_asset_opted_in(asset_id):
+            return None
+
+        self._fund_asset_optin()
+        return self._app_client.call(
+            Auction.optin_asset,
+            asset=asset_id,
+            suggested_params=self.suggested_params(txn_count=2),
+            lease=create_lease(),
+            note=self.OPTIN_ASSET_NOTE.encode(),
+        )
 
     def deposit_asset(self, asset_id: AssetId, amount: int) -> AssetHolding:
         """

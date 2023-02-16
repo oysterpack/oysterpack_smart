@@ -131,9 +131,14 @@ class AuctionTestCase(AlgorandTestCase):
         seller_app_client.set_bid_asset(bid_asset_id, min_bid)
 
         # ACT
-        seller_app_client.optout_asset(bid_asset_id)
+        result = seller_app_client.optout_asset(bid_asset_id)
+        self.assertIsNotNone(result)
+        self.assert_app_txn_note(AuctionClient.OPTOUT_ASSET_NOTE, result.tx_info)
         app_account_info = seller_app_client.get_application_account_info()
         self.assertEqual(len(app_account_info["assets"]), 0)
+
+        with self.subTest("opting out again is a noop"):
+            self.assertIsNone(seller_app_client.optout_asset(bid_asset_id))
 
         with self.subTest(
             "after opting out the bid asset, the bid asset can be set again"
@@ -173,17 +178,18 @@ class AuctionTestCase(AlgorandTestCase):
             with self.assertRaises(AuthError):
                 creator_app_client.optin_asset(gold_asset_id)
 
-        seller_app_client.optin_asset(gold_asset_id)
+        result = seller_app_client.optin_asset(gold_asset_id)
         # ASSERT asset was opted in
-        auction_assets = seller_app_client.get_auction_assets()
-        self.assertEqual(len(auction_assets), 1)
-        self.assertEqual(
-            len([asset for asset in auction_assets if asset.asset_id == gold_asset_id]),
-            1,
+        self.assertIsNotNone(result)
+        self.assert_app_txn_note(AuctionClient.OPTIN_ASSET_NOTE, result.tx_info)
+        self.assertEqual(len(seller_app_client.get_auction_assets()), 1)
+        # would fail if the contract did not hold the asset
+        self.algod_client.account_asset_info(
+            seller_app_client.contract_address, gold_asset_id
         )
 
         with self.subTest("opting is an asset that is already opted in is a noop"):
-            seller_app_client.optin_asset(gold_asset_id)
+            self.assertIsNone(seller_app_client.optin_asset(gold_asset_id))
 
         with self.subTest("optin a second asset"):
             go_mint_asset_id, _asset_manager_address = self.create_test_asset("goMINT")
@@ -191,25 +197,11 @@ class AuctionTestCase(AlgorandTestCase):
             # Assert
             auction_assets = seller_app_client.get_auction_assets()
             self.assertEqual(len(auction_assets), 2)
-            self.assertEqual(
-                len(
-                    [
-                        asset
-                        for asset in auction_assets
-                        if asset.asset_id == gold_asset_id
-                    ]
-                ),
-                1,
+            self.algod_client.account_asset_info(
+                seller_app_client.contract_address, gold_asset_id
             )
-            self.assertEqual(
-                len(
-                    [
-                        asset
-                        for asset in auction_assets
-                        if asset.asset_id == go_mint_asset_id
-                    ]
-                ),
-                1,
+            self.algod_client.account_asset_info(
+                seller_app_client.contract_address, go_mint_asset_id
             )
 
     def test_deposit_asset(self):

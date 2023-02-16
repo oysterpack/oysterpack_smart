@@ -104,8 +104,11 @@ class AuctionManagerTestCase(AlgorandTestCase):
                 "amount"
             ]
             # ACT
-            auction_manager_client.delete_finalized_auction(
+            result = auction_manager_client.delete_finalized_auction(
                 seller_auction_client.app_id
+            )
+            self.assert_app_txn_note(
+                AuctionManagerClient.DELETE_FINALIZED_AUCTION_NOTE, result.tx_info
             )
 
             # ASSERT auction has been deleted
@@ -130,10 +133,43 @@ class AuctionManagerTestCase(AlgorandTestCase):
             )
 
             auction_manager_client.withdraw()
+            # after witdrawing all available ALGO, the contract ALGO balance should match its min balance
             app_account_info = auction_manager_client.get_application_account_info()
             self.assertEqual(
                 app_account_info["amount"], app_account_info["min-balance"]
             )
+
+    def test_withdraw(self):
+        # SETUP
+        accounts = sandbox.get_accounts()
+        creator = accounts.pop()
+        seller = accounts.pop()
+
+        auction_manager_client = create_auction_manager(
+            algod_client=self.algod_client,
+            signer=creator.signer,
+        )
+        seller_app_client = auction_manager_client.copy(signer=seller.signer)
+        with self.subTest("AuctionManager has not yet deleted finalized any auctions"):
+            self.assertIsNone(auction_manager_client.withdraw())
+
+            seller_auction_client = seller_app_client.create_auction()
+            self.assertIsNone(auction_manager_client.withdraw())
+
+            seller_auction_client.cancel()
+            self.assertIsNone(auction_manager_client.withdraw())
+            seller_auction_client.finalize()
+            self.assertIsNone(auction_manager_client.withdraw())
+
+        with self.subTest(
+            "when a finalized auction is deleted, then revenue is collected and becomes available for withdrawal"
+        ):
+            auction_manager_client.delete_finalized_auction(
+                seller_auction_client.app_id
+            )
+            result = auction_manager_client.withdraw()
+            self.assertIsNotNone(result)
+            self.assert_app_txn_note(AuctionManagerClient.WITHDRAW_NOTE, result.tx_info)
 
 
 if __name__ == "__main__":

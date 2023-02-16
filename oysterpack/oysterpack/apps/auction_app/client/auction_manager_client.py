@@ -2,15 +2,21 @@
 Auction Manager application client
 """
 
-from typing import cast
+from typing import cast, Final
 
-from algosdk.atomic_transaction_composer import TransactionSigner, TransactionWithSigner
+from algosdk.atomic_transaction_composer import (
+    TransactionSigner,
+    TransactionWithSigner,
+    ABIResult,
+)
 from algosdk.v2client.algod import AlgodClient
+from beaker.application import get_method_signature
 from beaker.client import ApplicationClient
 from beaker.consts import algo
 
 from oysterpack.algorand.client.model import AppId, Address
 from oysterpack.algorand.client.transactions import create_lease
+from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.algorand.client.transactions.payment import transfer_algo, MicroAlgos
 from oysterpack.apps.auction_app.client.auction_client import AuctionClient
 from oysterpack.apps.auction_app.contracts.auction import auction_storage_fees, Auction
@@ -23,6 +29,26 @@ class AuctionManagerClient(AppClient):
     """
     AuctionManager application client
     """
+
+    GET_AUCTION_CREATION_FEES_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method=get_method_signature(AuctionManager.get_auction_creation_fees),
+    )
+
+    CREATE_AUCTION_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method=get_method_signature(AuctionManager.create_auction),
+    )
+
+    DELETE_FINALIZED_AUCTION_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method=get_method_signature(AuctionManager.delete_finalized_auction),
+    )
+
+    WITHDRAW_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method=get_method_signature(AuctionManager.withdraw_algo),
+    )
 
     def __init__(self, app_client: ApplicationClient):
         if app_client.app_id == 0:
@@ -52,7 +78,10 @@ class AuctionManagerClient(AppClient):
         :return: Auction storage fees that are requires to create an Auction app instance
         """
         return MicroAlgos(
-            self._app_client.call(AuctionManager.get_auction_creation_fees).return_value
+            self._app_client.call(
+                AuctionManager.get_auction_creation_fees,
+                note=self.GET_AUCTION_CREATION_FEES_NOTE.encode(),
+            ).return_value
         )
 
     def create_auction(self) -> AuctionClient:
@@ -75,13 +104,14 @@ class AuctionManagerClient(AppClient):
             ),
             suggested_params=self.suggested_params(txn_count=2),
             lease=create_lease(),
+            note=self.CREATE_AUCTION_NOTE.encode(),
         ).return_value
 
         return AuctionClient(
             self._app_client.prepare(app=Auction(), app_id=auction_app_id)
         )
 
-    def delete_finalized_auction(self, app_id: AppId):
+    def delete_finalized_auction(self, app_id: AppId) -> ABIResult:
         """
         Deletes the finalized Auction for the specified app ID.
 
@@ -98,10 +128,11 @@ class AuctionManagerClient(AppClient):
         if auction_state.status != AuctionStatus.FINALIZED:
             raise AssertionError("auction is not finalized")
 
-        self._app_client.call(
+        return self._app_client.call(
             AuctionManager.delete_finalized_auction,
             auction=app_id,
             suggested_params=self.suggested_params(txn_count=3),
+            note=self.DELETE_FINALIZED_AUCTION_NOTE.encode(),
         )
 
     def get_treasury_balance(self) -> MicroAlgos:
@@ -113,19 +144,31 @@ class AuctionManagerClient(AppClient):
         min_balance: int = app_account_info["min-balance"]
         return MicroAlgos(balance - min_balance)
 
-    def withdraw(self, amount: MicroAlgos | None = None):
+    def withdraw(self, amount: MicroAlgos | None = None) -> ABIResult | None:
         """
         Can only be invoked by the AuctionManager creator account.
 
         :param amount: if no amount is specified, then the full available amount will be withdrawn
+        :return: if amount
         """
-        if amount is None:
-            amount = self.get_treasury_balance()
 
-        self._app_client.call(
+        treasury_balance = self.get_treasury_balance()
+        if amount is None:
+            amount = treasury_balance
+
+        if amount == 0:
+            return None
+
+        if amount > treasury_balance:
+            raise AssertionError(
+                f"Insufficient funds in treasury to fullfill withdrawal. Current treasury balance is {treasury_balance}"
+            )
+
+        return self._app_client.call(
             AuctionManager.withdraw_algo,
             amount=amount,
             suggested_params=self.suggested_params(txn_count=2),
+            note=self.WITHDRAW_NOTE.encode(),
         )
 
 

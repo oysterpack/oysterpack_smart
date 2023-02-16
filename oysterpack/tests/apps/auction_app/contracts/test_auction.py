@@ -4,7 +4,6 @@ from typing import cast
 
 from algosdk.transaction import wait_for_confirmation
 from beaker import sandbox
-from beaker.client import LogicException
 
 from oysterpack.algorand.client.accounts import get_asset_holding
 from oysterpack.algorand.client.model import Address, AssetHolding
@@ -278,6 +277,10 @@ class AuctionTestCase(AlgorandTestCase):
             amount=starting_asset_balance,
             asset_reserve_address=asset_manager_address,
         )
+        with self.assertRaises(AssertionError) as err:
+            seller_app_client.withdraw_asset(gold_asset_id, 1000)
+        self.assertEqual("Auction does not hold the asset", str(err.exception))
+
         seller_app_client.deposit_asset(gold_asset_id, starting_asset_balance)
 
         with self.subTest("only seller can withdraw assets"):
@@ -301,11 +304,11 @@ class AuctionTestCase(AlgorandTestCase):
                 seller_app_client.withdraw_asset(gold_asset_id, -1)
 
         with self.subTest("seller tries to over withdraw"):
-            with self.assertRaises(LogicException) as err:
+            with self.assertRaises(AssertionError) as err:
                 seller_app_client.withdraw_asset(gold_asset_id, starting_asset_balance)
-            self.assertTrue(
-                "underflow on subtracting 1000000 from sender amount 900000"
-                in err.exception.msg
+            self.assertEqual(
+                "Auction has insufficient funds - asset balance is 900000",
+                str(err.exception),
             )
 
     def test_commit(self):
@@ -376,7 +379,8 @@ class AuctionTestCase(AlgorandTestCase):
         seller_app_client.deposit_asset(gold_asset_id, 10_000)
 
         with self.subTest("auction is prepared to commit"):
-            seller_app_client.commit(start_time, end_time)
+            result = seller_app_client.commit(start_time, end_time)
+            self.assert_app_txn_note(AuctionClient.COMMIT_NOTE, result.tx_info)
             auction_state = seller_app_client.get_auction_state()
             self.assertEqual(AuctionStatus.COMMITTED, auction_state.status)
             self.assertEqual(
@@ -562,7 +566,7 @@ class AuctionTestCase(AlgorandTestCase):
 
         with self.assertRaises(AssertionError) as err:
             seller_app_client.accept_bid()
-        self.assertEqual(str(err.exception), "auction status must be `Committed`")
+        self.assertEqual(str(err.exception), "bidding sesssion is not open")
 
         start_time = seller_app_client.latest_timestamp()
         end_time = start_time + timedelta(days=3)
@@ -577,7 +581,8 @@ class AuctionTestCase(AlgorandTestCase):
         self.assertEqual(auction_state.highest_bid, min_bid)
         self.assertEqual(auction_state.highest_bidder_address, bidder.address)
 
-        seller_app_client.accept_bid()
+        result = seller_app_client.accept_bid()
+        self.assert_app_txn_note(AuctionClient.ACCEPT_BID_NOTE, result.tx_info)
         auction_state = seller_app_client.get_auction_state()
         self.assertEqual(AuctionStatus.BID_ACCEPTED, auction_state.status)
 
@@ -603,12 +608,13 @@ class AuctionTestCase(AlgorandTestCase):
         with self.subTest(
             "cancelling the auction when it has no asset holdings sets its status to Finalized"
         ):
-            seller_app_client.cancel()
+            result = seller_app_client.cancel()
+            self.assert_app_txn_note(AuctionClient.CANCEL_NOTE, result.tx_info)
             auction_state = seller_app_client.get_auction_state()
             self.assertEqual(AuctionStatus.FINALIZED, auction_state.status)
 
         with self.subTest(
-            "if the Auction has asset-holdings, then the status will set to Cancelled"
+            "if the Auction has asset-holdings, then the status will be set to Cancelled"
         ):
             creator_app_client = self.sandbox_application_client(
                 Auction(), signer=creator.signer
@@ -629,10 +635,11 @@ class AuctionTestCase(AlgorandTestCase):
             seller_app_client.set_bid_asset(gold_asset_id, 10_000)
 
             # ACT
-            seller_app_client.cancel()
+            result = seller_app_client.cancel()
             # ASSERT
             auction_state = seller_app_client.get_auction_state()
             self.assertEqual(AuctionStatus.CANCELLED, auction_state.status)
+            self.assert_app_txn_note(AuctionClient.CANCEL_NOTE, result.tx_info)
 
     def test_finalize(self):
         # SETUP
@@ -712,7 +719,10 @@ class AuctionTestCase(AlgorandTestCase):
                 seller_app_client._app_client.sender,
                 seller_app_client.get_auction_state().bid_asset_id,
             )
-            seller_app_client.finalize()
+            results = seller_app_client.finalize()
+            self.assertIsNotNone(results)
+            for result in results:
+                self.assert_app_txn_note(AuctionClient.FINALIZE_NOTE, result.tx_info)
 
             # ASSERT
             auction_account_info = self.algod_client.account_info(
@@ -751,14 +761,11 @@ class AuctionTestCase(AlgorandTestCase):
             seller_app_client, auction_bidder = create_auction()
             seller_app_client.cancel()
 
-            auction_asset_holdings = seller_app_client.get_auction_assets()
-            seller_bid_asset_holding_1 = self.algod_client.account_asset_info(
-                seller_app_client._app_client.sender,
-                seller_app_client.get_auction_state().bid_asset_id,
-            )
-
             # ACT
-            seller_app_client.finalize()
+            results = seller_app_client.finalize()
+            self.assertIsNotNone(results)
+            for result in results:
+                self.assert_app_txn_note(AuctionClient.FINALIZE_NOTE, result.tx_info)
 
             # ASSERT
             auction_account_info = self.algod_client.account_info(

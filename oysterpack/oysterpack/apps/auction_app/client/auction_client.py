@@ -267,6 +267,9 @@ class _AuctionClient(AppClient):
             raise err
 
     def _get_asset_holding(self, asset_id) -> AssetHolding:
+        """
+        Raises an exception if the Auction does not hold the asset
+        """
         return AssetHolding.from_data(
             self._app_client.client.account_asset_info(self.contract_address, asset_id)[
                 "asset-holding"
@@ -430,14 +433,49 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         method=get_method_signature(Auction.set_bid_asset),
     )
 
+    OPTIN_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method="optin_asset",
+    )
+
     OPTOUT_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
         app=Auction.APP_NAME,
         method="optout_asset",
     )
 
-    OPTIN_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
+    DEPOSIT_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
         app=Auction.APP_NAME,
-        method="optin_asset",
+        method="deposit_asset",
+    )
+
+    WITHDRAW_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method=get_method_signature(Auction.withdraw_asset),
+    )
+
+    COMMIT_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method=get_method_signature(Auction.commit),
+    )
+
+    ACCEPT_BID_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method=get_method_signature(Auction.accept_bid),
+    )
+
+    CANCEL_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method=get_method_signature(Auction.cancel),
+    )
+
+    FINALIZE_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method=get_method_signature(Auction.finalize),
+    )
+
+    LATEST_TIMESTAMP_NOTE: Final[AppTxnNote] = AppTxnNote(
+        app=Auction.APP_NAME,
+        method=get_method_signature(Auction.latest_timestamp),
     )
 
     def get_seller_address(self) -> Address:
@@ -575,6 +613,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             asset_id=asset_id,
             amount=amount,
             suggested_params=self.suggested_params(),
+            note=self.DEPOSIT_ASSET_NOTE.encode(),
         )
         atc = AtomicTransactionComposer()
         self._app_client.add_transaction(atc, asset_transfer_txn)
@@ -605,16 +644,26 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                 "asset withdrawal is only allowed when auction status is 'New'"
             )
 
+        try:
+            asset_balance = self._get_asset_holding(asset_id).amount
+            if asset_balance < amount:
+                raise AssertionError(
+                    f"Auction has insufficient funds - asset balance is {asset_balance}"
+                )
+        except AlgodHTTPError as err:
+            raise AssertionError("Auction does not hold the asset") from err
+
         self._app_client.call(
             Auction.withdraw_asset,
             asset=asset_id,
             amount=amount,
             suggested_params=self.suggested_params(txn_count=2),
+            note=self.WITHDRAW_ASSET_NOTE.encode(),
         )
 
         return self._get_asset_holding(asset_id)
 
-    def commit(self, start_time: datetime | None, end_time: datetime):
+    def commit(self, start_time: datetime | None, end_time: datetime) -> ABIResult:
         """
         Asserts
         -------
@@ -663,28 +712,30 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         if self._get_asset_holding(app_state.bid_asset_id).amount > 0:
             raise AssertionError("bid asset balance must be 0")
 
-        self._app_client.call(
+        return self._app_client.call(
             Auction.commit,
             start_time=int(start_time.timestamp()),
             end_time=int(end_time.timestamp()),
+            note=self.COMMIT_NOTE.encode(),
         )
 
-    def accept_bid(self):
+    def accept_bid(self) -> ABIResult:
         """
         Enables the seller to accept a bid before the bidding session is over.
         """
 
         app_state = self.get_auction_state()
-        if app_state.status != AuctionStatus.COMMITTED:
-            raise AssertionError("auction status must be `Committed`")
+        if not app_state.is_bidding_open():
+            raise AssertionError("bidding sesssion is not open")
         if app_state.highest_bid == 0:
             raise AssertionError("auction has no bid")
-        if datetime.now(UTC) > app_state.end_time:
-            raise AssertionError("auction has ended")
 
-        self._app_client.call(Auction.accept_bid)
+        return self._app_client.call(
+            Auction.accept_bid,
+            note=self.ACCEPT_BID_NOTE.encode(),
+        )
 
-    def cancel(self):
+    def cancel(self) -> ABIResult:
         """
         Enables the seller to cancel the auction.
 
@@ -702,68 +753,89 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         if app_state.seller_address != self._app_client.sender:
             raise AuthError
 
-        self._app_client.call(Auction.cancel)
+        return self._app_client.call(
+            Auction.cancel,
+            note=AuctionClient.CANCEL_NOTE.encode(),
+        )
 
-    def finalize(self):
+    def finalize(self) -> list[ABIResult] | None:
         """
         Used to finalize the auction once it has reached an end state:
         - cancelled
         - bid accepted
         - bidding session is over
+
+        :return: None if the auction is already finalized
         """
 
         app_state = self.get_auction_state()
         if app_state.status == AuctionStatus.FINALIZED:
-            return
+            return None
         if not app_state.is_ended():
             raise AssertionError("auction cannot be finalized because it has not ended")
 
         suggested_params = self.suggested_params(txn_count=2)
+        results: list[ABIResult] = []
         if app_state.is_sold():
             # close out auction assets to the highest bidder
             for auction_asset in self.get_auction_assets():
-                self._app_client.call(
-                    Auction.finalize,
-                    asset=auction_asset.asset_id,
-                    close_to=app_state.highest_bidder_address,
-                    suggested_params=suggested_params,
-                    lease=create_lease(),
+                results.append(
+                    self._app_client.call(
+                        Auction.finalize,
+                        asset=auction_asset.asset_id,
+                        close_to=app_state.highest_bidder_address,
+                        suggested_params=suggested_params,
+                        lease=create_lease(),
+                        note=self.FINALIZE_NOTE.encode(),
+                    )
                 )
             # close out the bid asset to the seller
-            self._app_client.call(
-                Auction.finalize,
-                asset=app_state.bid_asset_id,
-                close_to=app_state.seller_address,
-                suggested_params=suggested_params,
-                lease=create_lease(),
+            results.append(
+                self._app_client.call(
+                    Auction.finalize,
+                    asset=app_state.bid_asset_id,
+                    close_to=app_state.seller_address,
+                    suggested_params=suggested_params,
+                    lease=create_lease(),
+                    note=self.FINALIZE_NOTE.encode(),
+                )
             )
         else:
             # close out auction assets to the seller
             for auction_asset in self.get_auction_assets():
-                self._app_client.call(
-                    Auction.finalize,
-                    asset=auction_asset.asset_id,
-                    close_to=app_state.seller_address,
-                    suggested_params=suggested_params,
-                    lease=create_lease(),
+                results.append(
+                    self._app_client.call(
+                        Auction.finalize,
+                        asset=auction_asset.asset_id,
+                        close_to=app_state.seller_address,
+                        suggested_params=suggested_params,
+                        lease=create_lease(),
+                        note=self.FINALIZE_NOTE.encode(),
+                    )
                 )
             if app_state.bid_asset_id:
                 try:
                     self.get_bid_asset_holding()
-                    self._app_client.call(
-                        Auction.finalize,
-                        asset=app_state.bid_asset_id,
-                        close_to=app_state.seller_address,
-                        suggested_params=suggested_params,
-                        lease=create_lease(),
+                    results.append(
+                        self._app_client.call(
+                            Auction.finalize,
+                            asset=app_state.bid_asset_id,
+                            close_to=app_state.seller_address,
+                            suggested_params=suggested_params,
+                            lease=create_lease(),
+                            note=self.FINALIZE_NOTE.encode(),
+                        )
                     )
                 except AlgodHTTPError as err:
                     if err.code != 404:
                         raise
+        return results
 
     def latest_timestamp(self) -> datetime:
         """
         The timestamp for the latest confirmed block that is used to determine the bidding session window.
         """
-        result = self._app_client.call(Auction.latest_timestamp)
+        result = self._app_client.call(
+            Auction.latest_timestamp, note=self.LATEST_TIMESTAMP_NOTE.encode()
+        )
         return datetime.fromtimestamp(result.return_value, UTC)

@@ -8,10 +8,9 @@ from beaker import (
     Application,
     ApplicationStateValue,
     Authorize,
-    external,
 )
 from beaker.consts import algo
-from beaker.decorators import create, delete
+from beaker.decorators import create, delete, external
 from pyteal import (
     TealType,
     Expr,
@@ -185,6 +184,10 @@ class Auction(Application, _AuctionState):
             # close out ALGO balance to the creator
             InnerTxnBuilder.Execute(payment.close_out(Global.creator_address())),
         )
+
+    @external(read_only=True)
+    def app_name(self, *, output: abi.String) -> Expr:
+        return output.set(self.APP_NAME)
 
     @external(authorize=is_seller)
     def set_bid_asset(self, bid_asset: abi.Asset, min_bid: abi.Uint64) -> Expr:

@@ -2,6 +2,7 @@ import unittest
 
 from algosdk.error import AlgodHTTPError
 from beaker import sandbox
+from beaker.client import LogicException
 
 from oysterpack.algorand.client.model import Address
 from oysterpack.apps.auction_app.client.auction_manager_client import (
@@ -27,6 +28,19 @@ class AuctionManagerTestCase(AlgorandTestCase):
         logger.info(
             f"auction creation fees = {auction_manager_client.get_auction_creation_fees()} microalgos"
         )
+
+        self.assertEqual(
+            app_client.call(AuctionManager.app_name).return_value,
+            AuctionManager.APP_NAME,
+        )
+
+        with self.subTest("AuctionManager cannot be updated"):
+            with self.assertRaises(LogicException):
+                app_client.update()
+
+        with self.subTest("AuctionManager cannot be deleted"):
+            with self.assertRaises(LogicException):
+                app_client.delete()
 
     def test_create_auction(self):
         # SETUP

@@ -4,6 +4,7 @@ from typing import cast
 
 from algosdk.transaction import wait_for_confirmation
 from beaker import sandbox
+from beaker.client import LogicException
 
 from oysterpack.algorand.client.accounts import get_asset_holding
 from oysterpack.algorand.client.model import Address, AssetHolding
@@ -43,6 +44,14 @@ class AuctionTestCase(AlgorandTestCase):
         logger.info(f"app_state: {app_state}")
         self.assertEqual(seller.address, auction_client.get_seller_address())
         self.assertEqual(app_state[Auction.status.str_key()], AuctionStatus.NEW.value)
+
+        self.assertEqual(
+            creator_app_client.call(Auction.app_name).return_value, Auction.APP_NAME
+        )
+
+        with self.subTest("Auction cannot be updated"):
+            with self.assertRaises(LogicException):
+                creator_app_client.update()
 
     def test_set_bid_asset(self):
         # SETUP

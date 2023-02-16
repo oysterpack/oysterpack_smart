@@ -8,11 +8,10 @@ from beaker import (
     Application,
     AppPrecompile,
     ApplicationStateValue,
-    external,
     Authorize,
 )
 from beaker.application import get_method_signature
-from beaker.decorators import create
+from beaker.decorators import create, external
 from pyteal import (
     Expr,
     InnerTxnBuilder,
@@ -71,6 +70,10 @@ class AuctionManager(Application):
             - Auction contract deletion
         """
         return super().initialize_application_state()
+
+    @external(read_only=True)
+    def app_name(self, *, output: abi.String) -> Expr:
+        return output.set(self.APP_NAME)
 
     @external(read_only=True)
     def get_auction_creation_fees(self, *, output: abi.Uint64) -> Expr:

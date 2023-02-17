@@ -1,7 +1,6 @@
 """
 Auction application client
 """
-
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from pprint import pformat

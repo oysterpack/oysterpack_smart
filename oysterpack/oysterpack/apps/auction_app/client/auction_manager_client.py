@@ -1,7 +1,6 @@
 """
 Auction Manager application client
 """
-
 from typing import cast, Final
 
 from algosdk.atomic_transaction_composer import (

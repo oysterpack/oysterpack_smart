@@ -10,6 +10,7 @@ from algosdk.transaction import SuggestedParams
 from algosdk.v2client.algod import AlgodClient
 from beaker import AppPrecompile
 from beaker.client import ApplicationClient
+from pyteal import Bytes
 
 from oysterpack.algorand.client.model import AppId, Address, MicroAlgos
 from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
@@ -59,10 +60,10 @@ def verify_app_id(
         approval_program = b64decode(app_info["params"]["approval-program"])
         clear_state_program = b64decode(app_info["params"]["clear-state-program"])
 
-        if approval_program != app_precompile.approval._binary:
+        if app_precompile.approval.binary.byte_str != Bytes(approval_program).byte_str:
             raise AssertionError("Invalid app ID - approval program does not match")
 
-        if clear_state_program != app_precompile.clear._binary:
+        if app_precompile.clear.binary.byte_str != Bytes(clear_state_program).byte_str:
             raise AssertionError("Invalid app ID - clear program does not match")
     except AlgodHTTPError as err:
         if err.code == 404:

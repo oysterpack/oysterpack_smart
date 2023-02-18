@@ -1,13 +1,9 @@
 import unittest
-from base64 import b64decode, b64encode
+from time import sleep
 from typing import Final
-from typing import cast
 
-from algosdk.error import AlgodHTTPError
 from beaker import (
     Application,
-    Authorize,
-    delete,
     external,
     AppPrecompile,
     create,
@@ -17,14 +13,8 @@ from beaker.application import get_method_signature
 from beaker.client import ApplicationClient
 from pyteal import (
     Approve,
-    TxnField,
-    TxnType,
-    Int,
     Expr,
-    Global,
     Seq,
-    AccountParam,
-    Assert,
     InnerTxnBuilder,
     InnerTxn,
     Txn,
@@ -34,101 +24,9 @@ from pyteal.ast import abi
 from tests.algorand.test_support import AlgorandTestCase
 
 
-def verify_app(app_client: ApplicationClient):
-    """
-    Verifies that the app ID references an app whose program binaries matches the app referenced by the ApplicationClient.
-
-    :raise AssertionError: if code does not match
-    """
-
-    def diff(prog_1: str, prog_2: str) -> str:
-        if len(prog_1) != len(prog_2):
-            return f"program lengths do not match: {len(prog_1)} != {len(prog_2)}"
-
-        diffs = ""
-        for i, (a, b) in enumerate(zip(prog_1, prog_2)):
-            if a != b:
-                diffs += "^"
-            else:
-                diffs += " "
-
-        return f"""
-        {prog_1}
-        {prog_2}
-        {diffs}
-        """
-
-    try:
-        app_client.build()
-
-        app = app_client.client.application_info(app_client.app_id)
-        approval_program = b64decode(app["params"]["approval-program"])
-        clear_state_program = b64decode(app["params"]["clear-state-program"])
-
-        if approval_program != app_client.approval_binary:
-            cause = diff(
-                b64encode(approval_program).decode(),
-                b64encode(cast(bytes, app_client.approval_binary)).decode(),
-            )
-            raise AssertionError(
-                f"Invalid app ID - approval program does not match: {cause}"
-            )
-
-        if clear_state_program != app_client.clear_binary:
-            cause = diff(
-                b64encode(clear_state_program).decode(),
-                b64encode(cast(bytes, app_client.clear_binary)).decode(),
-            )
-            raise AssertionError(
-                f"Invalid app ID - clear program does not match: {cause}"
-            )
-    except AlgodHTTPError as err:
-        if err.code == 404:
-            raise AssertionError("Invalid app ID") from err
-        raise err
-
-
-def close_out_account(close_remainder_to: Expr) -> dict[TxnField, Expr | list[Expr]]:
-    """
-    Constructs a payment transaction to close out the smart contract account.
-    """
-    return {
-        TxnField.type_enum: TxnType.Payment,
-        TxnField.receiver: close_remainder_to,
-        TxnField.close_remainder_to: close_remainder_to,
-        TxnField.amount: Int(0),
-        TxnField.fee: Int(0),
-    }
-
-
 class Bar(Application):
     @create
     def create(self, owner: abi.Account) -> Expr:
-        return Approve()
-
-    @delete(
-        authorize=Authorize.only(Global.creator_address())
-    )  # IF YOU COMMENT THIS OUT THEN THE TEST PASSES ???
-    def delete(self) -> Expr:
-        return Seq(
-            # assert that the app has opted out of all assets
-            total_assets := AccountParam.totalAssets(
-                Global.current_application_address()
-            ),
-            Assert(total_assets.value() == Int(0)),
-            # close out ALGO balance to the creator
-            InnerTxnBuilder.Execute(close_out_account(Global.creator_address())),
-        )
-
-    @external(read_only=True)
-    def app_name(self, *, output: abi.String) -> Expr:
-        """
-        Returns the application name
-        """
-        return output.set(self.__class__.__name__)
-
-    @external
-    def bar(self) -> Expr:
         return Approve()
 
 
@@ -153,34 +51,87 @@ class Foo(Application):
 
 
 class MyTestCase(AlgorandTestCase):
-    @unittest.skip("waiting on beaker bug fix")
-    def test_create_via_foo(self):
+    def test_indexer_paging_apps(self):
         account = sandbox.get_accounts().pop()
         foo_client = ApplicationClient(
             sandbox.get_algod_client(), Foo(), signer=account.signer
         )
 
-        foo_client.create()
+        _app_id, foo_address, _txid = foo_client.create()
         foo_client.fund(1_000_000)
 
-        bar_app_id = foo_client.call(Foo.create_bar).return_value
-        print("bar_app_id=", bar_app_id)
+        def next_page(result) -> str:
+            next_token = result.setdefault("next-token", None)
+            print("next_token =", next_token)
+            return next_token
 
-        bar_client = ApplicationClient(
-            sandbox.get_algod_client(), Bar(), app_id=bar_app_id, signer=account.signer
+        def app_ids(result) -> list[int]:
+            apps = result["applications"]
+            return [app["id"] for app in apps]
+
+        # create 3 apps
+        app_ids_created = []
+        for _ in range(5):
+            app_ids_created.append(
+                foo_client.call(Foo.create_bar, owner=foo_address).return_value
+            )
+
+        sleep(1)  # give time for indexing
+
+        indexer_client = sandbox.get_indexer_client()
+        result = indexer_client.search_applications(creator=foo_address, limit=2)
+        app_ids_returned = app_ids(result)
+        self.assertEqual(len(app_ids_returned), 2)
+
+        print("app_ids_created =", app_ids_created)
+        print("app_ids_returned =", app_ids_returned)
+        print("*" * 10)
+
+        # create another Foo app instance between paging
+        app_ids_created.append(
+            foo_client.call(Foo.create_bar, owner=foo_address).return_value
         )
-        verify_app(bar_client)
+        sleep(1)  # give time for indexingsleep(1)
 
-    def test_create_bar_directly(self):
-        account = sandbox.get_accounts().pop()
-
-        bar_client = ApplicationClient(
-            sandbox.get_algod_client(), Bar(), signer=account.signer
+        # continue paging
+        result = indexer_client.search_applications(
+            creator=foo_address,
+            limit=2,
+            next_page=next_page(result),
         )
-        bar_app_id = bar_client.create(owner=account.address)
-        print("bar_app_id=", bar_app_id)
+        app_ids_returned += app_ids(result)
+        self.assertEqual(len(app_ids_returned), 4)
+        print("app_ids_created =", app_ids_created)
+        print("app_ids_returned =", app_ids_returned)
+        print("*" * 10)
 
-        verify_app(bar_client)
+        result = indexer_client.search_applications(
+            creator=foo_address,
+            limit=2,
+            next_page=next_page(result),
+        )
+        app_ids_returned += app_ids(result)
+        self.assertEqual(len(app_ids_returned), 6)
+        print("app_ids_created =", app_ids_created)
+        print("app_ids_returned =", app_ids_returned)
+        print("*" * 10)
+
+        # create another Foo app instance after all search results have been retrieved
+        app_ids_created.append(
+            foo_client.call(Foo.create_bar, owner=foo_address).return_value
+        )
+        sleep(1)  # give time for indexingsleep(1)
+
+        result = indexer_client.search_applications(
+            creator=foo_address,
+            limit=2,
+            next_page=next_page(result),
+        )
+        app_ids_returned += app_ids(result)
+        self.assertEqual(len(app_ids_returned), 7)
+        print("app_ids_created =", app_ids_created)
+        print("app_ids_returned =", app_ids_returned)
+        print("*" * 10)
 
 
 if __name__ == "__main__":

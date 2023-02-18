@@ -4,7 +4,7 @@ Auction domain model
 
 from dataclasses import dataclass
 
-from oysterpack.algorand.client.model import AppId, Address
+from oysterpack.algorand.client.model import AppId, Address, AssetHolding
 from oysterpack.apps.auction_app.client.auction_client import AuctionState
 
 
@@ -23,4 +23,4 @@ class Auction:
 
     state: AuctionState
 
-    # auction_assets: dict[AssetId, int]
+    auction_assets: list[AssetHolding]

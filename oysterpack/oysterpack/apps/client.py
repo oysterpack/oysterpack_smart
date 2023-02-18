@@ -1,12 +1,14 @@
 """
 Provides client side support to interact with Algorand smart contracts, i.e., applications.
 """
-from base64 import b64decode, b64encode
-from typing import Any, cast
+from base64 import b64decode
+from typing import Any
 
 from algosdk.error import AlgodHTTPError
 from algosdk.logic import get_application_address
 from algosdk.transaction import SuggestedParams
+from algosdk.v2client.algod import AlgodClient
+from beaker import AppPrecompile
 from beaker.client import ApplicationClient
 
 from oysterpack.algorand.client.model import AppId, Address, MicroAlgos
@@ -14,29 +16,14 @@ from oysterpack.algorand.client.transactions import suggested_params_with_flat_f
 
 
 # TODO: this approach did not work - beaker team has identified this as a bug
+# The TEAL code is not being deterministically compiled. The compiled TEAL code is logically the same.
+# However, the issue lies in how scratch var slots are assigned.
 def verify_app(app_client: ApplicationClient):
     """
     Verifies that the app ID references an app whose program binaries matches the app referenced by the ApplicationClient.
 
     :raise AssertionError: if code does not match
     """
-
-    def diff(prog_1: str, prog_2: str) -> str:
-        if len(prog_1) != len(prog_2):
-            return f"program lengths do not match: {len(prog_1)} != {len(prog_2)}"
-
-        diffs = ""
-        for i, (a, b) in enumerate(zip(prog_1, prog_2)):
-            if a != b:
-                diffs += "^"
-            else:
-                diffs += " "
-
-        return f"""
-        {prog_1}
-        {prog_2}
-        {diffs}
-        """
 
     try:
         app_client.build()
@@ -46,22 +33,37 @@ def verify_app(app_client: ApplicationClient):
         clear_state_program = b64decode(app["params"]["clear-state-program"])
 
         if approval_program != app_client.approval_binary:
-            cause = diff(
-                b64encode(approval_program).decode(),
-                b64encode(cast(bytes, app_client.approval_binary)).decode(),
-            )
-            raise AssertionError(
-                f"Invalid app ID - approval program does not match: {cause}"
-            )
+            raise AssertionError("Invalid app ID - approval program does not match")
 
         if clear_state_program != app_client.clear_binary:
-            cause = diff(
-                b64encode(clear_state_program).decode(),
-                b64encode(cast(bytes, app_client.clear_binary)).decode(),
-            )
-            raise AssertionError(
-                f"Invalid app ID - clear program does not match: {cause}"
-            )
+            raise AssertionError("Invalid app ID - clear program does not match")
+    except AlgodHTTPError as err:
+        if err.code == 404:
+            raise AssertionError("Invalid app ID") from err
+        raise err
+
+
+def verify_app_id(
+    app_id: AppId, app_precompile: AppPrecompile, algod_client: AlgodClient
+):
+    """
+    Verifies that the app ID references an app whose program binaries matches the specified AppPrecompile
+
+    :raise AssertionError: if code does not match
+    """
+
+    try:
+        app_precompile.compile(algod_client)
+
+        app_info = algod_client.application_info(app_id)
+        approval_program = b64decode(app_info["params"]["approval-program"])
+        clear_state_program = b64decode(app_info["params"]["clear-state-program"])
+
+        if approval_program != app_precompile.approval._binary:
+            raise AssertionError("Invalid app ID - approval program does not match")
+
+        if clear_state_program != app_precompile.clear._binary:
+            raise AssertionError("Invalid app ID - clear program does not match")
     except AlgodHTTPError as err:
         if err.code == 404:
             raise AssertionError("Invalid app ID") from err

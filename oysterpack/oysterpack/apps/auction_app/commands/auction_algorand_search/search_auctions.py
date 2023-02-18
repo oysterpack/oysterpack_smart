@@ -1,19 +1,38 @@
 """
-Provides support to search on-chain Auction data
+Provides command support for searching Auctions
 """
 from dataclasses import dataclass
-from typing import cast, Any
+from typing import Any, cast
 
-from algosdk.logic import get_application_address
-from algosdk.v2client.algod import AlgodClient
-from algosdk.v2client.indexer import IndexerClient
 from beaker.client import ApplicationClient
 from beaker.client.state_decode import decode_state
 
-from oysterpack.algorand.client.model import AppId, Address, AssetHolding, AssetId
+from oysterpack.algorand.client.model import AppId, AssetId, AssetHolding
 from oysterpack.apps.auction_app.client.auction_client import AuctionState
-from oysterpack.apps.auction_app.contracts.auction import Auction as AuctionApp
+from oysterpack.apps.auction_app.commands.auction_algorand_search.search_support import (
+    AuctionAlgorandSearchSupport,
+)
 from oysterpack.apps.auction_app.domain.auction import Auction
+from oysterpack.core.command import Command
+from oysterpack.apps.auction_app.contracts.auction import Auction as AuctionApp
+
+
+@dataclass
+class AuctionSearchArgs:
+    """
+    Auction search args
+    """
+
+    # max number of search results to return
+    limit: int = 100
+
+    # used for paging
+    # search results are sorted by AppId
+    next_token: str | AppId | None = None
+
+    def __post_init__(self):
+        if isinstance(self.next_token, AppId):
+            self.next_token = str(self.next_token)
 
 
 @dataclass
@@ -27,64 +46,35 @@ class AuctionSearchResult:
     # the round the search was run
     round: int
     # used for paging
-    next_page: str | None
+    next_token: str | None
 
 
-class AuctionIndexerClient:
-    """
-    Used to search on-chain Auction data
-    """
-
-    def __init__(
-        self,
-        indexer_client: IndexerClient,
-        algod_client: AlgodClient,
-        auction_manager_app_id: AppId,
-    ):
-        self._indexer_client = indexer_client
-        self._algod_client = algod_client
-        self.auction_manager_app_id = auction_manager_app_id
-
-    @property
-    def auction_manager_address(self) -> Address:
-        """
-        :return: AuctionManager application address
-        """
-        return Address(get_application_address(self.auction_manager_app_id))
-
-    def search_auctions(
-        self,
-        limit: int = 100,
-        next_token: str | AppId | None = None,
-    ) -> AuctionSearchResult:
-        """
-        Used to search auctions
-        :param limit: max number of search results to return
-        :param next_token: used for pagination
-        :return:
-        """
-
+class SearchAuctions(
+    Command[AuctionSearchArgs, AuctionSearchResult], AuctionAlgorandSearchSupport
+):
+    def __call__(self, args: AuctionSearchArgs) -> AuctionSearchResult:
         result = self._indexer_client.search_applications(
             creator=self.auction_manager_address,
-            limit=limit,
-            next_page=str(next_token) if next_token else next_token,
+            limit=args.limit,
+            next_page=args.next_token,
         )
 
         current_round = result["current-round"]
         next_token = result.setdefault("next-token", None)
 
-        def create_auction(app: dict[str, Any]) -> Auction:
+        def to_auction(app: dict[str, Any]) -> Auction:
             def get_auction_assets(
                 app_id: AppId, bid_asset_id: AssetId | None
             ) -> list[AssetHolding]:
                 app_client = ApplicationClient(
                     self._algod_client, AuctionApp(), app_id=app_id
                 )
-
                 auction_assets = [
                     AssetHolding.from_data(asset)
                     for asset in app_client.get_application_account_info()["assets"]
                 ]
+
+                # filter out the bid asset
                 if bid_asset_id:
                     return [
                         asset
@@ -108,9 +98,9 @@ class AuctionIndexerClient:
                 auction_assets=get_auction_assets(AppId(app["id"]), state.bid_asset_id),
             )
 
-        auctions = [create_auction(app) for app in result["applications"]]
+        auctions = [to_auction(app) for app in result["applications"]]
         return AuctionSearchResult(
             round=current_round,
-            next_page=cast(str | None, next_token),
+            next_token=cast(str | None, next_token),
             auctions=auctions,
         )

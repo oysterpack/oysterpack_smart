@@ -7,11 +7,14 @@ from oysterpack.algorand.client.model import Address
 from oysterpack.apps.auction_app.client.auction_manager_client import (
     create_auction_manager,
 )
-from oysterpack.apps.auction_app.data.auction_indexer_client import AuctionIndexerClient
+from oysterpack.apps.auction_app.commands.auction_algorand_search.search_auctions import (
+    SearchAuctions,
+    AuctionSearchArgs,
+)
 from tests.algorand.test_support import AlgorandTestCase
 
 
-class AuctionIndexerClientTestCase(AlgorandTestCase):
+class SearchAuctionsTestCase(AlgorandTestCase):
     def test_search_auctions(self):
         # SETUP
         accounts = sandbox.get_accounts()
@@ -23,7 +26,7 @@ class AuctionIndexerClientTestCase(AlgorandTestCase):
             signer=creator.signer,
         )
 
-        auction_indexer_client = AuctionIndexerClient(
+        search_auctions = SearchAuctions(
             indexer_client=self.indexer,
             algod_client=self.algod_client,
             auction_manager_app_id=creator_app_client.app_id,
@@ -32,39 +35,42 @@ class AuctionIndexerClientTestCase(AlgorandTestCase):
         with self.subTest(
             "create AuctionIndexerClient with an invalid AuctionManager app ID"
         ):
-            AuctionIndexerClient(
+            SearchAuctions(
                 indexer_client=self.indexer,
                 algod_client=self.algod_client,
                 auction_manager_app_id=creator_app_client.app_id,
             )
 
         with self.subTest("no auctions have been created"):
-            auctions = auction_indexer_client.search_auctions()
-            self.assertEqual(len(auctions.auctions), 0)
+            search_result = search_auctions(AuctionSearchArgs())
+            self.assertEqual(len(search_result.auctions), 0)
 
         seller_auction_manager_client = creator_app_client.copy(
             sender=Address(seller.address), signer=seller.signer
         )
 
         with self.subTest("create auctions and then retrieve them via search"):
-            for _ in range(3):
+            for _ in range(5):
                 seller_auction_manager_client.create_auction()
             sleep(1)
 
-            search_result = auction_indexer_client.search_auctions(limit=2)
+            search_result = search_auctions(AuctionSearchArgs(limit=2))
             self.assertEqual(len(search_result.auctions), 2)
 
             count = 2
             while True:
-                search_result = auction_indexer_client.search_auctions(
-                    limit=1, next_token=search_result.next_page
+                search_result = search_auctions(
+                    AuctionSearchArgs(
+                        limit=2,
+                        next_token=search_result.next_token,
+                    )
                 )
                 if len(search_result.auctions) == 0:
                     break
-                count += 1
-                self.assertFalse(count > 3)
+                count += len(search_result.auctions)
+                self.assertFalse(count > 5)
 
-            self.assertEqual(count, 3)
+            self.assertEqual(count, 5)
 
     def test_search_auction_paging(self):
         # SETUP
@@ -81,7 +87,7 @@ class AuctionIndexerClientTestCase(AlgorandTestCase):
             sender=Address(seller.address), signer=seller.signer
         )
 
-        auction_indexer_client = AuctionIndexerClient(
+        search_auctions = SearchAuctions(
             indexer_client=self.indexer,
             algod_client=self.algod_client,
             auction_manager_app_id=creator_app_client.app_id,
@@ -92,13 +98,11 @@ class AuctionIndexerClientTestCase(AlgorandTestCase):
             app_ids.append(seller_auction_manager_client.create_auction().app_id)
         sleep(1)
 
-        search_result = auction_indexer_client.search_auctions()
+        search_result = search_auctions(AuctionSearchArgs())
         self.assertEqual(len(search_result.auctions), 5)
 
         with self.subTest("retrieve Auctions that were created after an app ID"):
-            search_result = auction_indexer_client.search_auctions(
-                next_token=app_ids[2]
-            )
+            search_result = search_auctions(AuctionSearchArgs(next_token=app_ids[2]))
             self.assertEqual(len(search_result.auctions), 2)
 
         with self.subTest("retrieve Auction that were created since the last search"):
@@ -106,9 +110,7 @@ class AuctionIndexerClientTestCase(AlgorandTestCase):
                 app_ids.append(seller_auction_manager_client.create_auction().app_id)
             sleep(1)
 
-            search_result = auction_indexer_client.search_auctions(
-                next_token=app_ids[4]
-            )
+            search_result = search_auctions(AuctionSearchArgs(next_token=app_ids[4]))
             self.assertEqual(len(search_result.auctions), 3)
             for auction in search_result.auctions:
                 self.assertIsNotNone(auction.app_id, app_ids)

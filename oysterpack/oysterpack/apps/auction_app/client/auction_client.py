@@ -3,7 +3,6 @@ Auction application client
 """
 from dataclasses import dataclass
 from datetime import datetime, UTC
-from pprint import pformat
 from typing import cast, Final
 
 from algosdk.atomic_transaction_composer import (
@@ -32,163 +31,22 @@ from oysterpack.algorand.params import MinimumBalance
 from oysterpack.apps.auction_app.client.errors import AuthError
 from oysterpack.apps.auction_app.contracts.auction import Auction
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
+from oysterpack.apps.auction_app.domain.auction_state import AuctionState
 from oysterpack.apps.client import AppClient
 
 
-@dataclass
+@dataclass(slots=True)
 class InvalidAssetId(Exception):
     """Raised for invalid asset ID"""
 
     asset_id: AssetId
 
 
-class AuctionState:
+def to_auction_state(state: dict[bytes | str, bytes | str | int]) -> AuctionState:
     """
-    Auction application state
+    maps raw global state data to an AuctionState
     """
-
-    def __init__(self, state: dict[bytes | str, bytes | str | int]):
-        """
-        :param state: application state retrieved using AlgodClient
-        """
-        self.__state = state
-
-    @property
-    def status(self) -> AuctionStatus:
-        """
-        :return: AuctionStatus
-        """
-        match self.__state[Auction.status.str_key()]:
-            case AuctionStatus.NEW.value:
-                return AuctionStatus.NEW
-            case AuctionStatus.CANCELLED.value:
-                return AuctionStatus.CANCELLED
-            case AuctionStatus.COMMITTED.value:
-                return AuctionStatus.COMMITTED
-            case AuctionStatus.BID_ACCEPTED.value:
-                return AuctionStatus.BID_ACCEPTED
-            case AuctionStatus.FINALIZED.value:
-                return AuctionStatus.FINALIZED
-            case _:
-                raise ValueError(self.__state[Auction.status.str_key()])
-
-    @property
-    def seller_address(self) -> Address:
-        """
-        :return: Address
-        """
-        return self._encode_address(
-            cast(str, self.__state[Auction.seller_address.str_key()])
-        )
-
-    @property
-    def bid_asset_id(self) -> AssetId | None:
-        """
-        Bid asset is the asset that the seller is accepting as payment.
-
-        :return: None means not configured
-        """
-        if Auction.bid_asset_id.str_key() in self.__state.keys():
-            return AssetId(cast(int, self.__state[Auction.bid_asset_id.str_key()]))
-        return None
-
-    @property
-    def min_bid(self) -> int | None:
-        """
-        The minimum bid that the seller will accept.
-
-        :return: None means not configured
-        """
-        if Auction.min_bid.str_key() in self.__state.keys():
-            return cast(int, self.__state[Auction.min_bid.str_key()])
-        return None
-
-    @property
-    def highest_bidder_address(self) -> Address | None:
-        """
-        :return: Address | None
-        """
-        if Auction.highest_bidder_address.str_key() in self.__state.keys():
-            value = cast(str, self.__state[Auction.highest_bidder_address.str_key()])
-            return self._encode_address(value) if value else None
-        return None
-
-    @property
-    def highest_bid(self) -> int:
-        """
-        :return: highest bid amount - zero means no bid yet
-        """
-        if Auction.highest_bid.str_key() in self.__state.keys():
-            return cast(int, self.__state[Auction.highest_bid.str_key()])
-        return 0
-
-    @property
-    def start_time(self) -> datetime | None:
-        """
-        When the bidding session starts.
-
-        :return: None means not configured
-        """
-        if Auction.start_time.str_key() in self.__state.keys():
-            value = cast(int, self.__state[Auction.start_time.str_key()])
-            return datetime.fromtimestamp(value, UTC) if value else None
-        return None
-
-    @property
-    def end_time(self) -> datetime | None:
-        """
-        When the bidding session ends.
-
-        :return: None means not configured
-        """
-        if Auction.end_time.str_key() in self.__state.keys():
-            value = cast(int, self.__state[Auction.end_time.str_key()])
-            return datetime.fromtimestamp(value, UTC) if value else None
-        return None
-
-    def is_bidding_open(self) -> bool:
-        """
-        :return: True if the Auction is Committed and the current time is within the bidding session window.
-        """
-        if self.start_time and self.end_time:
-            return (
-                self.status == AuctionStatus.COMMITTED
-                and self.start_time <= datetime.now(UTC) < self.end_time
-            )
-        return False
-
-    def is_ended(self) -> bool:
-        """
-        :return: True if the auction has ended, but not yet fully finalized
-        """
-        if self.status in [
-            AuctionStatus.BID_ACCEPTED,
-            AuctionStatus.CANCELLED,
-        ]:
-            return True
-
-        return (
-            self.status == AuctionStatus.COMMITTED
-            # if status is committed, then `end_time` is not None
-            and datetime.now(UTC) > self.end_time  # type: ignore
-        )
-
-    def is_sold(self) -> bool:
-        """
-        :return: True if the Auction has sold
-        """
-
-        if self.status == AuctionStatus.BID_ACCEPTED:
-            return True
-
-        return (
-            self.status == AuctionStatus.COMMITTED
-            # if status is committed, then `end_time` is not None
-            and datetime.now(UTC) > self.end_time  # type: ignore
-            and self.highest_bid > 0
-        )
-
-    def _encode_address(self, hex_encoded_address_bytes: str) -> Address:
+    def to_address(hex_encoded_address_bytes: str) -> Address:
         """
         Helper function to encode an address stored in the app's global state as a standard Algorand address.
 
@@ -202,23 +60,67 @@ class AuctionState:
         """
         return Address(encode_address(bytes.fromhex(hex_encoded_address_bytes)))
 
-    def __repr__(self):
-        return pformat(
-            {
-                Auction.status.str_key(): self.status,
-                Auction.seller_address.str_key(): self.seller_address,
-                Auction.bid_asset_id.str_key(): self.bid_asset_id,
-                Auction.min_bid.str_key(): self.min_bid,
-                Auction.highest_bidder_address.str_key(): self.highest_bidder_address,
-                Auction.highest_bid.str_key(): self.highest_bid,
-                Auction.start_time.str_key(): self.start_time.isoformat()
-                if self.start_time
-                else None,
-                Auction.end_time.str_key(): self.end_time.isoformat()
-                if self.end_time
-                else None,
-            }
-        )
+    def status() -> AuctionStatus:
+        match state[Auction.status.str_key()]:
+            case AuctionStatus.NEW.value:
+                return AuctionStatus.NEW
+            case AuctionStatus.CANCELLED.value:
+                return AuctionStatus.CANCELLED
+            case AuctionStatus.COMMITTED.value:
+                return AuctionStatus.COMMITTED
+            case AuctionStatus.BID_ACCEPTED.value:
+                return AuctionStatus.BID_ACCEPTED
+            case AuctionStatus.FINALIZED.value:
+                return AuctionStatus.FINALIZED
+            case _:
+                raise ValueError(state[Auction.status.str_key()])
+
+    def seller_address() -> Address:
+        return to_address(cast(str, state[Auction.seller_address.str_key()]))
+
+    def bid_asset_id() -> AssetId | None:
+        if Auction.bid_asset_id.str_key() in state.keys():
+            return AssetId(cast(int, state[Auction.bid_asset_id.str_key()]))
+        return None
+
+    def min_bid() -> int | None:
+        if Auction.min_bid.str_key() in state.keys():
+            return cast(int, state[Auction.min_bid.str_key()])
+        return None
+
+    def highest_bidder_address() -> Address | None:
+        if Auction.highest_bidder_address.str_key() in state.keys():
+            value = cast(str, state[Auction.highest_bidder_address.str_key()])
+            return to_address(value) if value else None
+        return None
+
+    def highest_bid() -> int:
+        if Auction.highest_bid.str_key() in state.keys():
+            return cast(int, state[Auction.highest_bid.str_key()])
+        return 0
+
+    def start_time() -> datetime | None:
+        if Auction.start_time.str_key() in state.keys():
+            value = cast(int, state[Auction.start_time.str_key()])
+            return datetime.fromtimestamp(value, UTC) if value else None
+        return None
+
+    def end_time() -> datetime | None:
+        if Auction.end_time.str_key() in state.keys():
+            value = cast(int, state[Auction.end_time.str_key()])
+            return datetime.fromtimestamp(value, UTC) if value else None
+        return None
+
+    return AuctionState(
+        status=status(),
+        seller_address=seller_address(),
+        bid_asset_id=bid_asset_id(),
+        min_bid=min_bid(),
+        highest_bidder_address=highest_bidder_address(),
+        highest_bid=highest_bid(),
+        start_time=start_time(),
+        end_time=end_time(),
+    )
 
 
 class _AuctionClient(AppClient):
@@ -281,7 +183,7 @@ class _AuctionClientSupport(AppClient):
         """
         :return: AuctionState
         """
-        return AuctionState(self.get_application_state())
+        return to_auction_state(self.get_application_state())
 
     def get_auction_assets(self) -> list[AssetHolding]:
         """
@@ -346,7 +248,7 @@ class AuctionBidder(_AuctionClientSupport):
         - Auction bidding session must be open
         - The bid must be higher than the current highest bid.
         """
-        auction_state = AuctionState(self.get_application_state())
+        auction_state = to_auction_state(self.get_application_state())
         if not auction_state.is_bidding_open():
             raise AssertionError("auction is not open for bidding")
 

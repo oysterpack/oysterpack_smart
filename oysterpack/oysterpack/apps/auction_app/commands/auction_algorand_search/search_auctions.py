@@ -8,7 +8,9 @@ from beaker.client import ApplicationClient
 from beaker.client.state_decode import decode_state
 
 from oysterpack.algorand.client.model import AppId, AssetId, AssetHolding
-from oysterpack.apps.auction_app.client.auction_client import AuctionState
+from oysterpack.apps.auction_app.client.auction_client import (
+    to_auction_state,
+)
 from oysterpack.apps.auction_app.commands.auction_algorand_search.search_support import (
     AuctionAlgorandSearchSupport,
 )
@@ -17,7 +19,7 @@ from oysterpack.core.command import Command
 from oysterpack.apps.auction_app.contracts.auction import Auction as AuctionApp
 
 
-@dataclass
+@dataclass(slots=True)
 class AuctionSearchArgs:
     """
     Auction search args
@@ -35,7 +37,7 @@ class AuctionSearchArgs:
             self.next_token = str(self.next_token)
 
 
-@dataclass
+@dataclass(slots=True)
 class AuctionSearchResult:
     """
     Auction search results
@@ -52,6 +54,10 @@ class AuctionSearchResult:
 class SearchAuctions(
     Command[AuctionSearchArgs, AuctionSearchResult], AuctionAlgorandSearchSupport
 ):
+    """
+    Used to search for Auction apps on Algorand.
+    """
+
     def __call__(self, args: AuctionSearchArgs) -> AuctionSearchResult:
         result = self._indexer_client.search_applications(
             creator=self.auction_manager_address,
@@ -83,7 +89,7 @@ class SearchAuctions(
                     ]
                 return auction_assets
 
-            state = AuctionState(
+            state = to_auction_state(
                 cast(
                     dict[bytes | str, bytes | str | int],
                     decode_state(app["params"]["global-state"]),

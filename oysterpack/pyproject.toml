@@ -23,6 +23,7 @@ black = "^22.12.0"
 mypy = "^0.991"
 flake8 = "^6.0.0"
 pylint = "^2.16.2"
+alembic = "^1.9.4"
 
 [build-system]
 requires = ["poetry-core"]

@@ -19,6 +19,10 @@ class AuctionAlgorandSearchSupport:
         algod_client: AlgodClient,
         auction_manager_app_id: AppId,
     ):
+        """
+        :param auction_manager_app_id: AuctionManager app that was used to create the Auction
+        """
+
         # TODO: verify that the auction manager app ID point to a valid AuctionManager smart contract
         # waiting on bug fix from beaker team
         # verify_app_id(

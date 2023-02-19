@@ -28,7 +28,7 @@ def create(
     reserve: Address | None = None,
     freeze: Address | None = None,
     clawback: Address | None = None,
-    default_frozen: bool = False,
+    default_frozen: bool | None = None,
     metadata_hash: bytes | None = None,
     url: str | None = None,
     note: bytes | None = None,

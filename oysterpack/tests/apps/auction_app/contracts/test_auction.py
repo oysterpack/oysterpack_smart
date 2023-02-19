@@ -70,7 +70,7 @@ class AuctionTestCase(AlgorandTestCase):
         )
         creator_app_client = AuctionClient(creator_app_client)
 
-        bid_asset_id, _asset_manager_address = self.create_test_asset("USD$")
+        bid_asset_id, _creator_address = self.create_test_asset("USD$")
         min_bid = 1_000_000
 
         self.assertIsNone(seller_app_client.get_bid_asset_holding())
@@ -107,7 +107,7 @@ class AuctionTestCase(AlgorandTestCase):
             self.assertEqual(min_bid * 2, app_state.min_bid)
 
         with self.subTest("change the bid asset settings"):
-            bid_asset_id, _asset_manager_address = self.create_test_asset("goUSD")
+            bid_asset_id, _creator_address = self.create_test_asset("goUSD")
             min_bid = 2_000_000
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
 
@@ -117,6 +117,28 @@ class AuctionTestCase(AlgorandTestCase):
 
             self.assertEqual(
                 seller_app_client.get_bid_asset_holding().asset_id, bid_asset_id
+            )
+
+        with self.subTest("asset has clawback"):
+            bid_asset_id, _ = self.create_test_asset(
+                "goUSD", clawback=Address(creator.address)
+            )
+            min_bid = 2_000_000
+            with self.assertRaises(AssertionError) as err:
+                seller_app_client.set_bid_asset(bid_asset_id, min_bid)
+            self.assertEqual(
+                str(err.exception), "asset must not have clawback or freeze"
+            )
+
+        with self.subTest("asset has freeze"):
+            bid_asset_id, _ = self.create_test_asset(
+                "goUSD", freeze=Address(creator.address)
+            )
+            min_bid = 2_000_000
+            with self.assertRaises(AssertionError) as err:
+                seller_app_client.set_bid_asset(bid_asset_id, min_bid)
+            self.assertEqual(
+                str(err.exception), "asset must not have clawback or freeze"
             )
 
     def test_optout_asset(self):
@@ -210,6 +232,26 @@ class AuctionTestCase(AlgorandTestCase):
             )
             self.algod_client.account_asset_info(
                 seller_app_client.contract_address, go_mint_asset_id
+            )
+
+        with self.subTest("asset has clawback"):
+            asset_id, _ = self.create_test_asset(
+                "goUSD", clawback=Address(creator.address)
+            )
+            with self.assertRaises(AssertionError) as err:
+                seller_app_client.optin_asset(asset_id)
+            self.assertEqual(
+                str(err.exception), "asset must not have clawback or freeze"
+            )
+
+        with self.subTest("asset has freeze"):
+            asset_id, _ = self.create_test_asset(
+                "goUSD", freeze=Address(creator.address)
+            )
+            with self.assertRaises(AssertionError) as err:
+                seller_app_client.optin_asset(asset_id)
+            self.assertEqual(
+                str(err.exception), "asset must not have clawback or freeze"
             )
 
     def test_deposit_asset(self):

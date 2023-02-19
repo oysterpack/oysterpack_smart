@@ -79,14 +79,26 @@ class AlgorandTestCase(unittest.TestCase):
             signer=signer,
         )
 
-    def create_test_asset(self, asset_name: str) -> tuple[AssetId, Address]:
+    def create_test_asset(
+        self,
+        asset_name: str,
+        total_base_units: int = 1_000_000_000_000_000,
+        decimals: int = 6,
+        manager: Address | None = None,
+        reserve: Address | None = None,
+        freeze: Address | None = None,
+        clawback: Address | None = None,
+        unit_name: str | None = None,
+        url: str | None = None,
+        metadata_hash: bytes | None = None,
+    ) -> tuple[AssetId, Address]:
         """
         Creates a new asset using the first account in the sandbox default wallet as the administrative accounts.
 
         Returns (AssetId, manager account address)
         """
 
-        def metadata_hash() -> bytes:
+        def generate_metadata_hash() -> bytes:
             import hashlib
 
             m = hashlib.sha256()
@@ -94,11 +106,6 @@ class AlgorandTestCase(unittest.TestCase):
             return m.digest()
 
         sender = Address(sandbox.get_accounts().pop().address)
-        manager = reserve = freeze = clawback = sender
-        total_base_units = 1_000_000_000_000_000
-        decimals = 6
-        unit_name = asset_name
-        url = "https://meld.gold/"
         txn = client_assets.create(
             sender=sender,
             manager=manager,
@@ -106,9 +113,9 @@ class AlgorandTestCase(unittest.TestCase):
             freeze=freeze,
             clawback=clawback,
             asset_name=asset_name,
-            unit_name=unit_name,
+            unit_name=unit_name if unit_name else asset_name,
             url=url,
-            metadata_hash=metadata_hash(),
+            metadata_hash=metadata_hash if metadata_hash else generate_metadata_hash(),
             total_base_units=total_base_units,
             decimals=decimals,
             suggested_params=sandbox.get_algod_client().suggested_params(),
@@ -119,7 +126,7 @@ class AlgorandTestCase(unittest.TestCase):
             algod_client=sandbox.get_algod_client(), txid=txid, wait_rounds=4
         )
 
-        return AssetId(tx_info["asset-index"]), Address(manager)
+        return AssetId(tx_info["asset-index"]), sender
 
     def _optin_asset_and_seed_balance(
         self,

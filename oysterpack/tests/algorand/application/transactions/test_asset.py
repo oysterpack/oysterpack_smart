@@ -4,9 +4,7 @@ from typing import Callable
 
 from algosdk.transaction import wait_for_confirmation
 from beaker import Application, Authorize
-from beaker import sandbox
 from beaker.decorators import external, delete
-from beaker.sandbox import kmd
 from pyteal import (
     Expr,
     Global,
@@ -29,7 +27,7 @@ from oysterpack.algorand.application.transactions.asset import (
     set_optout_txn_fields,
     set_transfer_txn_fields,
 )
-from oysterpack.algorand.client.model import AssetId, Address
+from oysterpack.algorand.client.model import Address
 from oysterpack.algorand.client.transactions import asset as client_assets
 from tests.algorand.test_support import AlgorandTestCase
 
@@ -104,53 +102,6 @@ class Foo(Application):
         )
 
 
-def create_test_asset() -> tuple[AssetId, Address]:
-    """
-    Creates a new asset using the first account in the sandbox default wallet as the administrative accounts.
-
-    Returns (AssetId, manager account address)
-    """
-
-    def metadata_hash() -> bytes:
-        import hashlib
-
-        m = hashlib.sha256()
-        m.update(b"asset metadata")
-        return m.digest()
-
-    sandbox.get_accounts().pop()
-    sender = Address(sandbox.get_accounts().pop().address)
-    manager = reserve = freeze = clawback = sender
-    total_base_units = 1_000_000_000_000_000
-    decimals = 6
-    asset_name = "GOLD"
-    unit_name = "GLD"
-    url = "https://meld.gold/"
-    txn = client_assets.create(
-        sender=sender,
-        manager=manager,
-        reserve=reserve,
-        freeze=freeze,
-        clawback=clawback,
-        asset_name=asset_name,
-        unit_name=unit_name,
-        url=url,
-        metadata_hash=metadata_hash(),
-        total_base_units=total_base_units,
-        decimals=decimals,
-        suggested_params=sandbox.get_algod_client().suggested_params(),
-    )
-    signed_txn = kmd.get_sandbox_default_wallet().sign_transaction(txn)
-    txid = sandbox.get_algod_client().send_transaction(signed_txn)
-    tx_info = wait_for_confirmation(
-        algod_client=sandbox.get_algod_client(), txid=txid, wait_rounds=4
-    )
-
-    asset_id, address = (AssetId(tx_info["asset-index"]), Address(manager))
-    pp(sandbox.get_algod_client().account_asset_info(address, asset_id))
-    return asset_id, address
-
-
 class AssetOptInOptOutTestCase(AlgorandTestCase):
     def optin_optout_test_template(
         self,
@@ -172,7 +123,7 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
 
         app_client = self.sandbox_application_client(Foo())
         # create asset
-        asset_id, asset_manager_address = create_test_asset()
+        asset_id, asset_manager_address = self.create_test_asset(asset_name="GOLD")
 
         account_starting_balance = self.algod_client.account_info(app_client.sender)[
             "amount"

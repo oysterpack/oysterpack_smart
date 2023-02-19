@@ -17,6 +17,7 @@ from algosdk.error import AlgodHTTPError
 from beaker.application import get_method_signature
 from beaker.client import ApplicationClient
 
+from oysterpack.algorand.client.assets.asset_config import AssetConfig
 from oysterpack.algorand.client.model import (
     Address,
     AssetId,
@@ -46,6 +47,7 @@ def to_auction_state(state: dict[bytes | str, bytes | str | int]) -> AuctionStat
     """
     maps raw global state data to an AuctionState
     """
+
     def to_address(hex_encoded_address_bytes: str) -> Address:
         """
         Helper function to encode an address stored in the app's global state as a standard Algorand address.
@@ -144,18 +146,11 @@ class _AuctionClient(AppClient):
         self.fund(MicroAlgos(min_balance + MinimumBalance.ASSET_OPT_IN - algo_balance))
 
     def _assert_valid_asset_id(self, asset_id: AssetId):
-        if not self._is_asset_id_valid(asset_id):
+        asset_config = AssetConfig.get_asset_info(asset_id, self._app_client.client)
+        if asset_config is None:
             raise InvalidAssetId(asset_id)
-
-    def _is_asset_id_valid(self, asset_id: AssetId) -> bool:
-        try:
-            self._app_client.client.asset_info(asset_id)
-            return True
-        except AlgodHTTPError as err:
-            print(err)
-            if err.code == 404:
-                return False
-            raise err
+        if asset_config.clawback is not None or asset_config.freeze is not None:
+            raise AssertionError("asset must not have clawback or freeze")
 
     def _is_asset_opted_in(self, asset_id: AssetId) -> bool:
         try:
@@ -386,9 +381,9 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
 
     def set_bid_asset(self, asset_id: AssetId, min_bid: int) -> ABIResult | None:
         """
-        Sets or updates the bidd asset settings.
+        Sets or updates the bid asset settings.
 
-        If the bid asset is already set and if the
+        The bid asset must not have freeze or clawback settings
 
         :param asset_id:
         :param min_bid:
@@ -401,6 +396,8 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
 
         if app_state.seller_address != self._app_client.sender:
             raise AuthError
+
+        self._assert_valid_asset_id(asset_id)
 
         # if the bid asset is being updated, then opt out the bid asset
         if app_state.bid_asset_id and app_state.bid_asset_id != asset_id:

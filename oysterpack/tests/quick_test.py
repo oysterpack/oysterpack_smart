@@ -35,9 +35,9 @@ class Foo(Application):
 
     @external
     def create_bar(
-            self,
-            *,
-            output: abi.Uint64,
+        self,
+        *,
+        output: abi.Uint64,
     ) -> Expr:
         return Seq(
             InnerTxnBuilder.ExecuteMethodCall(

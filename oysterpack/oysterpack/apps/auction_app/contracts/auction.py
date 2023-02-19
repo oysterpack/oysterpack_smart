@@ -204,6 +204,7 @@ class Auction(Application, _AuctionState):
         1. status == AuctionStatus.New
         2. bid asset_id == 0 or is the same
         3. min bid > 0
+        4. asset cannot be frozen or clawed back
 
         Inner Transactions
         ------------------
@@ -226,6 +227,7 @@ class Auction(Application, _AuctionState):
                     self.bid_asset_id.get() == bid_asset.asset_id(),
                 ),
             ),
+            self._assert_no_freeze_clawback(bid_asset),
             self.bid_asset_id.set(bid_asset.asset_id()),
             self.min_bid.set(min_bid.get()),
             # if the auction does not hold the bid asset, then opt in the bid asset
@@ -244,6 +246,10 @@ class Auction(Application, _AuctionState):
         Opt in asset to be sold in the auction.
         After the asset is opted in, then the seller can transfer the assets to the auction account.
 
+        Asserts
+        -------
+        1. asset cannot be frozen or clawed back
+
         Notes
         -----
         - transaction fees = 0.002 ALGO
@@ -253,6 +259,7 @@ class Auction(Application, _AuctionState):
         """
         return Seq(
             Assert(self.is_new()),
+            self._assert_no_freeze_clawback(asset),
             execute_optin(asset),
         )
 
@@ -522,6 +529,24 @@ class Auction(Application, _AuctionState):
             self.is_finalized(),
             Reject(),
             close_out_asset(),
+        )
+
+    def _assert_no_freeze_clawback(self, asset: abi.Asset) -> Expr:
+        return Seq(
+            freeze_address := asset.params().freeze_address(),
+            Assert(
+                Or(
+                    Not(freeze_address.hasValue()),
+                    freeze_address.value() == Global.zero_address(),
+                )
+            ),
+            clawback_address := asset.params().clawback_address(),
+            Assert(
+                Or(
+                    Not(clawback_address.hasValue()),
+                    clawback_address.value() == Global.zero_address(),
+                )
+            ),
         )
 
 

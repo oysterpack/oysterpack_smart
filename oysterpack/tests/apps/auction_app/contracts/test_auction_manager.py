@@ -57,12 +57,12 @@ class AuctionManagerTestCase(AlgorandTestCase):
         # ACT
         seller_auction_client = seller_app_client.create_auction()
         auction_state = seller_auction_client.get_auction_state()
-        self.assertEqual(seller.address, auction_state.seller_address)
+        self.assertEqual(seller.address, auction_state.seller)
 
         # create another auction
         seller_auction_client = seller_app_client.create_auction()
         auction_state = seller_auction_client.get_auction_state()
-        self.assertEqual(seller.address, auction_state.seller_address)
+        self.assertEqual(seller.address, auction_state.seller)
 
     def test_delete_finalized_auction(self):
         # SETUP
@@ -79,12 +79,12 @@ class AuctionManagerTestCase(AlgorandTestCase):
         # ACT
         seller_auction_client = seller_app_client.create_auction()
         auction_state = seller_auction_client.get_auction_state()
-        self.assertEqual(seller.address, auction_state.seller_address)
+        self.assertEqual(seller.address, auction_state.seller)
 
         # create another auction
         seller_auction_client = seller_app_client.create_auction()
         auction_state = seller_auction_client.get_auction_state()
-        self.assertEqual(seller.address, auction_state.seller_address)
+        self.assertEqual(seller.address, auction_state.seller)
 
         with self.subTest(
             "trying to delete an Auction that is not finalized should fail"

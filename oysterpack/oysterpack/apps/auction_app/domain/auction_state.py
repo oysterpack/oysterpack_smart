@@ -18,12 +18,12 @@ class AuctionState:
     # pylint: disable=too-many-instance-attributes
 
     status: AuctionStatus
-    seller_address: Address
+    seller: Address
 
     bid_asset_id: AssetId | None
     min_bid: int | None
 
-    highest_bidder_address: Address | None
+    highest_bidder: Address | None
     highest_bid: int
 
     start_time: datetime | None

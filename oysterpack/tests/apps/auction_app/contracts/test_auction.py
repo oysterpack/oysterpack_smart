@@ -503,7 +503,7 @@ class AuctionTestCase(AlgorandTestCase):
             result = auction_bidder.bid(min_bid)
             auction_state = seller_app_client.get_auction_state()
             self.assertEqual(auction_state.highest_bid, min_bid)
-            self.assertEqual(auction_state.highest_bidder_address, bidder.address)
+            self.assertEqual(auction_state.highest_bidder, bidder.address)
             self.assert_app_txn_note(AuctionBidder.BID_NOTE, result.tx_info)
 
         with self.subTest("submit higher bid"):
@@ -515,7 +515,7 @@ class AuctionTestCase(AlgorandTestCase):
             auction_bidder.bid(bid)
             auction_state = seller_app_client.get_auction_state()
             self.assertEqual(auction_state.highest_bid, bid)
-            self.assertEqual(auction_state.highest_bidder_address, bidder.address)
+            self.assertEqual(auction_state.highest_bidder, bidder.address)
             # bidder should have been refunded
             bidder_bid_asset_holding_2 = get_asset_holding(
                 Address(bidder.address), bid_asset_id, self.algod_client
@@ -630,7 +630,7 @@ class AuctionTestCase(AlgorandTestCase):
         auction_bidder.bid(min_bid)
         auction_state = seller_app_client.get_auction_state()
         self.assertEqual(auction_state.highest_bid, min_bid)
-        self.assertEqual(auction_state.highest_bidder_address, bidder.address)
+        self.assertEqual(auction_state.highest_bidder, bidder.address)
 
         result = seller_app_client.accept_bid()
         self.assert_app_txn_note(AuctionClient.ACCEPT_BID_NOTE, result.tx_info)

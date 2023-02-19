@@ -14,9 +14,9 @@ from oysterpack.apps.auction_app.client.auction_client import (
 from oysterpack.apps.auction_app.commands.auction_algorand_search.search_support import (
     AuctionAlgorandSearchSupport,
 )
+from oysterpack.apps.auction_app.contracts.auction import Auction as AuctionApp
 from oysterpack.apps.auction_app.domain.auction import Auction
 from oysterpack.core.command import Command
-from oysterpack.apps.auction_app.contracts.auction import Auction as AuctionApp
 
 
 @dataclass(slots=True)
@@ -70,24 +70,22 @@ class SearchAuctions(
 
         def to_auction(app: dict[str, Any]) -> Auction:
             def get_auction_assets(
-                app_id: AppId, bid_asset_id: AssetId | None
-            ) -> list[AssetHolding]:
+                app_id: AppId,
+                bid_asset_id: AssetId | None,
+            ) -> dict[AssetId, int]:
                 app_client = ApplicationClient(
                     self._algod_client, AuctionApp(), app_id=app_id
                 )
                 auction_assets = [
                     AssetHolding.from_data(asset)
                     for asset in app_client.get_application_account_info()["assets"]
+                    if asset.asset_id != bid_asset_id
                 ]
 
-                # filter out the bid asset
-                if bid_asset_id:
-                    return [
-                        asset
-                        for asset in auction_assets
-                        if asset.asset_id != bid_asset_id
-                    ]
-                return auction_assets
+                return {
+                    asset_holding.asset_id: asset_holding.amount
+                    for asset_holding in auction_assets
+                }
 
             state = to_auction_state(
                 cast(

@@ -1,62 +1,51 @@
 """
 Auction database schema
 """
+from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import (
-    MetaData,
-    Table,
-    Column,
-    ForeignKey,
-    Integer,
     String,
+    ForeignKey,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from oysterpack.algorand.client.model import AppId, Address
+from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 
 
 class Base(DeclarativeBase):
     pass
 
 
+@dataclass
 class Auction(Base):
     __tablename__ = "auction"
 
-    app_id: Mapped[AppId] = mapped_column(primary_key=True)
-
-    creator: Mapped[Address] = mapped_column(String(58), nullable=False, index=True)
-
+    app_id: Mapped[int] = mapped_column(primary_key=True)
+    creator: Mapped[str] = mapped_column(String(58), index=True)
     created_at_round: Mapped[int] = mapped_column(index=True)
 
+    status: Mapped[AuctionStatus] = mapped_column(index=True)
+    seller: Mapped[str] = mapped_column(String(58), index=True)
 
-metadata = MetaData()
+    bid_asset_id: Mapped[int | None] = mapped_column(index=True)
+    min_bid: Mapped[int | None] = mapped_column(index=True)
 
-auction = Table(
-    "auction",
-    metadata,
-    Column("app_id", Integer, primary_key=True),
-    Column("creator_address", String(58), nullable=False, index=True),
-    Column("created_at_round", Integer, nullable=False, index=True),
-    Column("created_at_time", Integer, nullable=False, index=True),
-    Column("status", Integer, nullable=False, index=True),
-    Column("seller_address", String(58), nullable=False, index=True),
-    Column("bid_asset_id", Integer, index=True),
-    Column("min_bid", Integer, index=True),
-    Column("highest_bidder_address", String(58), index=True),
-    Column("highest_bid", Integer, index=True),
-    Column("start_time", Integer, index=True),
-    Column("end_time", Integer, index=True),
-)
+    highest_bidder: Mapped[str | None] = mapped_column(String(58), index=True)
+    highest_bid: Mapped[int] = mapped_column(index=True)
 
-asset_holding = Table(
-    "asset_holding",
-    metadata,
-    Column(
-        "app_id",
-        ForeignKey("auction.app_id"),
-        nullable=False,
-        index=True,
-    ),
-    Column("asset_id", Integer, nullable=False, index=True),
-    Column("amount", Integer, nullable=False, index=True),
-)
+    start_time: Mapped[datetime | None] = mapped_column(index=True)
+    end_time: Mapped[datetime | None] = mapped_column(index=True)
+
+    assets: Mapped[list["AuctionAsset"]] = relationship()
+
+
+@dataclass
+class AuctionAsset(Base):
+    __tablename__ = "auction_asset"
+
+    auction_id: Mapped[int] = mapped_column(
+        ForeignKey("auction.app_id"), primary_key=True
+    )
+    asset_id: Mapped[int] = mapped_column(primary_key=True)
+    amount: Mapped[int] = mapped_column(index=True)

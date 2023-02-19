@@ -115,10 +115,10 @@ def to_auction_state(state: dict[bytes | str, bytes | str | int]) -> AuctionStat
 
     return AuctionState(
         status=status(),
-        seller_address=seller_address(),
+        seller=seller_address(),
         bid_asset_id=bid_asset_id(),
         min_bid=min_bid(),
-        highest_bidder_address=highest_bidder_address(),
+        highest_bidder=highest_bidder_address(),
         highest_bid=highest_bid(),
         start_time=start_time(),
         end_time=end_time(),
@@ -262,8 +262,8 @@ class AuctionBidder(_AuctionClientSupport):
 
         suggested_params = self.suggested_params()
 
-        if auction_state.highest_bidder_address:
-            highest_bidder = auction_state.highest_bidder_address
+        if auction_state.highest_bidder:
+            highest_bidder = auction_state.highest_bidder
             # transaction fees need to cover the inner transaction to refund the highest bidder
             suggested_params.fee = suggested_params.min_fee * 2
         else:
@@ -377,7 +377,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         """
         Returns auction seller address
         """
-        return self.get_auction_state().seller_address
+        return self.get_auction_state().seller
 
     def set_bid_asset(self, asset_id: AssetId, min_bid: int) -> ABIResult | None:
         """
@@ -394,7 +394,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             # then no changes are needed
             return None
 
-        if app_state.seller_address != self._app_client.sender:
+        if app_state.seller != self._app_client.sender:
             raise AuthError
 
         self._assert_valid_asset_id(asset_id)
@@ -489,7 +489,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             raise AssertionError("amount must be > 0")
 
         app_state = self.get_auction_state()
-        if app_state.seller_address != self._app_client.sender:
+        if app_state.seller != self._app_client.sender:
             raise AuthError
         if app_state.status != AuctionStatus.NEW:
             raise AssertionError(
@@ -533,7 +533,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             raise AssertionError("amount must be > 0")
 
         app_state = self.get_auction_state()
-        if app_state.seller_address != self._app_client.sender:
+        if app_state.seller != self._app_client.sender:
             raise AuthError
 
         if app_state.status != AuctionStatus.NEW:
@@ -582,7 +582,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             raise AssertionError("end_time must be after start_time")
 
         app_state = self.get_auction_state()
-        if app_state.seller_address != self._app_client.sender:
+        if app_state.seller != self._app_client.sender:
             raise AuthError
 
         if app_state.status != AuctionStatus.NEW:
@@ -647,7 +647,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             raise AssertionError(
                 "auction can only be commited when auction status is 'New'"
             )
-        if app_state.seller_address != self._app_client.sender:
+        if app_state.seller != self._app_client.sender:
             raise AuthError
 
         return self._app_client.call(
@@ -680,7 +680,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                     self._app_client.call(
                         Auction.finalize,
                         asset=auction_asset.asset_id,
-                        close_to=app_state.highest_bidder_address,
+                        close_to=app_state.highest_bidder,
                         suggested_params=suggested_params,
                         lease=create_lease(),
                         note=self.FINALIZE_NOTE.encode(),
@@ -691,7 +691,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                 self._app_client.call(
                     Auction.finalize,
                     asset=app_state.bid_asset_id,
-                    close_to=app_state.seller_address,
+                    close_to=app_state.seller,
                     suggested_params=suggested_params,
                     lease=create_lease(),
                     note=self.FINALIZE_NOTE.encode(),
@@ -704,7 +704,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                     self._app_client.call(
                         Auction.finalize,
                         asset=auction_asset.asset_id,
-                        close_to=app_state.seller_address,
+                        close_to=app_state.seller,
                         suggested_params=suggested_params,
                         lease=create_lease(),
                         note=self.FINALIZE_NOTE.encode(),
@@ -717,7 +717,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                         self._app_client.call(
                             Auction.finalize,
                             asset=app_state.bid_asset_id,
-                            close_to=app_state.seller_address,
+                            close_to=app_state.seller,
                             suggested_params=suggested_params,
                             lease=create_lease(),
                             note=self.FINALIZE_NOTE.encode(),

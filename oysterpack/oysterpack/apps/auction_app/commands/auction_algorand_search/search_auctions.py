@@ -99,7 +99,7 @@ class SearchAuctions(
                 creator=app["params"]["creator"],
                 created_at_round=app["created-at-round"],
                 state=state,
-                auction_assets=get_auction_assets(AppId(app["id"]), state.bid_asset_id),
+                assets=get_auction_assets(AppId(app["id"]), state.bid_asset_id),
             )
 
         auctions = [to_auction(app) for app in result["applications"]]

@@ -21,4 +21,4 @@ class Auction:
     created_at_round: int
 
     state: AuctionState
-    auction_assets: dict[AssetId, int]
+    assets: dict[AssetId, int]

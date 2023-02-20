@@ -20,14 +20,14 @@ class AuctionState:
     status: AuctionStatus
     seller: Address
 
-    bid_asset_id: AssetId | None
-    min_bid: int | None
+    bid_asset_id: AssetId | None = None
+    min_bid: int | None = None
 
-    highest_bidder: Address | None
-    highest_bid: int
+    highest_bidder: Address | None = None
+    highest_bid: int = 0
 
-    start_time: datetime | None
-    end_time: datetime | None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
 
     def is_bidding_open(self) -> bool:
         """

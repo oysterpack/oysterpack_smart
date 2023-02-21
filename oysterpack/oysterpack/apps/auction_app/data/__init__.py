@@ -1,5 +1,13 @@
 """
 Auction data model
+
+Notes
+-----
+Data model class names are prefixed with a 'T', which identifies them as classes that map to database tables.
+This naming convention also avoids name collision with other similarly named domain model classes, e.g.,
+
+`TAuction` is a data model class vs `Auction` is a domain model class
+
 """
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import DeclarativeBase

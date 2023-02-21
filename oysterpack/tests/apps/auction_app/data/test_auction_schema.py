@@ -30,12 +30,14 @@ class MyTestCase(AlgorandTestCase):
         with Session(self.engine) as session:
             for i in range(1, 101):
                 if session.get(TAssetInfo, i) is None:
-                    session.add(TAssetInfo(
-                        asset_id=cast(Mapped[int], i),
-                        creator=cast(Mapped[Address], creator),
-                        total=cast(Mapped[int], 1_000_000_000_000_000),
-                        decimals=cast(Mapped[int], 6),
-                    ))
+                    session.add(
+                        TAssetInfo(
+                            asset_id=cast(Mapped[int], i),
+                            creator=cast(Mapped[Address], creator),
+                            total=cast(Mapped[int], 1_000_000_000_000_000),
+                            decimals=cast(Mapped[int], 6),
+                        )
+                    )
 
             for i in range(1, 11):
                 auction = Auction(

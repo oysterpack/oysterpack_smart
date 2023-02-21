@@ -167,9 +167,7 @@ class _AuctionClient(AppClient):
         Raises an exception if the Auction does not hold the asset
         """
         return AssetHolding.from_data(
-            self._app_client.client.account_asset_info(self.contract_address, asset_id)[
-                "asset-holding"
-            ]
+            self._app_client.client.account_asset_info(self.contract_address, asset_id)
         )
 
 
@@ -204,7 +202,7 @@ class _AuctionClientSupport(AppClient):
             bid_asset_holding = self._app_client.client.account_asset_info(
                 self.contract_address, bid_asset_id
             )
-            return AssetHolding.from_data(bid_asset_holding["asset-holding"])
+            return AssetHolding.from_data(bid_asset_holding)
         except AlgodHTTPError as err:
             if err.code == 404:
                 return None

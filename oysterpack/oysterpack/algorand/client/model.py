@@ -53,6 +53,8 @@ class AssetHolding:
         :param data: required keys: 'amount','asset-id, 'is-frozen'
         :return:
         """
+        if "asset-holding" in data:
+            data = data["asset-holding"]
         return cls(
             amount=data["amount"],
             asset_id=data["asset-id"],

@@ -62,9 +62,7 @@ def get_asset_holding(
     :return : None if the Algorand address does not exist on-chain
     """
     try:
-        data = algod_client.account_asset_info(address=address, asset_id=asset_id)[
-            "asset-holding"
-        ]
+        data = algod_client.account_asset_info(address=address, asset_id=asset_id)
     except AlgodHTTPError as err:
         if err.code == 404:
             return None

@@ -5,7 +5,7 @@ from algosdk import mnemonic
 from algosdk.account import generate_account
 from beaker.application import Application
 
-from oysterpack.algorand.client.model import AppId, Mnemonic
+from oysterpack.algorand.client.model import AppId, Mnemonic, AssetHolding
 from tests.algorand.test_support import AlgorandTestCase
 
 
@@ -55,6 +55,21 @@ class AppIdTestCase(AlgorandTestCase):
         app_id, app_addess, _tx_id = app_client.create()
         app_id = AppId(app_id)
         self.assertEqual(app_id.to_address(), app_addess)
+
+
+class AssetHoldingTestCase(AlgorandTestCase):
+    def test_from_data(self):
+        # SETUP
+        asset_id, creator = self.create_test_asset("GOLD")
+        account_asset_info = self.algod_client.account_asset_info(creator, asset_id)
+
+        # ACT
+        asset_holding = AssetHolding.from_data(account_asset_info)
+
+        # ASSERT
+        self.assertEqual(asset_id, asset_holding.asset_id)
+        asset_info = self.algod_client.asset_info(asset_id)
+        self.assertEqual(asset_info["params"]["total"], asset_holding.amount)
 
 
 if __name__ == "__main__":

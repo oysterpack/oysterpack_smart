@@ -1,5 +1,4 @@
 import unittest
-from pprint import pp
 from typing import Callable
 
 from algosdk.transaction import wait_for_confirmation
@@ -132,44 +131,19 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
         # create app
         app_client.create()
 
-        def log(event: str):
-            app_account_info = app_client.get_application_account_info()
-            account_balance = self.algod_client.account_info(app_client.sender)[
-                "amount"
-            ]
-            pp(
-                {
-                    "event": event,
-                    "account_starting_balance": account_starting_balance,
-                    "account_balance": account_balance,
-                    "balance_diff": account_starting_balance - account_balance,
-                    "app": {
-                        "balance": app_account_info["amount"],
-                        "min-balance": app_account_info["min-balance"],
-                        "total-assets-opted-in": app_account_info[
-                            "total-assets-opted-in"
-                        ],
-                        "assets": app_account_info["assets"],
-                    },
-                }
-            )
-
-        log("created app")
-
         # opt app into asset
 
         # fund tha app
         # 0.1 ALGO for global state
         # 0.1 ALGO for asset holding
         app_client.fund(100_000 * 2)
-        log("funded app")
 
         # transaction must pay for opt-in inner transaction
         sp = self.algod_client.suggested_params()
         sp.fee = sp.min_fee * 2
         sp.flat_fee = True
         app_client.call(optin, asset=asset_id, suggested_params=sp)
-        log("app opted-in asset")
+
         # assert that the app holds the asset
         app_account_info = app_client.get_application_account_info()
         self.assertTrue(
@@ -191,7 +165,6 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txid)
-        log("transferred assets to app")
 
         # transfer assets back to manager account
         print(f"asset_id={asset_id} asset_manager_address={asset_manager_address}")
@@ -202,7 +175,7 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
             amount=2000,
             suggested_params=sp,
         )
-        log("app transfered assets")
+
         # assert that the assets were transferred
         app_account_info = app_client.get_application_account_info()
         self.assertEqual(app_account_info["assets"][0]["amount"], 8000)
@@ -214,7 +187,7 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
         )
 
         app_client.call(optout, asset=asset_id, suggested_params=sp)
-        log("app opted-out asset")
+
         app_account_info = app_client.get_application_account_info()
         self.assertEqual(app_account_info["total-assets-opted-in"], 0)
 
@@ -222,14 +195,6 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
         account_ending_balance = self.algod_client.account_info(app_client.sender)[
             "amount"
         ]
-        pp(
-            {
-                "event": "deleted app",
-                "account_starting_balance": account_starting_balance,
-                "account_balance": account_ending_balance,
-                "balance_diff": account_starting_balance - account_ending_balance,
-            }
-        )
 
         if account_starting_balance > account_ending_balance:
             # when the app is deleted, the app account should have been closed out to the app creator

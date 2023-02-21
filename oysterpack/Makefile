@@ -1,4 +1,4 @@
-pre-commit: format check pylint-errors-only sandbox-reset test
+pre-commit: format check sandbox-reset test
 
 test:
 	coverage run -m unittest
@@ -15,6 +15,7 @@ check:
 	flake8 tests
 	mypy oysterpack
 	mypy tests
+	pylint -E ./oysterpack ./tests
 
 pylint:
 	pylint ./oysterpack

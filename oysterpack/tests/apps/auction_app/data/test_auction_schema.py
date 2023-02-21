@@ -16,7 +16,7 @@ from tests.algorand.test_support import AlgorandTestCase
 
 class MyTestCase(AlgorandTestCase):
     def setUp(self) -> None:
-        self.engine = create_engine("sqlite:///:memory:", echo=True)
+        self.engine = create_engine("sqlite:///:memory:", echo=False)
         Base.metadata.create_all(self.engine)
 
     def test_crud(self):

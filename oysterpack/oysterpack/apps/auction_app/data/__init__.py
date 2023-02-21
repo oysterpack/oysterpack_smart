@@ -10,13 +10,13 @@ This naming convention also avoids name collision with other similarly named dom
 
 """
 from sqlalchemy import Integer, String
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 
 from oysterpack.algorand.client.model import AppId, Address, AssetId
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 
 
-class Base(DeclarativeBase):
+class Base(MappedAsDataclass, DeclarativeBase):
     """
     Data model base class.
 

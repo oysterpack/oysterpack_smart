@@ -65,6 +65,19 @@ class MyTestCase(AlgorandTestCase):
         app_id = foo_client.call(Foo.create_bar).return_value
         verify_app_id(app_id, AppPrecompile(Bar()), self.algod_client)
 
+    def test_sqlite_fts5(self):
+        import sqlite3
+
+        con = sqlite3.connect("test_sqlite_fts5.db")
+        cur = con.cursor()
+        cur.execute(
+            "CREATE VIRTUAL TABLE if not exists email USING fts5(sender, title, body)"
+        )
+        res = cur.execute("SELECT name FROM sqlite_master")
+        for row in res:
+            print(row)
+        con.commit()
+
 
 if __name__ == "__main__":
     unittest.main()

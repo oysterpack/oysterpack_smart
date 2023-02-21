@@ -45,8 +45,6 @@ class AuctionSearchResult:
 
     auctions: list[Auction]
 
-    # the round the search was run
-    round: int
     # used for paging
     next_token: str | None
 
@@ -100,11 +98,11 @@ class SearchAuctions(
                 created_at_round=app["created-at-round"],
                 state=state,
                 assets=get_auction_assets(AppId(app["id"]), state.bid_asset_id),
+                round=current_round,
             )
 
         auctions = [to_auction(app) for app in result["applications"]]
         return AuctionSearchResult(
-            round=current_round,
-            next_token=cast(str | None, next_token),
             auctions=auctions,
+            next_token=cast(str | None, next_token),
         )

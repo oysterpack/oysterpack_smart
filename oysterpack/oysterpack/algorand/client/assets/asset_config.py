@@ -5,17 +5,20 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from algosdk.error import AlgodHTTPError
-from algosdk.transaction import AssetConfigTxn
 from algosdk.v2client.algod import AlgodClient
 
 from oysterpack.algorand.client.model import AssetId, Address
 
-AssetConfigTxn
-
 
 @dataclass(slots=True)
 class AssetConfig:
-    id: AssetId
+    """
+    Algorand Asset configuration
+    """
+
+    # pylint: disable=too-many-instance-attributes
+
+    asset_id: AssetId
     creator: Address
     total: int
     decimals: int
@@ -31,7 +34,9 @@ class AssetConfig:
 
     @classmethod
     def get_asset_info(
-        cls, asset_id: AssetId, algod_client: AlgodClient
+        cls,
+        asset_id: AssetId,
+        algod_client: AlgodClient,
     ) -> Optional["AssetConfig"]:
         """
         :return: None if the asset does not exist
@@ -47,9 +52,13 @@ class AssetConfig:
 
     @classmethod
     def from_asset_info(cls, asset_info: dict[str, Any]) -> "AssetConfig":
+        """
+        :param asset_info: asset info retrieved from an algod node
+        :return:
+        """
         params = asset_info["params"]
         return cls(
-            id=asset_info["index"],
+            asset_id=asset_info["index"],
             creator=params["creator"],
             total=params["total"],
             decimals=params["decimals"],

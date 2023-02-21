@@ -211,6 +211,7 @@ class _AuctionClientSupport(AppClient):
             raise
 
 
+# TODO: logging
 class AuctionBidder(_AuctionClientSupport):
     """
     Auction client used for placing bids.
@@ -318,6 +319,7 @@ class AuctionBidder(_AuctionClientSupport):
         return txids
 
 
+# TODO: logging
 class AuctionClient(_AuctionClient, _AuctionClientSupport):
     """
     Auction application client

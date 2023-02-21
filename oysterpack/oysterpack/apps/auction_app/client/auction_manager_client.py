@@ -24,6 +24,7 @@ from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.client import AppClient
 
 
+# TODO: logging
 class AuctionManagerClient(AppClient):
     """
     AuctionManager application client

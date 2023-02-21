@@ -34,7 +34,7 @@ class AssetConfigTestCase(AlgorandTestCase):
         )
 
         asset_config = AssetConfig.get_asset_info(asset_id, self.algod_client)
-        self.assertEqual(asset_id, asset_config.id)
+        self.assertEqual(asset_id, asset_config.asset_id)
         self.assertEqual("GOLD", asset_config.asset_name)
         self.assertEqual(manager, asset_config.manager)
         self.assertEqual(reserve, asset_config.reserve)

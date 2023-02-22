@@ -39,22 +39,16 @@ class TAuction(Base):
     state: Mapped[AuctionState] = composite(
         mapped_column(index=True),  # status
         mapped_column(index=True),  # seller
-        mapped_column(  # bid_asset_id
-            ForeignKey("asset_info.asset_id"),
-            index=True,
-        ),
+        mapped_column(index=True),  # bid_asset_id
         mapped_column(index=True),  # min_bid
         mapped_column(index=True),  # highest_bidder
         mapped_column(index=True),  # highest_bid
         mapped_column(index=True),  # start_time
         mapped_column(index=True),  # end_time
-        default=None,
     )
 
     assets: Mapped[list["TAuctionAsset"]] = relationship(
-        back_populates="auction",
-        cascade="all, delete-orphan",
-        default_factory=list,
+        passive_deletes="all", lazy="selectin"
     )
 
     @classmethod
@@ -93,7 +87,7 @@ class TAuction(Base):
         self.created_at_round = cast(Mapped[int], auction.created_at_round)
         self.updated_at = cast(Mapped[datetime], datetime.now(UTC))
         self.updated_at_round = cast(Mapped[int], auction.round)
-        self.state = cast(Mapped[AuctionState],copy(auction.state))
+        self.state = cast(Mapped[AuctionState], copy(auction.state))
 
         self.assets = cast(
             Mapped[list[TAuctionAsset]],
@@ -155,20 +149,18 @@ class TAuctionAsset(Base):
     __tablename__ = "auction_asset"
 
     auction_id: Mapped[AppId] = mapped_column(
-        ForeignKey("auction.app_id"),
+        ForeignKey("auction.app_id", ondelete="CASCADE"),
         primary_key=True,
     )
-    asset_id: Mapped[AssetId] = mapped_column(
-        ForeignKey("asset_info.asset_id"),
-        primary_key=True,
-    )
+    asset_id: Mapped[AssetId] = mapped_column(primary_key=True)
     amount: Mapped[int] = mapped_column(index=True)
-
-    auction: Mapped["TAuction"] = relationship(back_populates="assets", default=None)
 
     @classmethod
     def create(
-        cls, auction_id: AppId, asset_id: AssetId, amount: int
+        cls,
+        auction_id: AppId,
+        asset_id: AssetId,
+        amount: int,
     ) -> "TAuctionAsset":
         """
         Constructs a TAuctionAsset instance

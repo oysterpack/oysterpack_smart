@@ -3,7 +3,7 @@ from typing import cast
 
 from algosdk.account import generate_account
 from sqlalchemy import create_engine, select, func
-from sqlalchemy.orm import Session, Mapped
+from sqlalchemy.orm import Mapped, sessionmaker
 
 from oysterpack.algorand.client.model import AssetId, Address, AppId
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
@@ -14,10 +14,12 @@ from oysterpack.apps.auction_app.domain.auction_state import AuctionState
 from tests.algorand.test_support import AlgorandTestCase
 
 
-class MyTestCase(AlgorandTestCase):
+class AuctionORMTestCase(AlgorandTestCase):
     def setUp(self) -> None:
         self.engine = create_engine("sqlite:///:memory:", echo=False)
         Base.metadata.create_all(self.engine)
+
+        self.Session = sessionmaker(self.engine)
 
     def test_crud(self):
         # pylint is complaining about func.count() constructs, which are valid
@@ -27,7 +29,7 @@ class MyTestCase(AlgorandTestCase):
         _, seller = generate_account()
 
         # create
-        with Session(self.engine) as session:
+        with self.Session.begin() as session:  # pylint: disable=no-member
             for i in range(1, 101):
                 if session.get(TAssetInfo, i) is None:
                     session.add(
@@ -56,10 +58,8 @@ class MyTestCase(AlgorandTestCase):
                 )
                 session.add(TAuction.create(auction))
 
-            session.commit()
-
         # read
-        with Session(self.engine) as session:
+        with self.Session() as session:
             self.assertEqual(
                 10,
                 session.scalars(select(func.count(TAuction.app_id))).one(),
@@ -82,7 +82,7 @@ class MyTestCase(AlgorandTestCase):
                 print(auction.to_auction())
 
         # update
-        with Session(self.engine) as session:
+        with self.Session.begin() as session:  # pylint: disable=no-member
             auction = session.get(TAuction, 2)
             self.assertIsNotNone(auction)
             auction.set_assets(
@@ -91,15 +91,14 @@ class MyTestCase(AlgorandTestCase):
                     AssetId(23): 34,
                 }
             )
-            session.commit()
 
         # delete
-        with Session(self.engine) as session:
+        with self.Session.begin() as session:  # pylint: disable=no-member
             auction = session.get(TAuction, 2)
             self.assertIsNotNone(auction)
             session.delete(auction)
-            session.commit()
 
+        with self.Session() as session:
             auction = session.get(TAuction, 2)
             self.assertIsNone(auction)
 

@@ -9,7 +9,7 @@ This naming convention also avoids name collision with other similarly named dom
 `TAuction` is a data model class vs `Auction` is a domain model class
 
 """
-from sqlalchemy import Integer, String
+from sqlalchemy import Integer, String, event, Engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 
 from oysterpack.algorand.client.model import AppId, Address, AssetId
@@ -31,3 +31,13 @@ class Base(MappedAsDataclass, DeclarativeBase):
         AssetId: Integer,
         AuctionStatus: Integer,
     }
+
+
+@event.listens_for(Engine, "connect")
+def enable_sqlite_foreign_keys(dbapi_connection, _connection_record):
+    """
+    Enables foreign keys in sqlite
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()

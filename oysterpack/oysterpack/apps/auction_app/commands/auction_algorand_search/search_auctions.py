@@ -4,7 +4,7 @@ Provides command support for searching Auctions
 from dataclasses import dataclass
 from typing import Any, cast
 
-from beaker.client import ApplicationClient
+from algosdk.logic import get_application_address
 from beaker.client.state_decode import decode_state
 
 from oysterpack.algorand.client.model import AppId, AssetId, AssetHolding
@@ -14,7 +14,6 @@ from oysterpack.apps.auction_app.client.auction_client import (
 from oysterpack.apps.auction_app.commands.auction_algorand_search.search_support import (
     AuctionAlgorandSearchSupport,
 )
-from oysterpack.apps.auction_app.contracts.auction import Auction as AuctionApp
 from oysterpack.apps.auction_app.domain.auction import Auction
 from oysterpack.core.command import Command
 
@@ -50,7 +49,8 @@ class AuctionSearchResult:
 
 
 class SearchAuctions(
-    Command[AuctionSearchArgs, AuctionSearchResult], AuctionAlgorandSearchSupport
+    Command[AuctionSearchArgs, AuctionSearchResult],
+    AuctionAlgorandSearchSupport,
 ):
     """
     Used to search for Auction apps on Algorand.
@@ -71,12 +71,10 @@ class SearchAuctions(
                 app_id: AppId,
                 bid_asset_id: AssetId | None,
             ) -> dict[AssetId, int]:
-                app_client = ApplicationClient(
-                    self._algod_client, AuctionApp(), app_id=app_id
-                )
+                app_address = get_application_address(app_id)
                 auction_assets = [
                     AssetHolding.from_data(asset)
-                    for asset in app_client.get_application_account_info()["assets"]
+                    for asset in self._algod_client.account_info(app_address)["assets"]
                     if asset.asset_id != bid_asset_id
                 ]
 

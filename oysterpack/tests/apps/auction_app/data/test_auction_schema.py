@@ -2,7 +2,8 @@ import unittest
 from typing import cast
 
 from algosdk.account import generate_account
-from sqlalchemy import create_engine, select, func
+from sqlalchemy import create_engine, select, func, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, sessionmaker
 
 from oysterpack.algorand.client.model import AssetId, Address, AppId
@@ -21,6 +22,10 @@ class AuctionORMTestCase(AlgorandTestCase):
 
         self.Session = sessionmaker(self.engine)
 
+        with self.Session() as session:
+            result = session.scalars(text("PRAGMA foreign_keys")).one()
+            self.assertEqual(1, result, "foreign keys should be enabled in SQLite")
+
     def test_crud(self):
         # pylint is complaining about func.count() constructs, which are valid
         # pylint: disable=not-callable
@@ -31,7 +36,7 @@ class AuctionORMTestCase(AlgorandTestCase):
         # create
         with self.Session.begin() as session:  # pylint: disable=no-member
             for i in range(1, 101):
-                if session.get(TAssetInfo, i) is None:
+                with session.begin_nested():
                     session.add(
                         TAssetInfo(
                             asset_id=cast(Mapped[int], i),
@@ -40,6 +45,22 @@ class AuctionORMTestCase(AlgorandTestCase):
                             decimals=cast(Mapped[int], 6),
                         )
                     )
+
+                # sqlite supports savepoints
+                # insert the asset_info records again using nested transaction
+                # nested transactions should fail, but the outer transaction still continues
+                try:
+                    with session.begin_nested():
+                        session.add(
+                            TAssetInfo(
+                                asset_id=cast(Mapped[int], i),
+                                creator=cast(Mapped[Address], creator),
+                                total=cast(Mapped[int], 1_000_000_000_000_000),
+                                decimals=cast(Mapped[int], 6),
+                            )
+                        )
+                except IntegrityError:
+                    pass
 
             for i in range(1, 11):
                 auction = Auction(
@@ -85,12 +106,23 @@ class AuctionORMTestCase(AlgorandTestCase):
         with self.Session.begin() as session:  # pylint: disable=no-member
             auction = session.get(TAuction, 2)
             self.assertIsNotNone(auction)
+            previous_auction_state = auction.to_auction()
             auction.set_assets(
                 {
                     AssetId(15): 20,
                     AssetId(23): 34,
                 }
             )
+
+        with self.Session() as session:
+            for asset_id, _amount in previous_auction_state.assets.items():
+                query = (
+                    select(TAuctionAsset)
+                    .where(TAuctionAsset.auction_id == previous_auction_state.app_id)
+                    .where(TAuctionAsset.asset_id == asset_id)
+                )
+                rs = session.scalar(query)
+                self.assertIsNone(rs)
 
         # delete
         with self.Session.begin() as session:  # pylint: disable=no-member

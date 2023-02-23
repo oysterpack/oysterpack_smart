@@ -18,6 +18,7 @@ from oysterpack.apps.auction_app.domain.auction_state import AuctionState
 
 
 class TAuction(Base):
+
     """
     Auction database table model
     """
@@ -48,7 +49,9 @@ class TAuction(Base):
     )
 
     assets: Mapped[list["TAuctionAsset"]] = relationship(
-        passive_deletes="all",
+        cascade="all, delete-orphan",
+        single_parent=True,
+        passive_deletes=True,
         lazy="selectin",
     )
 

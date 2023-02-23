@@ -68,7 +68,7 @@ class MyTestCase(AlgorandTestCase):
     def test_sqlite_fts5(self):
         import sqlite3
 
-        con = sqlite3.connect("test_sqlite_fts5.db")
+        con = sqlite3.connect(":memory:")
         cur = con.cursor()
         cur.execute(
             "CREATE VIRTUAL TABLE if not exists email USING fts5(sender, title, body)"

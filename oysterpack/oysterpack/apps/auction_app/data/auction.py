@@ -48,7 +48,8 @@ class TAuction(Base):
     )
 
     assets: Mapped[list["TAuctionAsset"]] = relationship(
-        passive_deletes="all", lazy="selectin"
+        passive_deletes="all",
+        lazy="selectin",
     )
 
     @classmethod

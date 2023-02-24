@@ -46,7 +46,7 @@ class StoreTestCase(unittest.TestCase):
                     row.created_at_round,
                     row.updated_at,
                     row.updated_at_round,
-                    []
+                    [],
                 )
                 tauction.status = row.status
                 tauction.seller = row.seller
@@ -57,7 +57,11 @@ class StoreTestCase(unittest.TestCase):
                 tauction.start_time = row.start_time
                 tauction.end_time = row.end_time
 
-                for row in session.execute(text(f"select * from auction_asset where auction_id={tauction.app_id}")):
+                for row in session.execute(
+                        text(
+                            f"select * from auction_asset where auction_id={tauction.app_id}"
+                        )
+                ):
                     tauction.assets.append(
                         TAuctionAsset(
                             row.auction_id,
@@ -95,7 +99,9 @@ class StoreTestCase(unittest.TestCase):
         self.assertEqual(len(auctions) - 1, result.updates)
 
         with self.session_factory() as session:
-            self.assertEqual(len(auctions) + 1, session.scalar(func.count(TAuction.app_id)))
+            self.assertEqual(
+                len(auctions) + 1, session.scalar(func.count(TAuction.app_id))
+            )
 
             # check that the auction asset records were inserted for the new auction
             expected_auction_asset_count = 0
@@ -103,12 +109,44 @@ class StoreTestCase(unittest.TestCase):
                 expected_auction_asset_count += len(auction.assets)
             expected_auction_asset_count += len(auctions[-1].assets)
 
-            self.assertEqual(expected_auction_asset_count, session.scalar(func.count(TAuctionAsset.auction_id)))
+            self.assertEqual(
+                expected_auction_asset_count,
+                session.scalar(func.count(TAuctionAsset.auction_id)),
+            )
 
             for tauction in session.scalars(select(TAuction)):
                 stored_auction: Auction = tauction.to_auction()  # type: ignore
-                if (stored_auction.app_id == 1): continue
+                if stored_auction.app_id == 1:
+                    continue
                 self.assertTrue(stored_auction in auctions, f"{stored_auction}")
+
+    def test_searching_and_paging_auctions(self):
+        auctions = create_auctions()
+        self.store_auctions(auctions)
+
+        page_size = 10
+        # get first page
+        with self.session_factory() as session:
+            auctions_search_result = [
+                auction.to_auction()
+                for auction in session.scalars(
+                    select(TAuction).limit(page_size).order_by(TAuction.app_id)
+                )
+            ]
+            self.assertEqual(page_size, len(auctions_search_result))
+            # get next page
+            max_app_id = auctions_search_result[-1].app_id
+            auctions_search_result = [
+                auction.to_auction()
+                for auction in session.scalars(
+                    select(TAuction)
+                    .limit(page_size)
+                    .where(TAuction.app_id > max_app_id)
+                    .order_by(TAuction.app_id)
+                )
+            ]
+            self.assertEqual(page_size, len(auctions_search_result))
+            self.assertEqual(max_app_id + 1, auctions_search_result[0].app_id)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,9 @@
 from sqlalchemy import delete
 
 from oysterpack.algorand.client.model import AppId
-from oysterpack.apps.auction_app.commands.data.SqlAlchemySupport import SqlAlchemySupport
+from oysterpack.apps.auction_app.commands.data.SqlAlchemySupport import (
+    SqlAlchemySupport,
+)
 from oysterpack.apps.auction_app.data.auction import TAuction
 from oysterpack.core.command import Command
 

@@ -30,14 +30,18 @@ class DeleteAuctionsTestCase(unittest.TestCase):
         self.assertEqual(0, result.updates)
 
         with self.session_factory() as session:
-            self.assertEqual(len(auctions), session.scalar(select(func.count(TAuction.app_id))))
+            self.assertEqual(
+                len(auctions), session.scalar(select(func.count(TAuction.app_id)))
+            )
 
         app_ids = [auction.app_id for auction in auctions]
         self.delete_auctions(app_ids)
 
         with self.session_factory() as session:
             self.assertEqual(0, session.scalar(select(func.count(TAuction.app_id))))
-            self.assertEqual(0, session.scalar(select(func.count(TAuctionAsset.auction_id))))
+            self.assertEqual(
+                0, session.scalar(select(func.count(TAuctionAsset.auction_id)))
+            )
 
         # deleting again should be ok
         self.delete_auctions(app_ids)

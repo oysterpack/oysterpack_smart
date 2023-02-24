@@ -4,7 +4,7 @@ from typing import cast
 from algosdk.account import generate_account
 from sqlalchemy import create_engine, select, func, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Mapped, sessionmaker
+from sqlalchemy.orm import Mapped, sessionmaker, close_all_sessions
 
 from oysterpack.algorand.client.model import AssetId, Address, AppId
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
@@ -21,10 +21,14 @@ class AuctionORMTestCase(AlgorandTestCase):
         Base.metadata.create_all(self.engine)
 
         self.Session = sessionmaker(self.engine)
+        print(f"type(self.Session) = {type(self.Session)}")
 
         with self.Session() as session:
             result = session.scalars(text("PRAGMA foreign_keys")).one()
             self.assertEqual(1, result, "foreign keys should be enabled in SQLite")
+
+    def tearDown(self) -> None:
+        close_all_sessions()
 
     def test_crud(self):
         # pylint is complaining about func.count() constructs, which are valid

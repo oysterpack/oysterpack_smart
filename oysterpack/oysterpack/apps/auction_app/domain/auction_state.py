@@ -29,6 +29,16 @@ class AuctionState:
     start_time: datetime | None = None
     end_time: datetime | None = None
 
+    def __post_init__(self):
+        # timestamps are specified in EPOCH time
+        # only second precision is needed - thus remove the sub-second precision
+        if self.start_time:
+            self.start_time = datetime.fromtimestamp(
+                int(self.start_time.timestamp()), UTC
+            )
+        if self.end_time:
+            self.end_time = datetime.fromtimestamp(int(self.end_time.timestamp()), UTC)
+
     def is_bidding_open(self) -> bool:
         """
         :return: True if the Auction is Committed and the current time is within the bidding session window.

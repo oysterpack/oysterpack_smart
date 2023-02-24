@@ -1,6 +1,7 @@
 """
 Provides command support for searching Auctions
 """
+import pprint
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -62,6 +63,8 @@ class SearchAuctions(
             limit=args.limit,
             next_page=args.next_token,
         )
+
+        pprint.pp(result)
 
         current_round = result["current-round"]
         next_token = result.setdefault("next-token", None)

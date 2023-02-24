@@ -9,6 +9,7 @@ This naming convention also avoids name collision with other similarly named dom
 `TAuction` is a data model class vs `Auction` is a domain model class
 
 """
+
 from sqlalchemy import Integer, String, event, Engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 

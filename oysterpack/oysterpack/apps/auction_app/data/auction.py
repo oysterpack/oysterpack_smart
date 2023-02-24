@@ -1,7 +1,6 @@
 """
 Auction data model
 """
-from copy import copy
 from datetime import datetime, UTC
 from typing import cast, Optional
 
@@ -9,16 +8,16 @@ from sqlalchemy import (
     String,
     ForeignKey,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship, composite
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from oysterpack.algorand.client.model import AssetId, AppId, Address
+from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.auction_app.data import Base
 from oysterpack.apps.auction_app.domain.auction import Auction
 from oysterpack.apps.auction_app.domain.auction_state import AuctionState
 
 
 class TAuction(Base):
-
     """
     Auction database table model
     """
@@ -33,20 +32,21 @@ class TAuction(Base):
     created_at_round: Mapped[int] = mapped_column(index=True)
 
     # when the record was last updated
-    updated_at: Mapped[datetime] = mapped_column(index=True)
+    updated_at: Mapped[int] = mapped_column(index=True)  # epoch time
     # Algorand round at which the data was retrieved
     updated_at_round: Mapped[int] = mapped_column(index=True)
 
-    state: Mapped[AuctionState] = composite(
-        mapped_column(index=True),  # status
-        mapped_column(index=True),  # seller
-        mapped_column(index=True),  # bid_asset_id
-        mapped_column(index=True),  # min_bid
-        mapped_column(index=True),  # highest_bidder
-        mapped_column(index=True),  # highest_bid
-        mapped_column(index=True),  # start_time
-        mapped_column(index=True),  # end_time
-    )
+    status: Mapped[AuctionStatus] = mapped_column(index=True, init=False)
+    seller: Mapped[Address] = mapped_column(index=True, init=False)
+
+    bid_asset_id: Mapped[AssetId | None] = mapped_column(index=True, init=False)
+    min_bid: Mapped[int | None] = mapped_column(index=True, init=False)
+
+    highest_bidder: Mapped[Address | None] = mapped_column(index=True, init=False)
+    highest_bid: Mapped[int] = mapped_column(index=True, init=False)
+
+    start_time: Mapped[int | None] = mapped_column(index=True, init=False)  # epoch time
+    end_time: Mapped[int | None] = mapped_column(index=True, init=False)  # epoch time
 
     assets: Mapped[list["TAuctionAsset"]] = relationship(
         cascade="all, delete-orphan",
@@ -66,22 +66,65 @@ class TAuction(Base):
             TAuctionAsset.create(auction.app_id, asset_id, amount)
             for asset_id, amount in auction.assets.items()
         ]
-        return cls(
+        tauction = cls(
             app_id=auction.app_id,
             creator=auction.creator,
             created_at_round=auction.created_at_round,
-            updated_at=datetime.now(UTC),
+            updated_at=int(datetime.now(UTC).timestamp()),
             updated_at_round=auction.round,
-            state=copy(auction.state),
             assets=assets,
+        )
+        tauction.state = auction.state
+        return tauction
+
+    @property
+    def state(self) -> AuctionState:
+        return AuctionState(
+            status=AuctionStatus(self.status),
+            seller=Address(self.seller),
+            bid_asset_id=AssetId(self.bid_asset_id) if self.bid_asset_id else None,
+            min_bid=self.min_bid,
+            highest_bidder=Address(self.highest_bidder)
+            if self.highest_bidder
+            else None,
+            highest_bid=self.highest_bid,
+            start_time=datetime.fromtimestamp(self.start_time, UTC)
+            if self.start_time
+            else None,
+            end_time=datetime.fromtimestamp(self.end_time, UTC)
+            if self.end_time
+            else None,
+        )
+
+    @state.setter
+    def state(self, auction_state: AuctionState):
+        self.status = cast(Mapped[AuctionStatus], auction_state.status)
+        self.seller = cast(Mapped[Address], auction_state.seller)
+
+        self.bid_asset_id = cast(Mapped[AssetId | None], auction_state.bid_asset_id)
+        self.min_bid = cast(Mapped[int | None], auction_state.min_bid)
+
+        self.highest_bidder = cast(Mapped[Address | None], auction_state.highest_bidder)
+        self.highest_bid = cast(Mapped[int], auction_state.highest_bid)
+
+        self.start_time = cast(
+            Mapped[int | None],
+            int(auction_state.start_time.timestamp())
+            if auction_state.start_time
+            else None,
+        )
+        self.end_time = cast(
+            Mapped[int | None],
+            int(auction_state.end_time.timestamp()) if auction_state.end_time else None,
         )
 
     def update(self, auction: Auction):
         """
         Updates the auction with the specified `Auction` data that was retrieved at the specified round
-        :param auction:
-        :param round:
-        :return:
+
+        Notes
+        -----
+        - `updated_at` timestamp is set to the current EPOCH time
         """
 
         if self.app_id != auction.app_id:
@@ -89,9 +132,9 @@ class TAuction(Base):
 
         self.creator = cast(Mapped[Address], auction.creator)
         self.created_at_round = cast(Mapped[int], auction.created_at_round)
-        self.updated_at = cast(Mapped[datetime], datetime.now(UTC))
+        self.updated_at = cast(Mapped[int], int(datetime.now(UTC).timestamp()))
         self.updated_at_round = cast(Mapped[int], auction.round)
-        self.state = cast(Mapped[AuctionState], copy(auction.state))
+        self.state = auction.state
 
         self.assets = cast(
             Mapped[list[TAuctionAsset]],
@@ -105,6 +148,7 @@ class TAuction(Base):
         """
         Converts this instance into an Auction instance
         """
+
         return Auction(
             app_id=AppId(self.app_id),
             creator=Address(self.creator),

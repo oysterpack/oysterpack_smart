@@ -24,8 +24,9 @@ class AuctionStatus(IntEnum):
     """
 
     NEW = auto()
+
     COMMITTED = auto()
-    CANCELLED = auto()
+
     BID_ACCEPTED = auto()
 
     # All assets have transferred out of the contracts.
@@ -34,6 +35,8 @@ class AuctionStatus(IntEnum):
     # 1. payment is transferred from the buyer's escrow account to the seller
     # 2. assets are transferred from the seller's escrow to the
     FINALIZED = auto()
+
+    CANCELLED = auto()
 
     def __repr__(self) -> str:
         return f"{self.name}({self.value})"

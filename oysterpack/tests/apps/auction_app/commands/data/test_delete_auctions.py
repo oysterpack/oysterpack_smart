@@ -23,6 +23,8 @@ class DeleteAuctionsTestCase(unittest.TestCase):
         close_all_sessions()
 
     def test_delete_records(self):
+        # pylint: disable=not-callable
+
         # insert auctions
         auctions = create_auctions()
         result = self.store_auctions(auctions)

@@ -22,6 +22,9 @@ class StoreTestCase(unittest.TestCase):
         close_all_sessions()
 
     def test_insert_new_records(self):
+        # pylint: disable=not-callable
+        # pylint: disable=too-many-function-args
+
         auctions = create_auctions()
         result = self.store_auctions(auctions)
         self.assertEqual(len(auctions), result.inserts)
@@ -58,9 +61,9 @@ class StoreTestCase(unittest.TestCase):
                 tauction.end_time = row.end_time
 
                 for row in session.execute(
-                        text(
-                            f"select * from auction_asset where auction_id={tauction.app_id}"
-                        )
+                    text(
+                        f"select * from auction_asset where auction_id={tauction.app_id}"
+                    )
                 ):
                     tauction.assets.append(
                         TAuctionAsset(
@@ -73,6 +76,8 @@ class StoreTestCase(unittest.TestCase):
                 self.assertTrue(tauction.to_auction() in auctions)
 
     def test_update(self):
+        # pylint: disable=not-callable
+
         # insert auctions
         auctions = create_auctions()
         result = self.store_auctions(auctions)
@@ -140,9 +145,9 @@ class StoreTestCase(unittest.TestCase):
                 auction.to_auction()
                 for auction in session.scalars(
                     select(TAuction)
-                    .limit(page_size)
-                    .where(TAuction.app_id > max_app_id)
                     .order_by(TAuction.app_id)
+                    .limit(page_size)
+                    .offset(page_size)
                 )
             ]
             self.assertEqual(page_size, len(auctions_search_result))

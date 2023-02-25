@@ -190,6 +190,16 @@ class SearchAuctions(
                     TAuction.highest_bid >= request.filters.highest_bid
                 )
 
+            if request.filters.start_time:
+                select = select.where(
+                    TAuction.start_time >= int(request.filters.start_time.timestamp())
+                )
+
+            if request.filters.end_time:
+                select = select.where(
+                    TAuction.end_time <= int(request.filters.end_time.timestamp())
+                )
+
             return select
 
         def add_sort(select: Select) -> Select:

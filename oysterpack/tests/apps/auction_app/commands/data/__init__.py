@@ -16,6 +16,8 @@ def create_auctions(
     highest_bidder: Address | None = None,
     highest_bid: int | None = None,
     auction_app_id_start_at: int = 1,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
 ):
     _private_key, creator = generate_account()
 
@@ -32,6 +34,12 @@ def create_auctions(
     if highest_bid is None:
         highest_bid = 1000
 
+    if start_time is None:
+        start_time = datetime.now(UTC)
+
+    if end_time is None:
+        end_time = start_time + timedelta(days=1)
+
     states = [
         AuctionState(
             status=AuctionStatus.NEW,
@@ -44,8 +52,8 @@ def create_auctions(
             min_bid=min_bid,
             highest_bidder=None,
             highest_bid=0,
-            start_time=datetime.now(UTC),
-            end_time=datetime.now(UTC) + timedelta(days=1),
+            start_time=start_time,
+            end_time=end_time,
         ),
         AuctionState(
             status=AuctionStatus.BID_ACCEPTED,
@@ -54,8 +62,8 @@ def create_auctions(
             min_bid=min_bid,
             highest_bidder=Address(highest_bidder),
             highest_bid=highest_bid,
-            start_time=datetime.now(UTC),
-            end_time=datetime.now(UTC) + timedelta(days=1),
+            start_time=start_time,
+            end_time=end_time,
         ),
         AuctionState(
             status=AuctionStatus.FINALIZED,
@@ -64,8 +72,8 @@ def create_auctions(
             min_bid=min_bid,
             highest_bidder=Address(highest_bidder),
             highest_bid=highest_bid,
-            start_time=datetime.now(UTC),
-            end_time=datetime.now(UTC) + timedelta(days=1),
+            start_time=start_time,
+            end_time=end_time,
         ),
         AuctionState(
             status=AuctionStatus.CANCELLED,

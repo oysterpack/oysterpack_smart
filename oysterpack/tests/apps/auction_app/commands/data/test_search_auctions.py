@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime, UTC, timedelta
 from typing import Tuple, cast
 
 from algosdk.account import generate_account
@@ -159,7 +160,7 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             auction.app_id for auction in auctions_retrieved_from_search
         ]
         for auction_id_1, auction_id_2 in zip(
-            auction_ids, auction_ids_from_search_resutls
+                auction_ids, auction_ids_from_search_resutls
         ):
             self.assertEqual(auction_id_1, auction_id_2)
 
@@ -214,7 +215,7 @@ class SearchAuctionsTestCase(OysterPackTestCase):
                     auction
                     for auction in auctions
                     if auction.state.status == AuctionStatus.NEW
-                    or auction.state.status == AuctionStatus.COMMITTED
+                       or auction.state.status == AuctionStatus.COMMITTED
                 ]
             )
             self.assertEqual(new_status_count, search_result.total_count)
@@ -306,10 +307,10 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         auctions_by_bid_asset_min_bid: dict[Tuple[AssetId, int], int] = {}  # type: ignore
 
         def create_auctions_and_track_counts(
-            count: int,
-            bid_asset_id: AssetId,
-            min_bid: int,
-            auction_app_id_start_at: int,
+                count: int,
+                bid_asset_id: AssetId,
+                min_bid: int,
+                auction_app_id_start_at: int,
         ):
             def update_counts(auctions: list[Auction]):
                 result = self.store_auctions(auctions)
@@ -384,9 +385,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             [
                 count
                 for (
-                    bid_asset_id,
-                    min_bid,
-                ), count in auctions_by_bid_asset_min_bid.items()
+                bid_asset_id,
+                min_bid,
+            ), count in auctions_by_bid_asset_min_bid.items()
                 if min_bid >= 100
             ]
         )
@@ -400,9 +401,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             [
                 count
                 for (
-                    bid_asset_id,
-                    min_bid,
-                ), count in auctions_by_bid_asset_min_bid.items()
+                bid_asset_id,
+                min_bid,
+            ), count in auctions_by_bid_asset_min_bid.items()
                 if min_bid >= 200
             ]
         )
@@ -416,9 +417,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             [
                 count
                 for (
-                    bid_asset_id,
-                    min_bid,
-                ), count in auctions_by_bid_asset_min_bid.items()
+                bid_asset_id,
+                min_bid,
+            ), count in auctions_by_bid_asset_min_bid.items()
                 if min_bid >= 300
             ]
         )
@@ -439,9 +440,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             [
                 count
                 for (
-                    bid_asset_id,
-                    min_bid,
-                ), count in auctions_by_bid_asset_min_bid.items()
+                bid_asset_id,
+                min_bid,
+            ), count in auctions_by_bid_asset_min_bid.items()
                 if min_bid >= 100 and bid_asset_id == AssetId(50)
             ]
         )
@@ -505,7 +506,7 @@ class SearchAuctionsTestCase(OysterPackTestCase):
                 auction
                 for auction in auctions
                 if auction.state.highest_bidder
-                in {Address(highest_bidder_1), Address(highest_bidder_3)}
+                   in {Address(highest_bidder_1), Address(highest_bidder_3)}
             ]
         )
         self.assertEqual(expected_count, search_result.total_count)
@@ -532,8 +533,6 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         )
         self.store_auctions(auctions)
 
-
-
         for highest_bid in [1000, 2000, 3000]:
             search_request = AuctionSearchRequest(
                 filters=AuctionSearchFilters(highest_bid=highest_bid)
@@ -548,10 +547,61 @@ class SearchAuctionsTestCase(OysterPackTestCase):
                     auction
                     for auction in auctions
                     if auction.state.highest_bid
-                    and auction.state.highest_bid >= search_request.filters.highest_bid
+                       and auction.state.highest_bid >= search_request.filters.highest_bid
                 ]
             )
             self.assertEqual(expected_count, search_result.total_count)
+
+    def test_start_time_filter(self):
+        now = datetime.fromtimestamp(int(datetime.now(UTC).timestamp()), UTC)
+        auctions = create_auctions(count=10, start_time=now, auction_app_id_start_at=1)
+        start_time = now + timedelta(days=1)
+        auctions += create_auctions(
+            count=20, start_time=start_time, auction_app_id_start_at=11
+        )
+        self.store_auctions(auctions)
+
+
+        for start_time_filter in [now, now + timedelta(hours=1), start_time]:
+            search_request = AuctionSearchRequest(
+                filters=AuctionSearchFilters(start_time=start_time_filter)
+            )
+            search_result = self.search_auctions(search_request)
+            expected_count = len(
+                [
+                    auction
+                    for auction in auctions
+                    if auction.state.start_time
+                       and auction.state.start_time >= search_request.filters.start_time
+                ]
+            )
+            self.assertEqual(expected_count, search_result.total_count)
+
+    def test_end_time_filter(self):
+        now = datetime.fromtimestamp(int(datetime.now(UTC).timestamp()), UTC)
+        end_time_1 = now + timedelta(days=1)
+        auctions = create_auctions(count=10, end_time=end_time_1, auction_app_id_start_at=1)
+        end_time_2 = end_time_1 + timedelta(days=1)
+        auctions += create_auctions(
+            count=20, end_time=end_time_2, auction_app_id_start_at=11
+        )
+        self.store_auctions(auctions)
+
+        for end_time_filter in [end_time_1, end_time_1 - timedelta(hours=1), end_time_2]:
+            search_request = AuctionSearchRequest(
+                filters=AuctionSearchFilters(end_time=end_time_filter)
+            )
+            search_result = self.search_auctions(search_request)
+            expected_count = len(
+                [
+                    auction
+                    for auction in auctions
+                    if auction.state.start_time
+                       and auction.state.end_time <= search_request.filters.end_time
+                ]
+            )
+            self.assertEqual(expected_count, search_result.total_count)
+
 
 
 

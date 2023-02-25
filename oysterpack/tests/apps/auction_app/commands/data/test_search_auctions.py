@@ -1,10 +1,11 @@
 import unittest
+from typing import Tuple, cast
 
 from algosdk.account import generate_account
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
-from oysterpack.algorand.client.model import Address
+from oysterpack.algorand.client.model import Address, AssetId
 from oysterpack.apps.auction_app.commands.data.search_auctions import (
     SearchAuctions,
     AuctionSearchRequest,
@@ -15,6 +16,7 @@ from oysterpack.apps.auction_app.commands.data.search_auctions import (
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.auction_app.data import Base
+from oysterpack.apps.auction_app.domain.auction import Auction
 from tests.apps.auction_app.commands.data import create_auctions
 from tests.test_support import OysterPackTestCase
 
@@ -162,7 +164,6 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             self.assertEqual(auction_id_1, auction_id_2)
 
     def test_filters(self):
-        logger = super().get_logger("test_filter_app_id")
         auction_count = 100
         auctions = create_auctions(auction_count)
         self.store_auctions(auctions)
@@ -251,6 +252,191 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             self.assertEqual(10, search_result.total_count)
             for auction in search_result.auctions:
                 self.assertTrue(auction.state.seller in {seller_1, seller_2})
+
+    def test_filter_bid_asset(self):
+        logger = super().get_logger("test_filter_bid_asset")
+        bid_asset_ids = {
+            AssetId(50): 0,
+            AssetId(60): 0,
+            AssetId(70): 0,
+        }
+        # the total number of auctions created per bid asset ID will match the bid asset ID
+        auction_app_id_start_at = 1
+        for bid_asset_id in bid_asset_ids.keys():
+            auctions = create_auctions(
+                count=bid_asset_id,
+                bid_asset_id=bid_asset_id,
+                auction_app_id_start_at=auction_app_id_start_at,
+            )
+            bid_asset_ids[bid_asset_id] = len(
+                [
+                    auction
+                    for auction in auctions
+                    if auction.state.bid_asset_id == bid_asset_id
+                ]
+            )
+            self.store_auctions(auctions)
+            auction_app_id_start_at += bid_asset_id
+
+        logger.info(bid_asset_ids)
+
+        # single value search
+        for bid_asset_id in bid_asset_ids:
+            search_request = AuctionSearchRequest(
+                filters=AuctionSearchFilters(bid_asset_id={bid_asset_id}),
+            )
+            search_result = self.search_auction(search_request)
+            self.assertEqual(bid_asset_ids[bid_asset_id], search_result.total_count)
+
+        # multi-value search
+        search_request = AuctionSearchRequest(
+            filters=AuctionSearchFilters(bid_asset_id={AssetId(50), AssetId(60)}),
+        )
+        search_result = self.search_auction(search_request)
+        self.assertEqual(
+            bid_asset_ids[AssetId(50)] + bid_asset_ids[AssetId(60)],
+            search_result.total_count,
+        )
+
+    def test_min_bid_filter(self):
+        logger = super().get_logger("test_min_bid_filter")
+        # SETUP
+        # create auctions with different bid assets and min bids
+
+        auctions_by_bid_asset_min_bid: dict[Tuple[AssetId, int], int] = {}  # type: ignore
+
+        def update_counts(auctions: list[Auction]):
+            result = self.store_auctions(auctions)
+            logger.info(result)
+            for auction in auctions:
+                if auction.state.bid_asset_id is not None:
+                    key = (auction.state.bid_asset_id, cast(int, auction.state.min_bid))
+                    if key in auctions_by_bid_asset_min_bid:
+                        auctions_by_bid_asset_min_bid[key] += 1
+                    else:
+                        auctions_by_bid_asset_min_bid[key] = 1
+
+        update_counts(
+            create_auctions(
+                count=10,
+                bid_asset_id=AssetId(50),
+                min_bid=100,
+                auction_app_id_start_at=1,
+            )
+        )
+        update_counts(
+            create_auctions(
+                count=20,
+                bid_asset_id=AssetId(50),
+                min_bid=200,
+                auction_app_id_start_at=11,
+            )
+        )
+        update_counts(
+            create_auctions(
+                count=30,
+                bid_asset_id=AssetId(50),
+                min_bid=300,
+                auction_app_id_start_at=31,
+            )
+        )
+        update_counts(
+            create_auctions(
+                count=10,
+                bid_asset_id=AssetId(60),
+                min_bid=100,
+                auction_app_id_start_at=61,
+            )
+        )
+        update_counts(
+            create_auctions(
+                count=20,
+                bid_asset_id=AssetId(60),
+                min_bid=200,
+                auction_app_id_start_at=71,
+            )
+        )
+        update_counts(
+            create_auctions(
+                count=30,
+                bid_asset_id=AssetId(60),
+                min_bid=300,
+                auction_app_id_start_at=91,
+            )
+        )
+
+        logger.info(auctions_by_bid_asset_min_bid)
+
+        search_request = AuctionSearchRequest(filters=AuctionSearchFilters(min_bid=100))
+        search_result = self.search_auction(search_request)
+        for auction in search_result.auctions:
+            self.assertGreaterEqual(auction.state.min_bid, 100)
+        expected_count = sum(
+            [
+                count
+                for (
+                bid_asset_id,
+                min_bid,
+            ), count in auctions_by_bid_asset_min_bid.items()
+                if min_bid >= 100
+            ]
+        )
+        self.assertEqual(expected_count, search_result.total_count)
+
+        search_request = AuctionSearchRequest(filters=AuctionSearchFilters(min_bid=200))
+        search_result = self.search_auction(search_request)
+        for auction in search_result.auctions:
+            self.assertGreaterEqual(auction.state.min_bid, 200)
+        expected_count = sum(
+            [
+                count
+                for (
+                bid_asset_id,
+                min_bid,
+            ), count in auctions_by_bid_asset_min_bid.items()
+                if min_bid >= 200
+            ]
+        )
+        self.assertEqual(expected_count, search_result.total_count)
+
+        search_request = AuctionSearchRequest(filters=AuctionSearchFilters(min_bid=300))
+        search_result = self.search_auction(search_request)
+        for auction in search_result.auctions:
+            self.assertGreaterEqual(auction.state.min_bid, 300)
+        expected_count = sum(
+            [
+                count
+                for (
+                bid_asset_id,
+                min_bid,
+            ), count in auctions_by_bid_asset_min_bid.items()
+                if min_bid >= 300
+            ]
+        )
+        self.assertEqual(expected_count, search_result.total_count)
+
+        # filter on both min_bid and bid_asset_id
+        search_request = AuctionSearchRequest(
+            filters=AuctionSearchFilters(
+                min_bid=100,
+                bid_asset_id={AssetId(50)},
+            )
+        )
+        search_result = self.search_auction(search_request)
+        for auction in search_result.auctions:
+            self.assertGreaterEqual(auction.state.min_bid, 100)
+            self.assertEqual(AssetId(50), auction.state.bid_asset_id)
+        expected_count = sum(
+            [
+                count
+                for (
+                bid_asset_id,
+                min_bid,
+            ), count in auctions_by_bid_asset_min_bid.items()
+                if min_bid >= 100 and bid_asset_id == AssetId(50)
+            ]
+        )
+        self.assertEqual(expected_count, search_result.total_count)
 
 
 if __name__ == "__main__":

@@ -172,6 +172,14 @@ class SearchAuctions(
             if len(request.filters.seller) > 0:
                 select = select.where(TAuction.seller.in_(request.filters.seller))
 
+            if len(request.filters.bid_asset_id) > 0:
+                select = select.where(
+                    TAuction.bid_asset_id.in_(request.filters.bid_asset_id)
+                )
+
+            if request.filters.min_bid and request.filters.min_bid > 0:
+                select = select.where(TAuction.min_bid >= request.filters.min_bid)
+
             return select
 
         def add_sort(select: Select) -> Select:

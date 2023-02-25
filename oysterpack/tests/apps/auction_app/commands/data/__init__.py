@@ -8,9 +8,10 @@ from oysterpack.apps.auction_app.domain.auction import Auction
 from oysterpack.apps.auction_app.domain.auction_state import AuctionState
 
 
-def create_auctions(count: int = 100):
+def create_auctions(count: int = 100, seller: Address | None = None):
     _private_key, creator = generate_account()
-    _private_key, seller = generate_account()
+    if seller is None:
+        _private_key, seller = generate_account()
     _private_key, bidder = generate_account()
 
     states = [

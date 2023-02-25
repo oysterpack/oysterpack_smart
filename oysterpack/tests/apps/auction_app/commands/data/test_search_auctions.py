@@ -1,13 +1,19 @@
 import unittest
 
+from algosdk.account import generate_account
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
+from oysterpack.algorand.client.model import Address
 from oysterpack.apps.auction_app.commands.data.search_auctions import (
     SearchAuctions,
-    AuctionSearchRequest, AuctionSort, AuctionSortField,
+    AuctionSearchRequest,
+    AuctionSort,
+    AuctionSortField,
+    AuctionSearchFilters,
 )
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
+from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.auction_app.data import Base
 from tests.apps.auction_app.commands.data import create_auctions
 from tests.test_support import OysterPackTestCase
@@ -113,7 +119,6 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             search_request.goto(search_result, offset=101)
         self.assertTrue("offset must be < 101" in str(err.exception))
 
-
     def test_search_sort_with_no_filters(self):
         logger = super().get_logger("test_search_sort_with_no_filters")
         auction_count = 100
@@ -121,10 +126,13 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         self.store_auctions(auctions)
 
         # page through auctions
-        search_request = AuctionSearchRequest(limit=10, sort=AuctionSort(
-            field=AuctionSortField.AuctionId,
-            asc=False,
-        ))
+        search_request = AuctionSearchRequest(
+            limit=10,
+            sort=AuctionSort(
+                field=AuctionSortField.AuctionId,
+                asc=False,
+            ),
+        )
         search_result = self.search_auction(search_request)
         logger.info(
             f"search result auction app IDS: {[auction.app_id for auction in search_result.auctions]}"
@@ -145,9 +153,104 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         self.assertEqual(auction_count, len(auctions_retrieved_from_search))
         auction_ids = [auction.app_id for auction in auctions]
         auction_ids.sort(reverse=True)
-        auction_ids_from_search_resutls = [auction.app_id for auction in auctions_retrieved_from_search]
-        for auction_id_1, auction_id_2 in zip(auction_ids, auction_ids_from_search_resutls):
+        auction_ids_from_search_resutls = [
+            auction.app_id for auction in auctions_retrieved_from_search
+        ]
+        for auction_id_1, auction_id_2 in zip(
+                auction_ids, auction_ids_from_search_resutls
+        ):
             self.assertEqual(auction_id_1, auction_id_2)
+
+    def test_filters(self):
+        logger = super().get_logger("test_filter_app_id")
+        auction_count = 100
+        auctions = create_auctions(auction_count)
+        self.store_auctions(auctions)
+
+        auction_ids = [auction.app_id for auction in auctions]
+
+        with self.subTest("single Auction ID filter"):
+            search_request = AuctionSearchRequest(
+                filters=AuctionSearchFilters(app_id=set(auction_ids[0:1])),
+            )
+            search_result = self.search_auction(search_request)
+            self.assertEqual(1, search_result.total_count)
+            self.assertEqual(auctions[0], search_result.auctions[0])
+
+        with self.subTest("multiple Auction ID filter"):
+            search_request = AuctionSearchRequest(
+                filters=AuctionSearchFilters(app_id=set(auction_ids[0:5])),
+            )
+            search_result = self.search_auction(search_request)
+            self.assertEqual(5, search_result.total_count)
+            self.assertEqual(auctions[0:5], search_result.auctions)
+
+        with self.subTest("single status filter"):
+            search_request = AuctionSearchRequest(
+                filters=AuctionSearchFilters(status={AuctionStatus.NEW}),
+            )
+            search_result = self.search_auction(search_request)
+            new_status_count = len(
+                [
+                    auction
+                    for auction in auctions
+                    if auction.state.status == AuctionStatus.NEW
+                ]
+            )
+            self.assertEqual(new_status_count, search_result.total_count)
+            for auction in search_result.auctions:
+                self.assertEqual(AuctionStatus.NEW, auction.state.status)
+
+        with self.subTest("multiple status filter"):
+            search_request = AuctionSearchRequest(
+                filters=AuctionSearchFilters(
+                    status={AuctionStatus.NEW, AuctionStatus.COMMITTED}
+                ),
+            )
+            search_result = self.search_auction(search_request)
+            new_status_count = len(
+                [
+                    auction
+                    for auction in auctions
+                    if auction.state.status == AuctionStatus.NEW
+                       or auction.state.status == AuctionStatus.COMMITTED
+                ]
+            )
+            self.assertEqual(new_status_count, search_result.total_count)
+            for auction in search_result.auctions:
+                self.assertTrue(
+                    auction.state.status == AuctionStatus.NEW
+                    or auction.state.status == AuctionStatus.COMMITTED
+                )
+
+        with self.subTest("single seller filter"):
+            _private_key, seller_1 = generate_account()
+            auctions = create_auctions(5, Address(seller_1))
+            self.store_auctions(auctions)
+
+            search_request = AuctionSearchRequest(
+                filters=AuctionSearchFilters(seller={seller_1}),
+            )
+            search_result = self.search_auction(search_request)
+            self.assertEqual(5, search_result.total_count)
+            for auction in search_result.auctions:
+                self.assertEqual(seller_1, auction.state.seller)
+
+        with self.subTest("multiple seller filter"):
+            _private_key, seller_2 = generate_account()
+            auctions = create_auctions(10, Address(seller_1))
+            self.store_auctions(auctions)
+            # updates the first 5 to seller_2
+            auctions = create_auctions(5, Address(seller_2))
+            self.store_auctions(auctions)
+
+            search_request = AuctionSearchRequest(
+                filters=AuctionSearchFilters(seller={seller_1, seller_2}),
+            )
+            search_result = self.search_auction(search_request)
+            self.assertEqual(10, search_result.total_count)
+            for auction in search_result.auctions:
+                self.assertTrue(auction.state.seller in {seller_1, seller_2})
 
 
 if __name__ == "__main__":

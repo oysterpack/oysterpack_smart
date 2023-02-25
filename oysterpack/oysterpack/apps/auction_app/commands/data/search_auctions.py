@@ -4,7 +4,7 @@ from enum import IntEnum
 from enum import auto
 from typing import Optional
 
-from sqlalchemy import Select, or_, false, select, func
+from sqlalchemy import Select, select, func
 
 from oysterpack.algorand.client.model import AppId, Address, AssetId
 from oysterpack.apps.auction_app.commands.data.SqlAlchemySupport import (
@@ -92,7 +92,9 @@ class AuctionSearchRequest:
     limit: int = 100
     offset: int = 0
 
-    def next_page(self, search_result: AuctionSearchResult) -> Optional["AuctionSearchRequest"]:
+    def next_page(
+        self, search_result: AuctionSearchResult
+    ) -> Optional["AuctionSearchRequest"]:
         """
         :return: None if there are no more results to retrieve
         """
@@ -109,7 +111,9 @@ class AuctionSearchRequest:
             offset=offset,
         )
 
-    def previous_page(self, search_result: AuctionSearchResult) -> Optional["AuctionSearchRequest"]:
+    def previous_page(
+        self, search_result: AuctionSearchResult
+    ) -> Optional["AuctionSearchRequest"]:
         """
         :return: None if there are no more results to retrieve
         """
@@ -131,8 +135,9 @@ class AuctionSearchRequest:
             offset=offset,
         )
 
-    def goto(self, search_result: AuctionSearchResult, offset: int, limit: int | None = None) -> Optional[
-        "AuctionSearchRequest"]:
+    def goto(
+        self, search_result: AuctionSearchResult, offset: int, limit: int | None = None
+    ) -> Optional["AuctionSearchRequest"]:
         if offset < 0:
             raise AssertionError("offset must be >= 0")
 
@@ -158,14 +163,14 @@ class SearchAuctions(
             if request.filters is None:
                 return select
 
-            if len(request.filters.app_id) == 1:
-                for app_id in request.filters.app_id:
-                    select = select.where(TAuction.app_id == app_id)
-            elif len(request.filters.app_id) > 1:
-                expressions = [
-                    (TAuction.app_id == app_id) for app_id in request.filters.app_id
-                ]
-                select = select.where(or_(false()), *expressions)
+            if len(request.filters.app_id) > 0:
+                select = select.where(TAuction.app_id.in_(request.filters.app_id))
+
+            if len(request.filters.status) > 0:
+                select = select.where(TAuction.status.in_(request.filters.status))
+
+            if len(request.filters.seller) > 0:
+                select = select.where(TAuction.seller.in_(request.filters.seller))
 
             return select
 

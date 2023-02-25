@@ -2,9 +2,6 @@
 Unit tests depend on a local sandbox running.
 """
 import functools
-import logging
-import unittest
-from logging import Logger
 from typing import Callable, Final, Any
 
 from algosdk import kmd, wallet
@@ -26,19 +23,14 @@ from oysterpack.algorand.client.model import Address, AssetId, TxnId
 from oysterpack.algorand.client.transactions import asset as client_assets, asset
 from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.algorand.client.transactions.smart_contract import base64_decode_str
-from oysterpack.core.logging import configure_logging
-
-configure_logging(level=logging.INFO)
+from tests.test_support import OysterPackTestCase
 
 
-class AlgorandTestCase(unittest.TestCase):
+class AlgorandTestCase(OysterPackTestCase):
     kmd_client: Final[kmd.KMDClient] = sandbox.kmd.get_client()
     algod_client: Final[AlgodClient] = sandbox.get_algod_client()
     indexer: Final[IndexerClient] = sandbox.get_indexer_client()
     sandbox_default_wallet: Final[wallet.Wallet] = get_sandbox_default_wallet()
-
-    def get_logger(self, name: str) -> Logger:
-        return logging.getLogger(f"{self.__class__.__name__}.{name}")
 
     def get_auth_addr(self) -> Callable[[Address], Address]:
         return functools.partial(get_auth_address, algod_client=self.algod_client)

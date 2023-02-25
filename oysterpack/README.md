@@ -8,7 +8,7 @@ How to build python with sqlite support:
 ```shell
 sudo apt install libsqlite3-dev
 # cd to python source directory
-./configure --enable-loadable-sqlite-extensions
+./configure --enable-loadable-sqlite-extensions --enable-optimizations
 make
 make test
 sudo make install

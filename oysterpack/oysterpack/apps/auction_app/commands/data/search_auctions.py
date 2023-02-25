@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import IntEnum
 from enum import auto
+from typing import Optional
 
 from sqlalchemy import Select, or_, false, select, func
 
@@ -67,6 +68,17 @@ class AuctionSearchFilters:
 
 
 @dataclass(slots=True)
+class AuctionSearchResult:
+    """
+    Auction search result
+    """
+
+    auctions: list[Auction]
+
+    total_count: int
+
+
+@dataclass(slots=True)
 class AuctionSearchRequest:
     """
     Auction search request
@@ -80,16 +92,59 @@ class AuctionSearchRequest:
     limit: int = 100
     offset: int = 0
 
+    def next_page(self, search_result: AuctionSearchResult) -> Optional["AuctionSearchRequest"]:
+        """
+        :return: None if there are no more results to retrieve
+        """
+        if search_result.total_count == 0:
+            return None
 
-@dataclass(slots=True)
-class AuctionSearchResult:
-    """
-    Auction search result
-    """
+        offset = self.offset + self.limit
+        if offset >= search_result.total_count:
+            return None
+        return AuctionSearchRequest(
+            filters=self.filters,
+            sort=self.sort,
+            limit=self.limit,
+            offset=offset,
+        )
 
-    auctions: list[Auction]
+    def previous_page(self, search_result: AuctionSearchResult) -> Optional["AuctionSearchRequest"]:
+        """
+        :return: None if there are no more results to retrieve
+        """
+        if search_result.total_count == 0:
+            return None
 
-    total_count: int
+        if self.offset == 0:
+            # we are at the first page
+            return None
+
+        offset = self.offset - self.limit
+        if offset < 0:
+            offset = 0
+
+        return AuctionSearchRequest(
+            filters=self.filters,
+            sort=self.sort,
+            limit=self.limit,
+            offset=offset,
+        )
+
+    def goto(self, search_result: AuctionSearchResult, offset: int, limit: int | None = None) -> Optional[
+        "AuctionSearchRequest"]:
+        if offset < 0:
+            raise AssertionError("offset must be >= 0")
+
+        if offset >= search_result.total_count:
+            raise AssertionError(f"offset must be < {search_result.total_count}")
+
+        return AuctionSearchRequest(
+            filters=self.filters,
+            sort=self.sort,
+            limit=self.limit if limit is None else limit,
+            offset=offset,
+        )
 
 
 class SearchAuctions(

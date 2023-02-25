@@ -27,7 +27,7 @@ class SearchAuctionsTestCase(OysterPackTestCase):
 
     def test_search_with_no_filters_no_sorts(self):
         logger = super().get_logger("test_search_with_no_filters_no_sorts")
-        auction_count = 100
+        auction_count = 101
         auctions = create_auctions(auction_count)
         self.store_auctions(auctions)
 
@@ -41,15 +41,10 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         self.assertEqual(search_request.limit, len(search_result.auctions))
         auctions_retrieved_from_search = search_result.auctions
 
-        while len(auctions_retrieved_from_search) < auction_count:
-            search_request = AuctionSearchRequest(
-                limit=10,
-                offset=search_request.offset + len(search_result.auctions),
-            )
+        while search_request := search_request.next_page(search_result):
             logger.info(f"search_request: {search_request}")
             search_result = self.search_auction(search_request)
             self.assertEqual(auction_count, search_result.total_count)
-            self.assertEqual(search_request.limit, len(search_result.auctions))
             auctions_retrieved_from_search += search_result.auctions
             logger.info(
                 f"search result auction app IDS: {[auction.app_id for auction in search_result.auctions]}"
@@ -62,6 +57,62 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         self.assertEqual(0, len(auction_ids_1 - auction_ids_2))
         for auction in auctions_retrieved_from_search:
             self.assertTrue(auction in auctions)
+
+    def test_previous_page_navigation(self):
+        logger = super().get_logger("test_previous_page_navigation")
+        auction_count = 101
+        auctions = create_auctions(auction_count)
+        self.store_auctions(auctions)
+
+        search_request = AuctionSearchRequest(limit=10, offset=auction_count - 1)
+        search_result = self.search_auction(search_request)
+        logger.info(
+            f"search result auction app IDS: {[auction.app_id for auction in search_result.auctions]}"
+        )
+        auctions_retrieved_from_search = search_result.auctions
+        while search_request := search_request.previous_page(search_result):
+            logger.info(f"search_request: {search_request}")
+            search_result = self.search_auction(search_request)
+            self.assertEqual(auction_count, search_result.total_count)
+            self.assertEqual(search_request.limit, len(search_result.auctions))
+            auctions_retrieved_from_search += search_result.auctions
+            logger.info(
+                f"search result auction app IDS: {[auction.app_id for auction in search_result.auctions]}"
+            )
+
+        self.assertEqual(auction_count, len(auctions_retrieved_from_search))
+
+    def test_goto_navigation(self):
+        auction_count = 101
+        auctions = create_auctions(auction_count)
+        self.store_auctions(auctions)
+
+        search_request = AuctionSearchRequest(limit=10, offset=auction_count - 1)
+        search_result = self.search_auction(search_request)
+
+        search_request = search_request.goto(search_result, offset=50)
+        search_result = self.search_auction(search_request)
+        self.assertEqual(51, search_result.auctions[0].app_id)
+        self.assertEqual(60, search_result.auctions[-1].app_id)
+
+        search_request = search_request.goto(search_result, offset=0)
+        search_result = self.search_auction(search_request)
+        self.assertEqual(1, search_result.auctions[0].app_id)
+        self.assertEqual(10, search_result.auctions[-1].app_id)
+
+        search_request = search_request.goto(search_result, offset=95)
+        search_result = self.search_auction(search_request)
+        self.assertEqual(96, search_result.auctions[0].app_id)
+        self.assertEqual(101, search_result.auctions[-1].app_id)
+
+        with self.assertRaises(AssertionError) as err:
+            search_request.goto(search_result, offset=-1)
+        self.assertTrue("offset must be >= 0" in str(err.exception))
+
+        with self.assertRaises(AssertionError) as err:
+            search_request.goto(search_result, offset=101)
+        self.assertTrue("offset must be < 101" in str(err.exception))
+
 
     def test_search_sort_with_no_filters(self):
         logger = super().get_logger("test_search_sort_with_no_filters")
@@ -82,14 +133,7 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         self.assertEqual(search_request.limit, len(search_result.auctions))
         auctions_retrieved_from_search = search_result.auctions
 
-        while len(auctions_retrieved_from_search) < auction_count:
-            search_request = AuctionSearchRequest(
-                sort=AuctionSort(field=AuctionSortField.AuctionId, asc=False),
-                limit=10,
-                offset=search_request.offset + len(search_result.auctions),
-            )
-            logger.info(f"search_request: {search_request}")
-
+        while search_request := search_request.next_page(search_result):
             search_result = self.search_auction(search_request)
             self.assertEqual(auction_count, search_result.total_count)
             self.assertEqual(search_request.limit, len(search_result.auctions))

@@ -180,6 +180,16 @@ class SearchAuctions(
             if request.filters.min_bid and request.filters.min_bid > 0:
                 select = select.where(TAuction.min_bid >= request.filters.min_bid)
 
+            if len(request.filters.highest_bidder) > 0:
+                select = select.where(
+                    TAuction.highest_bidder.in_(request.filters.highest_bidder)
+                )
+
+            if request.filters.highest_bid and request.filters.highest_bid > 0:
+                select = select.where(
+                    TAuction.highest_bid >= request.filters.highest_bid
+                )
+
             return select
 
         def add_sort(select: Select) -> Select:

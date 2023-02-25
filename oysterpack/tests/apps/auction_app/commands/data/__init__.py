@@ -13,14 +13,24 @@ def create_auctions(
     seller: Address | None = None,
     bid_asset_id: AssetId | None = None,
     min_bid: int = 100,
+    highest_bidder: Address | None = None,
+    highest_bid: int | None = None,
     auction_app_id_start_at: int = 1,
 ):
     _private_key, creator = generate_account()
+
     if seller is None:
         _private_key, seller = generate_account()
+
     _private_key, bidder = generate_account()
 
+    if highest_bidder is None:
+        _private_key, highest_bidder = generate_account()
+
     bid_asset_id = AssetId(10) if bid_asset_id is None else bid_asset_id
+
+    if highest_bid is None:
+        highest_bid = 1000
 
     states = [
         AuctionState(
@@ -42,8 +52,8 @@ def create_auctions(
             seller=Address(seller),
             bid_asset_id=bid_asset_id,
             min_bid=min_bid,
-            highest_bidder=Address(bidder),
-            highest_bid=1000,
+            highest_bidder=Address(highest_bidder),
+            highest_bid=highest_bid,
             start_time=datetime.now(UTC),
             end_time=datetime.now(UTC) + timedelta(days=1),
         ),
@@ -52,8 +62,8 @@ def create_auctions(
             seller=Address(seller),
             bid_asset_id=bid_asset_id,
             min_bid=min_bid,
-            highest_bidder=Address(bidder),
-            highest_bid=1000,
+            highest_bidder=Address(highest_bidder),
+            highest_bid=highest_bid,
             start_time=datetime.now(UTC),
             end_time=datetime.now(UTC) + timedelta(days=1),
         ),

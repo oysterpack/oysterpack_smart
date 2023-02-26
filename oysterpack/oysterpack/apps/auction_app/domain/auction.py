@@ -3,11 +3,14 @@ Auction domain model
 """
 
 from dataclasses import dataclass
+from typing import NewType
 
 from algosdk.logic import get_application_address
 
 from oysterpack.algorand.client.model import AppId, AssetId, Address
 from oysterpack.apps.auction_app.client.auction_client import AuctionState
+
+AuctionManagerAppId = NewType("AuctionManagerAppId", AppId)
 
 
 @dataclass(slots=True)

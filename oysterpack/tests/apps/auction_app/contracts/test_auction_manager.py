@@ -20,7 +20,6 @@ class AuctionManagerTestCase(AlgorandTestCase):
         logger = super().get_logger("test_create")
         # SETUP
         app_client = self.sandbox_application_client(AuctionManager())
-        app_client.build()
 
         # ACT
         app_client.create()

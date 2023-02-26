@@ -180,7 +180,9 @@ def create_auction_manager(
     """
     Creates an AuctionManager contract instance.
 
-    The contract is funded with 0.1 ALGO
+    The contract is funded with 0.1 ALGO, which is required to pay for the account storage.
+    The AuctionManager contract account must hold ALGO to pay for Auction contract storage, which means
+    the AuctionManager contract account itself must hold 0.1 ALGO for its account storage.
 
     :param creator: defaults to the sender associated with the signer
     :return : AuctionManagerClient for the AuctionManager contract that was created

@@ -52,7 +52,7 @@ class SearchAuctionsTestCase(AlgorandTestCase):
         with self.subTest("create auctions and then retrieve them via search"):
             for _ in range(5):
                 seller_auction_manager_client.create_auction()
-            sleep(1)
+            sleep(1)  # give the indexer time to index
 
             search_result = search_auctions(
                 AuctionSearchRequest(
@@ -101,7 +101,7 @@ class SearchAuctionsTestCase(AlgorandTestCase):
         app_ids = []
         for _ in range(5):
             app_ids.append(seller_auction_manager_client.create_auction().app_id)
-        sleep(1)
+        sleep(1)  # give the indexer time to index
 
         search_result = search_auctions(
             AuctionSearchRequest(auction_manager_app_id=creator_app_client.app_id)
@@ -120,7 +120,7 @@ class SearchAuctionsTestCase(AlgorandTestCase):
         with self.subTest("retrieve Auction that were created since the last search"):
             for _ in range(3):
                 app_ids.append(seller_auction_manager_client.create_auction().app_id)
-            sleep(1)
+            sleep(1)  # give the indexer time to index
 
             search_result = search_auctions(
                 AuctionSearchRequest(

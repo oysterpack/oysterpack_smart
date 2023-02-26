@@ -35,6 +35,9 @@ class StoreAuctions(
     """
 
     def __call__(self, auctions: list[Auction]) -> StoreAuctionsResult:
+        if len(auctions) == 0:
+            return StoreAuctionsResult(inserts=0, updates=0)
+
         inserts = 0
         updates = 0
 

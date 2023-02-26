@@ -1,13 +1,10 @@
-from typing import NewType
-
 from sqlalchemy import select, func
 
 from oysterpack.algorand.client.model import AppId
 from oysterpack.apps.auction_app.commands.data import SqlAlchemySupport
 from oysterpack.apps.auction_app.data.auction import TAuction
+from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId
 from oysterpack.core.command import Command
-
-AuctionManagerAppId = NewType("AuctionManagerAppId", AppId)
 
 
 class GetMaxAuctionAppId(Command[AuctionManagerAppId, AppId | None], SqlAlchemySupport):

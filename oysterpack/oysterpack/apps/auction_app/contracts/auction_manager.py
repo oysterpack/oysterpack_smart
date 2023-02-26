@@ -61,13 +61,7 @@ class AuctionManager(Application):
     @create
     def create(self) -> Expr:
         """
-        Creates an instance of the Auction contract to determine its minimum required balance.
-
-        Notes
-        -----
-        - inner transactions
-            - Auction contract creation
-            - Auction contract deletion
+        Initializes application state
         """
         return super().initialize_application_state()
 

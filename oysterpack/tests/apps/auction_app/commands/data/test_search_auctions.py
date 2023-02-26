@@ -132,7 +132,7 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         search_request = AuctionSearchRequest(
             limit=10,
             sort=AuctionSort(
-                field=AuctionSortField.AuctionId,
+                field=AuctionSortField.AUCTION_ID,
                 asc=False,
             ),
         )

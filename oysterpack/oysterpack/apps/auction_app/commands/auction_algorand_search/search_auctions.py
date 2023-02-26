@@ -1,7 +1,6 @@
 """
 Provides command support for searching Auctions
 """
-import pprint
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -29,7 +28,7 @@ class AuctionSearchArgs:
     limit: int = 100
 
     # used for paging
-    # search results are sorted by AppId
+    # search results are sorted by AppId, i.e., search will return auctions where app ID is > `next_token`
     next_token: str | AppId | None = None
 
     def __post_init__(self):
@@ -63,8 +62,6 @@ class SearchAuctions(
             limit=args.limit,
             next_page=args.next_token,
         )
-
-        pprint.pp(result)
 
         current_round = result["current-round"]
         next_token = result.setdefault("next-token", None)

@@ -13,6 +13,8 @@ class TAssetInfo(Base):
     Asset info database table model
     """
 
+    # pylint: disable=too-few-public-methods
+
     __tablename__ = "asset_info"
 
     asset_id: Mapped[AssetId] = mapped_column(primary_key=True)

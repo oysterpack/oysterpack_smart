@@ -23,6 +23,10 @@ class Command(Generic[Args, Result], ABC):
         """
 
     def get_logger(self, name: str | None = None) -> Logger:
+        """
+        Returns a logger using the class name as the logger name.
+        If `name` is specifed, then it is appended to the class name: `{self.__class__.__name__}.{name}`
+        """
         if name is None:
             return logging.getLogger(self.__class__.__name__)
 

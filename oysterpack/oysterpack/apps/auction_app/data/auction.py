@@ -79,6 +79,10 @@ class TAuction(Base):
 
     @property
     def state(self) -> AuctionState:
+        """
+        :return: AuctionState
+        """
+
         return AuctionState(
             status=AuctionStatus(self.status),
             seller=Address(self.seller),

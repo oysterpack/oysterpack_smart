@@ -1,3 +1,6 @@
+"""
+Command for auction database search
+"""
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import IntEnum
@@ -7,7 +10,7 @@ from typing import Optional
 from sqlalchemy import Select, select, func, and_, or_, false
 
 from oysterpack.algorand.client.model import AppId, Address, AssetId
-from oysterpack.apps.auction_app.commands.data.SqlAlchemySupport import (
+from oysterpack.apps.auction_app.commands.data.sqlalchemy_support import (
     SqlAlchemySupport,
 )
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
@@ -17,20 +20,24 @@ from oysterpack.core.command import Command
 
 
 class AuctionSortField(IntEnum):
-    AuctionId = auto()
+    """
+    Auction query sort fields
+    """
 
-    Status = auto()
-    Seller = auto()
+    AUCTION_ID = auto()
 
-    BidAsset = auto()
-    MinBid = auto()
-    HighestBid = auto()
+    STATUS = auto()
+    SELLER = auto()
 
-    StartTime = auto()
-    EndTime = auto()
+    BID_ASSET = auto()
+    MIN_BID = auto()
+    HIGHEST_BID = auto()
 
-    AuctionAsset = auto()
-    AuctionAssetAmount = auto()
+    START_TIME = auto()
+    END_TIME = auto()
+
+    AUCTION_ASSET = auto()
+    AUCTION_ASSET_AMOUNT = auto()
 
 
 @dataclass(slots=True)
@@ -48,6 +55,8 @@ class AuctionSearchFilters:
     """
     Auction search filters
     """
+
+    # pylint: disable=too-many-instance-attributes
 
     app_id: set[AppId] = field(default_factory=set)
 
@@ -126,9 +135,7 @@ class AuctionSearchRequest:
             # we are at the first page
             return None
 
-        offset = self.offset - self.limit
-        if offset < 0:
-            offset = 0
+        offset = max(self.offset - self.limit, 0)
 
         return AuctionSearchRequest(
             filters=self.filters,
@@ -138,8 +145,15 @@ class AuctionSearchRequest:
         )
 
     def goto(
-        self, search_result: AuctionSearchResult, offset: int, limit: int | None = None
+        self,
+        search_result: AuctionSearchResult,
+        offset: int,
+        limit: int | None = None,
     ) -> Optional["AuctionSearchRequest"]:
+        """
+        Used to construct a search request for search results starting at the specified offset.
+        """
+
         if offset < 0:
             raise AssertionError("offset must be >= 0")
 
@@ -158,47 +172,63 @@ class SearchAuctions(
     Command[AuctionSearchRequest, AuctionSearchResult],
     SqlAlchemySupport,
 ):
+    """
+    SearchAuctions
+    """
+
     def __call__(self, request: AuctionSearchRequest) -> AuctionSearchResult:
+        # pylint: disable=too-many-statements
+
         logger = super().get_logger()
 
-        def build_where_clause(select: Select) -> Select:
+        def build_where_clause(select_clause: Select) -> Select:
+            # pylint: disable=too-many-branches
+
             if request.filters is None:
-                return select
+                return select_clause
 
             if len(request.filters.app_id) > 0:
-                select = select.where(TAuction.app_id.in_(request.filters.app_id))
+                select_clause = select_clause.where(
+                    TAuction.app_id.in_(request.filters.app_id)
+                )
 
             if len(request.filters.status) > 0:
-                select = select.where(TAuction.status.in_(request.filters.status))
+                select_clause = select_clause.where(
+                    TAuction.status.in_(request.filters.status)
+                )
 
             if len(request.filters.seller) > 0:
-                select = select.where(TAuction.seller.in_(request.filters.seller))
+                select_clause = select_clause.where(
+                    TAuction.seller.in_(request.filters.seller)
+                )
 
             if len(request.filters.bid_asset_id) > 0:
-                select = select.where(
+                select_clause = select_clause.where(
                     TAuction.bid_asset_id.in_(request.filters.bid_asset_id)
                 )
 
             if request.filters.min_bid and request.filters.min_bid > 0:
-                select = select.where(TAuction.min_bid >= request.filters.min_bid)
+                select_clause = select_clause.where(
+                    TAuction.min_bid >= request.filters.min_bid
+                )
 
             if len(request.filters.highest_bidder) > 0:
-                select = select.where(
+                select_clause = select_clause.where(
                     TAuction.highest_bidder.in_(request.filters.highest_bidder)
                 )
 
             if request.filters.highest_bid and request.filters.highest_bid > 0:
-                select = select.where(
+                select_clause = select_clause.where(
                     TAuction.highest_bid >= request.filters.highest_bid
                 )
 
             if request.filters.start_time:
-                select = select.where(
+                select_clause = select_clause.where(
                     TAuction.start_time >= int(request.filters.start_time.timestamp())
                 )
 
             if request.filters.end_time:
-                select = select.where(
+                select_clause = select_clause.where(
                     TAuction.end_time <= int(request.filters.end_time.timestamp())
                 )
 
@@ -219,76 +249,80 @@ class SearchAuctions(
             ]
 
             if len(assets) > 0 and len(request.filters.asset_amounts) == 0:
-                select = select.where(TAuctionAsset.asset_id.in_(assets))
+                select_clause = select_clause.where(TAuctionAsset.asset_id.in_(assets))
             elif len(request.filters.asset_amounts) > 0 and len(assets) == 0:
-                select = select.where(or_(false(), *asset_amount_filter_expressions))
+                select_clause = select_clause.where(
+                    or_(false(), *asset_amount_filter_expressions)
+                )
             elif len(request.filters.asset_amounts) > 0 and len(assets) > 0:
-                select = select.where(
+                select_clause = select_clause.where(
                     or_(
                         TAuctionAsset.asset_id.in_(assets),
                         *asset_amount_filter_expressions,
                     )
                 )
 
-            return select
+            return select_clause
 
-        def add_sort(select: Select) -> Select:
+        def add_sort(select_clause: Select) -> Select:
+            # pylint: disable=too-many-return-statements
+
             if request.sort is None:
-                return select.order_by(TAuction.app_id)
+                return select_clause.order_by(TAuction.app_id)
 
             match request.sort.field:
-                case AuctionSortField.AuctionId:
+                case AuctionSortField.AUCTION_ID:
                     if request.sort.asc:
-                        return select.order_by(TAuction.app_id)
-                    else:
-                        return select.order_by(TAuction.app_id.desc())
-                case AuctionSortField.Status:
+                        return select_clause.order_by(TAuction.app_id)
+                    return select_clause.order_by(TAuction.app_id.desc())
+                case AuctionSortField.STATUS:
                     if request.sort.asc:
-                        return select.order_by(TAuction.status)
-                    else:
-                        return select.order_by(TAuction.status.desc())
-                case AuctionSortField.Seller:
+                        return select_clause.order_by(TAuction.status)
+                    return select_clause.order_by(TAuction.status.desc())
+                case AuctionSortField.SELLER:
                     if request.sort.asc:
-                        return select.order_by(TAuction.seller)
-                    else:
-                        return select.order_by(TAuction.seller.desc())
-                case AuctionSortField.BidAsset:
+                        return select_clause.order_by(TAuction.seller)
+                    return select_clause.order_by(TAuction.seller.desc())
+                case AuctionSortField.BID_ASSET:
                     if request.sort.asc:
-                        return select.order_by(TAuction.bid_asset_id.nullslast())
-                    else:
-                        return select.order_by(TAuction.bid_asset_id.desc().nullslast())
-                case AuctionSortField.MinBid:
+                        return select_clause.order_by(TAuction.bid_asset_id.nullslast())
+                    return select_clause.order_by(
+                        TAuction.bid_asset_id.desc().nullslast()
+                    )
+                case AuctionSortField.MIN_BID:
                     if request.sort.asc:
-                        return select.order_by(TAuction.min_bid.nullslast())
-                    else:
-                        return select.order_by(TAuction.min_bid.desc().nullslast())
-                case AuctionSortField.HighestBid:
+                        return select_clause.order_by(TAuction.min_bid.nullslast())
+                    return select_clause.order_by(TAuction.min_bid.desc().nullslast())
+                case AuctionSortField.HIGHEST_BID:
                     if request.sort.asc:
-                        return select.order_by(TAuction.highest_bid.nullslast())
-                    else:
-                        return select.order_by(TAuction.highest_bid.desc().nullslast())
-                case AuctionSortField.StartTime:
+                        return select_clause.order_by(TAuction.highest_bid.nullslast())
+                    return select_clause.order_by(
+                        TAuction.highest_bid.desc().nullslast()
+                    )
+                case AuctionSortField.START_TIME:
                     if request.sort.asc:
-                        return select.order_by(TAuction.start_time.nullslast())
-                    else:
-                        return select.order_by(TAuction.start_time.desc().nullslast())
-                case AuctionSortField.EndTime:
+                        return select_clause.order_by(TAuction.start_time.nullslast())
+                    return select_clause.order_by(
+                        TAuction.start_time.desc().nullslast()
+                    )
+                case AuctionSortField.END_TIME:
                     if request.sort.asc:
-                        return select.order_by(TAuction.end_time.nullslast())
-                    else:
-                        return select.order_by(TAuction.end_time.desc().nullslast())
-                case AuctionSortField.AuctionAsset:
+                        return select_clause.order_by(TAuction.end_time.nullslast())
+                    return select_clause.order_by(TAuction.end_time.desc().nullslast())
+                case AuctionSortField.AUCTION_ASSET:
                     if request.sort.asc:
-                        return select.order_by(TAuctionAsset.asset_id.nullslast())
-                    else:
-                        return select.order_by(
-                            TAuctionAsset.asset_id.desc().nullslast()
+                        return select_clause.order_by(
+                            TAuctionAsset.asset_id.nullslast()
                         )
-                case AuctionSortField.AuctionAssetAmount:
+                    return select_clause.order_by(
+                        TAuctionAsset.asset_id.desc().nullslast()
+                    )
+                case AuctionSortField.AUCTION_ASSET_AMOUNT:
                     if request.sort.asc:
-                        return select.order_by(TAuctionAsset.amount.nullslast())
-                    else:
-                        return select.order_by(TAuctionAsset.amount.desc().nullslast())
+                        return select_clause.order_by(TAuctionAsset.amount.nullslast())
+                    return select_clause.order_by(
+                        TAuctionAsset.amount.desc().nullslast()
+                    )
                 case other:
                     raise AssertionError(
                         f"AuctionSortField match case is missing: {other}"
@@ -299,7 +333,7 @@ class SearchAuctions(
             select(func.count(TAuction.app_id.distinct())).outerjoin(TAuction.assets)
         )
 
-        logger.debug(f"count_query: {count_query}")
+        logger.debug("count_query: %s", count_query)
 
         query = build_where_clause(select(TAuction).outerjoin(TAuction.assets))
         query = add_sort(query)
@@ -308,7 +342,7 @@ class SearchAuctions(
         # effectively dedupes the search results across the outer join
         query = query.group_by(TAuction.app_id)
 
-        logger.debug(f"query: {query}")
+        logger.debug("query: %s", query)
 
         with self.session_factory() as session:
             return AuctionSearchResult(

@@ -18,6 +18,7 @@ def create_auctions(
     auction_app_id_start_at: int = 1,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
+    assets: dict[AssetId, int] | None = None,
 ):
     _private_key, creator = generate_account()
 
@@ -92,7 +93,9 @@ def create_auctions(
                 AssetId(i): i,
                 AssetId(i + 1): i + 1,
                 AssetId(i + 2): i + 2,
-            },
+            }
+            if assets is None
+            else assets,
         )
         for i in range(auction_app_id_start_at, auction_app_id_start_at + count)
     ]

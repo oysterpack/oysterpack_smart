@@ -78,6 +78,14 @@ class MyTestCase(AlgorandTestCase):
             print(row)
         con.commit()
 
+    def test_delete_dict_entries_while_iterating(self):
+        data = {1: 1, 2: 2}
+        items = list(data.items())
+        for k, v in items:
+            del data[k]
+        print(data)
+        self.assertEqual(0, len(data))
+
 
 if __name__ == "__main__":
     unittest.main()

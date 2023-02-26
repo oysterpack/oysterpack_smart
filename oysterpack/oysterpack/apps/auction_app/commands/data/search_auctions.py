@@ -4,7 +4,7 @@ from enum import IntEnum
 from enum import auto
 from typing import Optional
 
-from sqlalchemy import Select, select, func
+from sqlalchemy import Select, select, func, and_, or_, false
 
 from oysterpack.algorand.client.model import AppId, Address, AssetId
 from oysterpack.apps.auction_app.commands.data.SqlAlchemySupport import (
@@ -58,12 +58,14 @@ class AuctionSearchFilters:
     min_bid: int | None = None  # min_bid >= Auction.min_bid
 
     highest_bidder: set[Address] = field(default_factory=set)
+    # where the min bid is at least the specified amount
     highest_bid: int | None = None  # highest_bid >= Auction.highest_bid
 
     start_time: datetime | None = None  # start_time >= Auction.start_time
     end_time: datetime | None = None  # end_time >= Auction.end_time
 
     assets: set[AssetId] = field(default_factory=set)
+    # where asset amount is at least the specified amount
     asset_amounts: dict[AssetId, int] = field(default_factory=dict)
 
 
@@ -198,6 +200,34 @@ class SearchAuctions(
             if request.filters.end_time:
                 select = select.where(
                     TAuction.end_time <= int(request.filters.end_time.timestamp())
+                )
+
+            # dedupe auction asset filters
+            # If an asset is specified in `asset_amounts`, then remove the asset from the`assets` filter
+            assets = request.filters.assets - request.filters.asset_amounts.keys()
+            for asset_id, amount in list(request.filters.asset_amounts.items()):
+                if amount <= 0:
+                    assets.add(asset_id)
+                    del request.filters.asset_amounts[asset_id]
+
+            asset_amount_filter_expressions = [
+                and_(
+                    TAuctionAsset.asset_id == asset_id,
+                    TAuctionAsset.amount >= amount,
+                )
+                for asset_id, amount in request.filters.asset_amounts.items()
+            ]
+
+            if len(assets) > 0 and len(request.filters.asset_amounts) == 0:
+                select = select.where(TAuctionAsset.asset_id.in_(assets))
+            elif len(request.filters.asset_amounts) > 0 and len(assets) == 0:
+                select = select.where(or_(false(), *asset_amount_filter_expressions))
+            elif len(request.filters.asset_amounts) > 0 and len(assets) > 0:
+                select = select.where(
+                    or_(
+                        TAuctionAsset.asset_id.in_(assets),
+                        *asset_amount_filter_expressions,
+                    )
                 )
 
             return select

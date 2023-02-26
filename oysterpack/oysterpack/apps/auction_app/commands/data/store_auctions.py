@@ -4,7 +4,7 @@ Command to insert/update Auctions into the database
 
 from dataclasses import dataclass
 
-from oysterpack.apps.auction_app.commands.data.sqlalchemy_support import (
+from oysterpack.apps.auction_app.commands.data import (
     SqlAlchemySupport,
 )
 from oysterpack.apps.auction_app.data.auction import TAuction

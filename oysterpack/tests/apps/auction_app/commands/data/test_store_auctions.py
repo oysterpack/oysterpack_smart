@@ -45,7 +45,7 @@ class StoreTestCase(unittest.TestCase):
             for row in session.execute(text("select * from auction")):
                 tauction = TAuction(
                     row.app_id,
-                    row.creator,
+                    row.auction_manager_app_id,
                     row.created_at_round,
                     row.updated_at,
                     row.updated_at_round,

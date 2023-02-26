@@ -4,7 +4,9 @@ Auction domain model
 
 from dataclasses import dataclass
 
-from oysterpack.algorand.client.model import AppId, Address, AssetId
+from algosdk.logic import get_application_address
+
+from oysterpack.algorand.client.model import AppId, AssetId, Address
 from oysterpack.apps.auction_app.client.auction_client import AuctionState
 
 
@@ -17,10 +19,16 @@ class Auction:
     # pylint: disable=too-many-instance-attributes
 
     app_id: AppId
-    creator: Address
+
+    # auction creator
+    auction_manager_app_id: AppId
     created_at_round: int
     # the round (Algorand block) from which the data was retrieved
     round: int
 
     state: AuctionState
     assets: dict[AssetId, int]
+
+    @property
+    def auction_manager_app_address(self) -> Address:
+        return Address(get_application_address(self.auction_manager_app_id))

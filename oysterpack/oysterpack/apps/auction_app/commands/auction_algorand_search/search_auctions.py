@@ -7,7 +7,7 @@ from typing import Any, cast
 from algosdk.logic import get_application_address
 from beaker.client.state_decode import decode_state
 
-from oysterpack.algorand.client.model import AppId, AssetId, AssetHolding
+from oysterpack.algorand.client.model import AppId, AssetId, AssetHolding, Address
 from oysterpack.apps.auction_app.client.auction_client import (
     to_auction_state,
 )
@@ -19,10 +19,13 @@ from oysterpack.core.command import Command
 
 
 @dataclass(slots=True)
-class AuctionSearchArgs:
+class AuctionSearchRequest:
     """
     Auction search args
     """
+
+    # auction creator
+    auction_manager_app_id: AppId
 
     # max number of search results to return
     limit: int = 100
@@ -34,6 +37,13 @@ class AuctionSearchArgs:
     def __post_init__(self):
         if isinstance(self.next_token, AppId):
             self.next_token = str(self.next_token)
+
+    @property
+    def auction_manager_address(self) -> Address:
+        """
+        :return: AuctionManager application address
+        """
+        return Address(get_application_address(self.auction_manager_app_id))
 
 
 @dataclass(slots=True)
@@ -49,16 +59,16 @@ class AuctionSearchResult:
 
 
 class SearchAuctions(
-    Command[AuctionSearchArgs, AuctionSearchResult],
+    Command[AuctionSearchRequest, AuctionSearchResult],
     AuctionAlgorandSearchSupport,
 ):
     """
     Used to search for Auction apps on Algorand.
     """
 
-    def __call__(self, args: AuctionSearchArgs) -> AuctionSearchResult:
+    def __call__(self, args: AuctionSearchRequest) -> AuctionSearchResult:
         result = self._indexer_client.search_applications(
-            creator=self.auction_manager_address,
+            creator=args.auction_manager_address,
             limit=args.limit,
             next_page=args.next_token,
         )
@@ -92,7 +102,7 @@ class SearchAuctions(
 
             return Auction(
                 app_id=AppId(app["id"]),
-                creator=app["params"]["creator"],
+                auction_manager_app_id=args.auction_manager_app_id,
                 created_at_round=app["created-at-round"],
                 state=state,
                 assets=get_auction_assets(AppId(app["id"]), state.bid_asset_id),

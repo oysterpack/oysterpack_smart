@@ -10,17 +10,19 @@ from oysterpack.apps.auction_app.domain.auction_state import AuctionState
 
 def create_auctions(
     count: int = 100,
+    auction_app_id_start_at: int = 1,
+    auction_manager_app_id: AppId | None = None,
     seller: Address | None = None,
     bid_asset_id: AssetId | None = None,
     min_bid: int = 100,
     highest_bidder: Address | None = None,
     highest_bid: int | None = None,
-    auction_app_id_start_at: int = 1,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
     assets: dict[AssetId, int] | None = None,
 ):
-    _private_key, creator = generate_account()
+    if auction_manager_app_id is None:
+        auction_manager_app_id = AppId(5555)
 
     if seller is None:
         _private_key, seller = generate_account()
@@ -85,7 +87,7 @@ def create_auctions(
     return [
         Auction(
             app_id=AppId(i),
-            creator=Address(creator),
+            auction_manager_app_id=auction_manager_app_id,
             created_at_round=i + 1,
             round=i + 2,
             state=states[i % 5],

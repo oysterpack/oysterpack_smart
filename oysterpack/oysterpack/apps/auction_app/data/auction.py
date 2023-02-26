@@ -28,7 +28,8 @@ class TAuction(Base):
 
     app_id: Mapped[AppId] = mapped_column(primary_key=True)
 
-    creator: Mapped[Address] = mapped_column(String(58), index=True)
+    # auction creator
+    auction_manager_app_id: Mapped[AppId] = mapped_column(String(58), index=True)
     created_at_round: Mapped[int] = mapped_column(index=True)
 
     # when the record was last updated
@@ -68,7 +69,7 @@ class TAuction(Base):
         ]
         tauction = cls(
             app_id=auction.app_id,
-            creator=auction.creator,
+            auction_manager_app_id=auction.auction_manager_app_id,
             created_at_round=auction.created_at_round,
             updated_at=int(datetime.now(UTC).timestamp()),
             updated_at_round=auction.round,
@@ -134,7 +135,9 @@ class TAuction(Base):
         if self.app_id != auction.app_id:
             raise AssertionError("app_id does not match")
 
-        self.creator = cast(Mapped[Address], auction.creator)
+        self.auction_manager_app_id = cast(
+            Mapped[AppId], auction.auction_manager_app_id
+        )
         self.created_at_round = cast(Mapped[int], auction.created_at_round)
         self.updated_at = cast(Mapped[int], int(datetime.now(UTC).timestamp()))
         self.updated_at_round = cast(Mapped[int], auction.round)
@@ -155,7 +158,7 @@ class TAuction(Base):
 
         return Auction(
             app_id=AppId(self.app_id),
-            creator=Address(self.creator),
+            auction_manager_app_id=AppId(self.auction_manager_app_id),
             created_at_round=self.created_at_round,
             round=self.updated_at_round,
             state=self.state,

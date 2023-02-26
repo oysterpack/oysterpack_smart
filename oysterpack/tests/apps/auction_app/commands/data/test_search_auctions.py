@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
 from oysterpack.algorand.client.model import Address, AssetId
-from oysterpack.apps.auction_app.commands.data.search_auctions import (
+from oysterpack.apps.auction_app.commands.data.queries.search_auctions import (
     SearchAuctions,
     AuctionSearchRequest,
     AuctionSort,
@@ -227,7 +227,7 @@ class SearchAuctionsTestCase(OysterPackTestCase):
 
         with self.subTest("single seller filter"):
             _private_key, seller_1 = generate_account()
-            auctions = create_auctions(5, Address(seller_1))
+            auctions = create_auctions(5, seller=Address(seller_1))
             self.store_auctions(auctions)
 
             search_request = AuctionSearchRequest(
@@ -240,10 +240,10 @@ class SearchAuctionsTestCase(OysterPackTestCase):
 
         with self.subTest("multiple seller filter"):
             _private_key, seller_2 = generate_account()
-            auctions = create_auctions(10, Address(seller_1))
+            auctions = create_auctions(10, seller=Address(seller_1))
             self.store_auctions(auctions)
             # updates the first 5 to seller_2
-            auctions = create_auctions(5, Address(seller_2))
+            auctions = create_auctions(5, seller=Address(seller_2))
             self.store_auctions(auctions)
 
             search_request = AuctionSearchRequest(

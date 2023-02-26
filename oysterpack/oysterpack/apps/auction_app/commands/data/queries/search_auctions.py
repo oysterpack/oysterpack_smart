@@ -10,7 +10,7 @@ from typing import Optional
 from sqlalchemy import Select, select, func, and_, or_, false
 
 from oysterpack.algorand.client.model import AppId, Address, AssetId
-from oysterpack.apps.auction_app.commands.data.sqlalchemy_support import (
+from oysterpack.apps.auction_app.commands.data import (
     SqlAlchemySupport,
 )
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
@@ -59,6 +59,7 @@ class AuctionSearchFilters:
     # pylint: disable=too-many-instance-attributes
 
     app_id: set[AppId] = field(default_factory=set)
+    auction_manager_app_id: set[AppId] = field(default_factory=set)
 
     status: set[AuctionStatus] = field(default_factory=set)
     seller: set[Address] = field(default_factory=set)
@@ -190,6 +191,13 @@ class SearchAuctions(
             if len(request.filters.app_id) > 0:
                 select_clause = select_clause.where(
                     TAuction.app_id.in_(request.filters.app_id)
+                )
+
+            if len(request.filters.auction_manager_app_id) > 0:
+                select_clause = select_clause.where(
+                    TAuction.auction_manager_app_id.in_(
+                        request.filters.auction_manager_app_id
+                    )
                 )
 
             if len(request.filters.status) > 0:

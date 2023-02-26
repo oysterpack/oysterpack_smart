@@ -9,7 +9,7 @@ from oysterpack.apps.auction_app.client.auction_manager_client import (
 )
 from oysterpack.apps.auction_app.commands.auction_algorand_search.search_auctions import (
     SearchAuctions,
-    AuctionSearchArgs,
+    AuctionSearchRequest,
 )
 from tests.algorand.test_support import AlgorandTestCase
 
@@ -29,7 +29,6 @@ class SearchAuctionsTestCase(AlgorandTestCase):
         search_auctions = SearchAuctions(
             indexer_client=self.indexer,
             algod_client=self.algod_client,
-            auction_manager_app_id=creator_app_client.app_id,
         )
 
         with self.subTest(
@@ -38,11 +37,12 @@ class SearchAuctionsTestCase(AlgorandTestCase):
             SearchAuctions(
                 indexer_client=self.indexer,
                 algod_client=self.algod_client,
-                auction_manager_app_id=creator_app_client.app_id,
             )
 
         with self.subTest("no auctions have been created"):
-            search_result = search_auctions(AuctionSearchArgs())
+            search_result = search_auctions(
+                AuctionSearchRequest(auction_manager_app_id=creator_app_client.app_id)
+            )
             self.assertEqual(len(search_result.auctions), 0)
 
         seller_auction_manager_client = creator_app_client.copy(
@@ -54,13 +54,19 @@ class SearchAuctionsTestCase(AlgorandTestCase):
                 seller_auction_manager_client.create_auction()
             sleep(1)
 
-            search_result = search_auctions(AuctionSearchArgs(limit=2))
+            search_result = search_auctions(
+                AuctionSearchRequest(
+                    auction_manager_app_id=creator_app_client.app_id,
+                    limit=2,
+                )
+            )
             self.assertEqual(len(search_result.auctions), 2)
 
             count = 2
             while True:
                 search_result = search_auctions(
-                    AuctionSearchArgs(
+                    AuctionSearchRequest(
+                        auction_manager_app_id=creator_app_client.app_id,
                         limit=2,
                         next_token=search_result.next_token,
                     )
@@ -90,7 +96,6 @@ class SearchAuctionsTestCase(AlgorandTestCase):
         search_auctions = SearchAuctions(
             indexer_client=self.indexer,
             algod_client=self.algod_client,
-            auction_manager_app_id=creator_app_client.app_id,
         )
 
         app_ids = []
@@ -98,11 +103,18 @@ class SearchAuctionsTestCase(AlgorandTestCase):
             app_ids.append(seller_auction_manager_client.create_auction().app_id)
         sleep(1)
 
-        search_result = search_auctions(AuctionSearchArgs())
+        search_result = search_auctions(
+            AuctionSearchRequest(auction_manager_app_id=creator_app_client.app_id)
+        )
         self.assertEqual(len(search_result.auctions), 5)
 
         with self.subTest("retrieve Auctions that were created after an app ID"):
-            search_result = search_auctions(AuctionSearchArgs(next_token=app_ids[2]))
+            search_result = search_auctions(
+                AuctionSearchRequest(
+                    auction_manager_app_id=creator_app_client.app_id,
+                    next_token=app_ids[2],
+                )
+            )
             self.assertEqual(len(search_result.auctions), 2)
 
         with self.subTest("retrieve Auction that were created since the last search"):
@@ -110,7 +122,12 @@ class SearchAuctionsTestCase(AlgorandTestCase):
                 app_ids.append(seller_auction_manager_client.create_auction().app_id)
             sleep(1)
 
-            search_result = search_auctions(AuctionSearchArgs(next_token=app_ids[4]))
+            search_result = search_auctions(
+                AuctionSearchRequest(
+                    auction_manager_app_id=creator_app_client.app_id,
+                    next_token=app_ids[4],
+                )
+            )
             self.assertEqual(len(search_result.auctions), 3)
             for auction in search_result.auctions:
                 self.assertIsNotNone(auction.app_id, app_ids)

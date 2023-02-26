@@ -5,9 +5,7 @@ Command to delete auctions from the database
 from sqlalchemy import delete
 
 from oysterpack.algorand.client.model import AppId
-from oysterpack.apps.auction_app.commands.data.sqlalchemy_support import (
-    SqlAlchemySupport,
-)
+from oysterpack.apps.auction_app.commands.data import SqlAlchemySupport
 from oysterpack.apps.auction_app.data.auction import TAuction
 from oysterpack.core.command import Command
 

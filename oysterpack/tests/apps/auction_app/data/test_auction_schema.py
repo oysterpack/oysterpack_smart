@@ -69,7 +69,7 @@ class AuctionORMTestCase(AlgorandTestCase):
             for i in range(1, 11):
                 auction = Auction(
                     app_id=AppId(1 + i),
-                    creator=Address(creator),
+                    auction_manager_app_id=AppId(2 + i),
                     created_at_round=2 + i,
                     state=AuctionState(
                         seller=Address(seller),

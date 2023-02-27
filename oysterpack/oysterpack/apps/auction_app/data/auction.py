@@ -30,12 +30,9 @@ class TAuction(Base):
 
     # auction creator
     auction_manager_app_id: Mapped[AppId] = mapped_column(String(58), index=True)
-    created_at_round: Mapped[int] = mapped_column(index=True)
 
-    # when the record was last updated
+    # when the record was last updated in the database
     updated_at: Mapped[int] = mapped_column(index=True)  # epoch time
-    # Algorand round at which the data was retrieved
-    updated_at_round: Mapped[int] = mapped_column(index=True)
 
     status: Mapped[AuctionStatus] = mapped_column(index=True, init=False)
     seller: Mapped[Address] = mapped_column(index=True, init=False)
@@ -70,9 +67,7 @@ class TAuction(Base):
         tauction = cls(
             app_id=auction.app_id,
             auction_manager_app_id=auction.auction_manager_app_id,
-            created_at_round=auction.created_at_round,
             updated_at=int(datetime.now(UTC).timestamp()),
-            updated_at_round=auction.round,
             assets=assets,
         )
         tauction.state = auction.state
@@ -87,16 +82,18 @@ class TAuction(Base):
         return AuctionState(
             status=AuctionStatus(self.status),
             seller=Address(self.seller),
-            bid_asset_id=AssetId(self.bid_asset_id) if self.bid_asset_id else None,
+            bid_asset_id=cast(AssetId, self.bid_asset_id)
+            if self.bid_asset_id
+            else None,
             min_bid=self.min_bid,
-            highest_bidder=Address(self.highest_bidder)
+            highest_bidder=cast(Address, self.highest_bidder)
             if self.highest_bidder
             else None,
             highest_bid=self.highest_bid,
-            start_time=datetime.fromtimestamp(self.start_time, UTC)
+            start_time=datetime.fromtimestamp(cast(int, self.start_time), UTC)
             if self.start_time
             else None,
-            end_time=datetime.fromtimestamp(self.end_time, UTC)
+            end_time=datetime.fromtimestamp(cast(int, self.end_time), UTC)
             if self.end_time
             else None,
         )
@@ -138,9 +135,7 @@ class TAuction(Base):
         self.auction_manager_app_id = cast(
             Mapped[AppId], auction.auction_manager_app_id
         )
-        self.created_at_round = cast(Mapped[int], auction.created_at_round)
         self.updated_at = cast(Mapped[int], int(datetime.now(UTC).timestamp()))
-        self.updated_at_round = cast(Mapped[int], auction.round)
         self.state = auction.state
 
         self.assets = cast(
@@ -159,8 +154,6 @@ class TAuction(Base):
         return Auction(
             app_id=AppId(self.app_id),
             auction_manager_app_id=AppId(self.auction_manager_app_id),
-            created_at_round=self.created_at_round,
-            round=self.updated_at_round,
             state=self.state,
             assets={asset.asset_id: asset.amount for asset in self.assets},
         )

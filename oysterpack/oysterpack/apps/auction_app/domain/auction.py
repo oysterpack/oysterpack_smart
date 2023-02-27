@@ -27,9 +27,6 @@ class Auction:
 
     # auction creator
     auction_manager_app_id: AppId
-    created_at_round: int
-    # the round (Algorand block) from which the data was retrieved
-    round: int
 
     state: AuctionState
     assets: dict[AssetId, int]

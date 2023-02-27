@@ -88,8 +88,6 @@ def create_auctions(
         Auction(
             app_id=AppId(i),
             auction_manager_app_id=auction_manager_app_id,
-            created_at_round=i + 1,
-            round=i + 2,
             state=states[i % 5],
             assets={
                 AssetId(i): i,

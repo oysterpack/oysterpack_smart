@@ -5,7 +5,9 @@ from builtins import NotImplementedError
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from oysterpack.apps.auction_app.commands.auction_algorand_search.lookup_auction import LookupAuction
+from oysterpack.apps.auction_app.commands.auction_algorand_search.lookup_auction import (
+    LookupAuction,
+)
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
 from oysterpack.apps.auction_app.domain.auction import AuctionAppId, AuctionManagerAppId
 from oysterpack.core.command import Command
@@ -15,6 +17,7 @@ from oysterpack.core.command import Command
 class ImportAuctionRequest:
     auction_app_id: AuctionAppId
     auction_manager_app_id: AuctionManagerAppId
+
 
 @dataclass(slots=True)
 class ImportAuctionResult:

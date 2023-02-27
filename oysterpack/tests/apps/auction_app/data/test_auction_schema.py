@@ -70,7 +70,6 @@ class AuctionORMTestCase(AlgorandTestCase):
                 auction = Auction(
                     app_id=AppId(1 + i),
                     auction_manager_app_id=AppId(2 + i),
-                    created_at_round=2 + i,
                     state=AuctionState(
                         seller=Address(seller),
                         status=AuctionStatus.NEW,
@@ -79,7 +78,6 @@ class AuctionORMTestCase(AlgorandTestCase):
                         AssetId(4 + i): 1000 * i,
                         AssetId(5 + i): 2000 * i,
                     },
-                    round=6 + i,
                 )
                 session.add(TAuction.create(auction))
 

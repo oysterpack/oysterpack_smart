@@ -46,9 +46,7 @@ class StoreTestCase(unittest.TestCase):
                 tauction = TAuction(
                     row.app_id,
                     row.auction_manager_app_id,
-                    row.created_at_round,
                     row.updated_at,
-                    row.updated_at_round,
                     [],
                 )
                 tauction.status = row.status

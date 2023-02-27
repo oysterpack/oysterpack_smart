@@ -1,5 +1,4 @@
 import unittest
-from time import sleep
 
 from beaker import sandbox
 
@@ -15,8 +14,8 @@ from oysterpack.apps.auction_app.domain.auction import AuctionAppId, AuctionMana
 from tests.algorand.test_support import AlgorandTestCase
 
 
-class MyTestCase(AlgorandTestCase):
-    def test_get_auction(self):
+class LookupTestCase(AlgorandTestCase):
+    def test_lookup_auction(self):
         # SETUP
         accounts = sandbox.get_accounts()
         creator = accounts.pop()
@@ -31,15 +30,14 @@ class MyTestCase(AlgorandTestCase):
             sender=Address(seller.address), signer=seller.signer
         )
 
-        get_auction = LookupAuction(self.indexer, self.algod_client)
-        get_result = get_auction(
+        lookup_auction = LookupAuction(self.indexer, self.algod_client)
+        auction = lookup_auction(
             LookupAuctionRequest(
                 AuctionAppId(99999999999),
                 AuctionManagerAppId(creator_app_client.app_id),
             )
         )
-        self.assertIsNone(get_result.auction)
-        self.assertFalse(get_result.deleted)
+        self.assertIsNone(auction)
 
         seller_app_client = seller_auction_manager_client.create_auction()
 
@@ -68,29 +66,26 @@ class MyTestCase(AlgorandTestCase):
         seller_app_client.deposit_asset(gold_asset_id, 10_000)
 
         # ACT
-        get_result = get_auction(
+        auction = lookup_auction(
             LookupAuctionRequest(
                 AuctionAppId(seller_app_client.app_id),
                 AuctionManagerAppId(creator_app_client.app_id),
             )
         )
-        self.assertEqual(seller_app_client.app_id, get_result.auction.app_id)
-        self.assertFalse(get_result.deleted)
+        self.assertEqual(seller_app_client.app_id, auction.app_id)
 
         # cancel, finalize, and delete the auction
         seller_app_client.cancel()
         seller_app_client.finalize()
         creator_app_client.delete_finalized_auction(seller_app_client.app_id)
-        sleep(1)  # give the indexer time to index
 
-        get_result = get_auction(
+        auction = lookup_auction(
             LookupAuctionRequest(
                 AuctionAppId(seller_app_client.app_id),
                 AuctionManagerAppId(creator_app_client.app_id),
             )
         )
-        self.assertIsNone(get_result.auction)
-        self.assertTrue(get_result.deleted)
+        self.assertIsNone(auction)
 
 
 if __name__ == "__main__":

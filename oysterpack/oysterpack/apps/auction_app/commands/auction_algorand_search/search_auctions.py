@@ -73,7 +73,6 @@ class SearchAuctions(
             next_page=args.next_token,
         )
 
-        current_round = result["current-round"]
         next_token = result.setdefault("next-token", None)
 
         def to_auction(app: dict[str, Any]) -> Auction:
@@ -103,10 +102,8 @@ class SearchAuctions(
             return Auction(
                 app_id=AppId(app["id"]),
                 auction_manager_app_id=args.auction_manager_app_id,
-                created_at_round=app["created-at-round"],
                 state=state,
                 assets=get_auction_assets(AppId(app["id"]), state.bid_asset_id),
-                round=current_round,
             )
 
         auctions = [to_auction(app) for app in result["applications"]]

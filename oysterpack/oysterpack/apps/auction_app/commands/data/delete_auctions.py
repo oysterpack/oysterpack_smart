@@ -21,7 +21,7 @@ class DeleteAuctions(
     """
 
     def __call__(self, auction_app_ids: list[AppId]):
-        with self.session_factory.begin() as session:
+        with self._session_factory.begin() as session:
             session.execute(
                 delete(TAuction).where(TAuction.app_id.in_(auction_app_ids))
             )

@@ -2,6 +2,7 @@ import unittest
 from typing import cast
 
 from algosdk.account import generate_account
+from algosdk.logic import get_application_address
 from sqlalchemy import create_engine, select, func, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, sessionmaker, close_all_sessions
@@ -45,7 +46,12 @@ class AuctionORMTestCase(AlgorandTestCase):
         # create
         with self.Session.begin() as session:  # pylint: disable=no-member
             auction_manager_app_id = AppId(100)
-            session.add(TAuctionManager(auction_manager_app_id))
+            session.add(
+                TAuctionManager(
+                    auction_manager_app_id,
+                    get_application_address(auction_manager_app_id),
+                )
+            )
 
             for i in range(1, 101):
                 with session.begin_nested():

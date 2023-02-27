@@ -41,7 +41,7 @@ class StoreAuctions(
         inserts = 0
         updates = 0
 
-        with self.session_factory.begin() as session:
+        with self._session_factory.begin() as session:
             for auction in auctions:
                 existing_auction: TAuction | None = session.get(
                     TAuction, auction.app_id

@@ -16,7 +16,7 @@ class GetMaxAuctionAppId(Command[AuctionManagerAppId, AppId | None], SqlAlchemyS
         # E1102: func.max is not callable (not-callable)
         # pylint: disable=not-callable
 
-        with self.session_factory() as session:
+        with self._session_factory() as session:
             query = select(func.max(TAuction.app_id)).where(
                 TAuction.auction_manager_app_id == auction_manager_app_id
             )

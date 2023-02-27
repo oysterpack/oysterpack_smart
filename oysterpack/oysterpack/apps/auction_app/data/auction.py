@@ -28,6 +28,7 @@ class TAuctionManager(Base):
     __tablename__ = "auction_manager"
 
     app_id: Mapped[AppId] = mapped_column(primary_key=True)
+    address: Mapped[Address] = mapped_column(unique=True)
 
 
 class TAuction(Base):

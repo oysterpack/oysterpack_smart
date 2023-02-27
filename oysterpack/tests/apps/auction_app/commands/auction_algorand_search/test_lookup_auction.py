@@ -1,6 +1,8 @@
 import unittest
 
 from beaker import sandbox
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, close_all_sessions
 
 from oysterpack.algorand.client.model import Address
 from oysterpack.apps.auction_app.client.auction_manager_client import (
@@ -8,13 +10,26 @@ from oysterpack.apps.auction_app.client.auction_manager_client import (
 )
 from oysterpack.apps.auction_app.commands.auction_algorand_search.lookup_auction import (
     LookupAuction,
-    LookupAuctionRequest,
 )
-from oysterpack.apps.auction_app.domain.auction import AuctionAppId, AuctionManagerAppId
+from oysterpack.apps.auction_app.commands.data.queries.lookup_auction_manager import (
+    LookupAuctionManager,
+)
+from oysterpack.apps.auction_app.data import Base
+from oysterpack.apps.auction_app.domain.auction import AuctionAppId
 from tests.algorand.test_support import AlgorandTestCase
+from tests.apps.auction_app.commands.data import store_auction_manager_app_id
 
 
 class LookupTestCase(AlgorandTestCase):
+    def setUp(self) -> None:
+        self.engine = create_engine("sqlite:///:memory:", echo=False)
+        Base.metadata.create_all(self.engine)
+
+        self.session_factory: sessionmaker = sessionmaker(self.engine)
+
+    def tearDown(self) -> None:
+        close_all_sessions()
+
     def test_lookup_auction(self):
         # SETUP
         accounts = sandbox.get_accounts()
@@ -29,14 +44,14 @@ class LookupTestCase(AlgorandTestCase):
         seller_auction_manager_client = creator_app_client.copy(
             sender=Address(seller.address), signer=seller.signer
         )
-
-        lookup_auction = LookupAuction(self.algod_client)
-        auction = lookup_auction(
-            LookupAuctionRequest(
-                AuctionAppId(99999999999),
-                AuctionManagerAppId(creator_app_client.app_id),
-            )
+        store_auction_manager_app_id(
+            self.session_factory, seller_auction_manager_client.app_id
         )
+
+        lookup_auction = LookupAuction(
+            self.algod_client, LookupAuctionManager(self.session_factory)
+        )
+        auction = lookup_auction(AuctionAppId(99999999999))
         self.assertIsNone(auction)
 
         seller_app_client = seller_auction_manager_client.create_auction()
@@ -66,12 +81,7 @@ class LookupTestCase(AlgorandTestCase):
         seller_app_client.deposit_asset(gold_asset_id, 10_000)
 
         # ACT
-        auction = lookup_auction(
-            LookupAuctionRequest(
-                AuctionAppId(seller_app_client.app_id),
-                AuctionManagerAppId(creator_app_client.app_id),
-            )
-        )
+        auction = lookup_auction(AuctionAppId(seller_app_client.app_id))
         self.assertEqual(seller_app_client.app_id, auction.app_id)
 
         # cancel, finalize, and delete the auction
@@ -79,12 +89,7 @@ class LookupTestCase(AlgorandTestCase):
         seller_app_client.finalize()
         creator_app_client.delete_finalized_auction(seller_app_client.app_id)
 
-        auction = lookup_auction(
-            LookupAuctionRequest(
-                AuctionAppId(seller_app_client.app_id),
-                AuctionManagerAppId(creator_app_client.app_id),
-            )
-        )
+        auction = lookup_auction(AuctionAppId(seller_app_client.app_id))
         self.assertIsNone(auction)
 
 

@@ -2,7 +2,6 @@
 Command that searches Algorand for auctions to import into the database
 """
 from builtins import NotImplementedError
-from dataclasses import dataclass
 
 from oysterpack.apps.auction_app.commands.auction_algorand_search.lookup_auction import (
     LookupAuction,
@@ -10,23 +9,12 @@ from oysterpack.apps.auction_app.commands.auction_algorand_search.lookup_auction
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
 from oysterpack.apps.auction_app.domain.auction import (
     AuctionAppId,
-    AuctionManagerAppId,
     Auction,
 )
 from oysterpack.core.command import Command
 
 
-@dataclass(slots=True)
-class ImportAuctionRequest:
-    """
-    ImportAuctionRequest
-    """
-
-    auction_manager_app_id: AuctionManagerAppId
-    auction_app_id: AuctionAppId
-
-
-class ImportAuction(Command[ImportAuctionRequest, Auction | None]):
+class ImportAuction(Command[AuctionAppId, Auction | None]):
     """
     Lookup the auction on Algorand and imports it into the database.
 
@@ -47,5 +35,5 @@ class ImportAuction(Command[ImportAuctionRequest, Auction | None]):
         self._store = store
         self._logger = super().get_logger()
 
-    def __call__(self, request: ImportAuctionRequest) -> Auction | None:
+    def __call__(self, request: AuctionAppId) -> Auction | None:
         raise NotImplementedError

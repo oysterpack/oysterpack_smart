@@ -1,8 +1,6 @@
 """
 Command used to retrieve Auction info from Algorand
 """
-import pprint
-from dataclasses import dataclass
 from typing import Any, cast
 
 from algosdk.error import AlgodHTTPError
@@ -12,28 +10,17 @@ from beaker.client.state_decode import decode_state
 
 from oysterpack.algorand.client.model import AppId, AssetId, AssetHolding
 from oysterpack.apps.auction_app.client.auction_client import to_auction_state
+from oysterpack.apps.auction_app.commands.data.queries.lookup_auction_manager import (
+    LookupAuctionManager,
+)
 from oysterpack.apps.auction_app.domain.auction import (
     AuctionAppId,
     Auction,
-    AuctionManagerAppId,
 )
 from oysterpack.core.command import Command
 
 
-@dataclass(slots=True)
-class LookupAuctionRequest:
-    """
-    LookupAuctionRequest
-    """
-
-    auction_app_id: AuctionAppId
-
-    # used to verify the auction creator, i.e.,
-    # the auction creator address must match the auction manager contract address
-    auction_manager_app_id: AuctionManagerAppId
-
-
-class LookupAuction(Command[LookupAuctionRequest, Auction | None]):
+class LookupAuction(Command[AuctionAppId, Auction | None]):
     """
     Tries to look up the auction on Algorand.
 
@@ -42,10 +29,15 @@ class LookupAuction(Command[LookupAuctionRequest, Auction | None]):
     1. auction creator address matches the expected auction manager
     """
 
-    def __init__(self, algod_client: AlgodClient):
+    def __init__(
+        self,
+        algod_client: AlgodClient,
+        lookup_auction_manager: LookupAuctionManager,
+    ):
         self._algod_client = algod_client
+        self._lookup_auction_manager = lookup_auction_manager
 
-    def __call__(self, request: LookupAuctionRequest) -> Auction | None:
+    def __call__(self, auction_app_id: AuctionAppId) -> Auction | None:
         def to_auction(app: dict[str, Any]) -> Auction:
             def get_auction_assets(
                 app_id: AppId,
@@ -71,25 +63,24 @@ class LookupAuction(Command[LookupAuctionRequest, Auction | None]):
                 )
             )
 
+            creator_address = app_info["params"]["creator"]
+            result = self._lookup_auction_manager(creator_address)
+            if result is None:
+                raise AssertionError(
+                    f"auction manager is not registered in the database: {creator_address}"
+                )
+
+            (auction_manager_app_id, _address) = result
+
             return Auction(
                 app_id=AppId(app["id"]),
-                auction_manager_app_id=request.auction_manager_app_id,
+                auction_manager_app_id=auction_manager_app_id,
                 state=state,
                 assets=get_auction_assets(AppId(app["id"]), state.bid_asset_id),
             )
 
         try:
-            app_info = self._algod_client.application_info(request.auction_app_id)
-            pprint.pp(app_info)
-
-            auction_manager_address = get_application_address(
-                request.auction_manager_app_id
-            )
-            if auction_manager_address != app_info["params"]["creator"]:
-                raise ValueError(
-                    "invalid `auction_manager_app_id` - does not match auction creator"
-                )
-
+            app_info = self._algod_client.application_info(auction_app_id)
             return to_auction(app_info)
 
         except AlgodHTTPError as err:

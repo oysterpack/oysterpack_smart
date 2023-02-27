@@ -15,4 +15,4 @@ class SqlAlchemySupport(ABC):
     # pylint: disable=too-few-public-methods
 
     def __init__(self, session_factory: sessionmaker):
-        self.session_factory = session_factory
+        self._session_factory = session_factory

@@ -352,7 +352,7 @@ class SearchAuctions(
 
         logger.debug("query: %s", query)
 
-        with self.session_factory() as session:
+        with self._session_factory() as session:
             return AuctionSearchResult(
                 total_count=session.scalar(count_query),
                 auctions=[auction.to_auction() for auction in session.scalars(query)],

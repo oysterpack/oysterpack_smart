@@ -2,6 +2,7 @@ from datetime import datetime, UTC, timedelta
 from typing import cast
 
 from algosdk.account import generate_account
+from algosdk.logic import get_application_address
 from sqlalchemy.orm import sessionmaker, Mapped
 
 from oysterpack.algorand.client.model import Address, AssetId, AppId
@@ -15,7 +16,12 @@ def store_auction_manager_app_id(session_factory: sessionmaker, app_id: AppId):
     with session_factory.begin() as session:
         auction_manager = session.get(TAuctionManager, app_id)
         if auction_manager is None:
-            session.add(TAuctionManager(cast(Mapped[AppId], app_id)))
+            session.add(
+                TAuctionManager(
+                    cast(Mapped[AppId], app_id),
+                    cast(Mapped[Address], get_application_address(app_id)),
+                )
+            )
 
 
 def create_auctions(

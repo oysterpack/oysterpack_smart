@@ -45,7 +45,9 @@ def verify_app(app_client: ApplicationClient):
 
 
 def verify_app_id(
-    app_id: AppId, app_precompile: AppPrecompile, algod_client: AlgodClient
+        app_id: AppId,
+        app_precompile: AppPrecompile,
+        algod_client: AlgodClient,
 ):
     """
     Verifies that the app ID references an app whose program binaries matches the specified AppPrecompile
@@ -91,7 +93,7 @@ class AppClient:
         self._app_client.build()
 
         # TODO: waiting on a beaker fix for this to work
-        # verify_app(app_client)
+        # verify_app(self._app_client)
 
     @property
     def contract_address(self) -> Address:

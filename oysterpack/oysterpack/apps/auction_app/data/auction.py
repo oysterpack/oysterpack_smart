@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, UTC
 from typing import cast, Optional
 
+from algosdk.logic import get_application_address
 from sqlalchemy import (
     ForeignKey,
 )
@@ -29,6 +30,13 @@ class TAuctionManager(Base):
 
     app_id: Mapped[AppId] = mapped_column(primary_key=True)
     address: Mapped[Address] = mapped_column(unique=True)
+
+    @classmethod
+    def create(cls, app_id: AppId) -> "TAuctionManager":
+        return TAuctionManager(
+            app_id=cast(Mapped[AppId], app_id),
+            address=cast(Mapped[Address], get_application_address(app_id)),
+        )
 
 
 class TAuction(Base):
@@ -222,10 +230,10 @@ class TAuctionAsset(Base):
 
     @classmethod
     def create(
-        cls,
-        auction_id: AppId,
-        asset_id: AssetId,
-        amount: int,
+            cls,
+            auction_id: AppId,
+            asset_id: AssetId,
+            amount: int,
     ) -> "TAuctionAsset":
         """
         Constructs a TAuctionAsset instance

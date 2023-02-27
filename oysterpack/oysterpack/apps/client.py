@@ -45,9 +45,9 @@ def verify_app(app_client: ApplicationClient):
 
 
 def verify_app_id(
-        app_id: AppId,
-        app_precompile: AppPrecompile,
-        algod_client: AlgodClient,
+    app_id: AppId,
+    app_precompile: AppPrecompile,
+    algod_client: AlgodClient,
 ):
     """
     Verifies that the app ID references an app whose program binaries matches the specified AppPrecompile

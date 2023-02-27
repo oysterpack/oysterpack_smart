@@ -19,6 +19,7 @@ from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.auction_app.data import Base
 from oysterpack.apps.auction_app.domain.auction import Auction
 from tests.apps.auction_app.commands.data import create_auctions
+from tests.apps.auction_app.commands.data import store_auction_manager_app_id
 from tests.test_support import OysterPackTestCase
 
 
@@ -38,6 +39,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         logger = super().get_logger("test_search_with_no_filters_no_sorts")
         auction_count = 101
         auctions = create_auctions(auction_count)
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
         self.store_auctions(auctions)
 
         # page through auctions
@@ -71,6 +75,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         logger = super().get_logger("test_previous_page_navigation")
         auction_count = 101
         auctions = create_auctions(auction_count)
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
         self.store_auctions(auctions)
 
         search_request = AuctionSearchRequest(limit=10, offset=auction_count - 1)
@@ -94,6 +101,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
     def test_goto_navigation(self):
         auction_count = 101
         auctions = create_auctions(auction_count)
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
         self.store_auctions(auctions)
 
         search_request = AuctionSearchRequest(limit=10, offset=auction_count - 1)
@@ -126,6 +136,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         logger = super().get_logger("test_search_sort_with_no_filters")
         auction_count = 100
         auctions = create_auctions(auction_count)
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
         self.store_auctions(auctions)
 
         # page through auctions
@@ -167,6 +180,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
     def test_filters(self):
         auction_count = 100
         auctions = create_auctions(auction_count)
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
         self.store_auctions(auctions)
 
         auction_ids = [auction.app_id for auction in auctions]
@@ -228,6 +244,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         with self.subTest("single seller filter"):
             _private_key, seller_1 = generate_account()
             auctions = create_auctions(5, seller=Address(seller_1))
+            store_auction_manager_app_id(
+                self.session_factory, auctions[0].auction_manager_app_id
+            )
             self.store_auctions(auctions)
 
             search_request = AuctionSearchRequest(
@@ -241,6 +260,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         with self.subTest("multiple seller filter"):
             _private_key, seller_2 = generate_account()
             auctions = create_auctions(10, seller=Address(seller_1))
+            store_auction_manager_app_id(
+                self.session_factory, auctions[0].auction_manager_app_id
+            )
             self.store_auctions(auctions)
             # updates the first 5 to seller_2
             auctions = create_auctions(5, seller=Address(seller_2))
@@ -275,6 +297,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
                     for auction in auctions
                     if auction.state.bid_asset_id == bid_asset_id
                 ]
+            )
+            store_auction_manager_app_id(
+                self.session_factory, auctions[0].auction_manager_app_id
             )
             self.store_auctions(auctions)
             auction_app_id_start_at += bid_asset_id
@@ -313,6 +338,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             auction_app_id_start_at: int,
         ):
             def update_counts(auctions: list[Auction]):
+                store_auction_manager_app_id(
+                    self.session_factory, auctions[0].auction_manager_app_id
+                )
                 result = self.store_auctions(auctions)
                 logger.info(result)
                 for auction in auctions:
@@ -427,7 +455,6 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             highest_bidder=Address(highest_bidder_1),
             auction_app_id_start_at=1,
         )
-        self.store_auctions(auctions)
 
         _private_key_2, highest_bidder_2 = generate_account()
         auctions += create_auctions(
@@ -435,13 +462,15 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             highest_bidder=Address(highest_bidder_2),
             auction_app_id_start_at=11,
         )
-        self.store_auctions(auctions)
 
         _private_key_3, highest_bidder_3 = generate_account()
         auctions += create_auctions(
             count=20,
             highest_bidder=Address(highest_bidder_3),
             auction_app_id_start_at=31,
+        )
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
         )
         self.store_auctions(auctions)
 
@@ -504,6 +533,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             highest_bid=3000,
             auction_app_id_start_at=31,
         )
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
         self.store_auctions(auctions)
 
         for highest_bid in [1000, 2000, 3000]:
@@ -534,6 +566,12 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         auctions += create_auctions(
             count=20, start_time=start_time, auction_app_id_start_at=11
         )
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
         self.store_auctions(auctions)
 
         for start_time_filter in [now, now + timedelta(hours=1), start_time]:
@@ -560,6 +598,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
         end_time_2 = end_time_1 + timedelta(days=1)
         auctions += create_auctions(
             count=20, end_time=end_time_2, auction_app_id_start_at=11
+        )
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
         )
         self.store_auctions(auctions)
 
@@ -597,6 +638,9 @@ class SearchAuctionsTestCase(OysterPackTestCase):
             assets={AssetId(300): 350, AssetId(400): 400},
             count=30,
             auction_app_id_start_at=31,
+        )
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
         )
         self.store_auctions(auctions)
 

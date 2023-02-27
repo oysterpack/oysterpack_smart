@@ -1,11 +1,11 @@
 """
 Auction data model
 """
+from dataclasses import dataclass
 from datetime import datetime, UTC
 from typing import cast, Optional
 
 from sqlalchemy import (
-    String,
     ForeignKey,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,6 +15,19 @@ from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.auction_app.data import Base
 from oysterpack.apps.auction_app.domain.auction import Auction
 from oysterpack.apps.auction_app.domain.auction_state import AuctionState
+
+
+@dataclass
+class TAuctionManager(Base):
+    """
+    AuctionManager database table model.
+
+    Used to store the valid set of AuctionManager app IDs that are supported by the app.
+    """
+
+    __tablename__ = "auction_manager"
+
+    app_id: Mapped[AppId] = mapped_column(primary_key=True)
 
 
 class TAuction(Base):
@@ -29,7 +42,10 @@ class TAuction(Base):
     app_id: Mapped[AppId] = mapped_column(primary_key=True)
 
     # auction creator
-    auction_manager_app_id: Mapped[AppId] = mapped_column(String(58), index=True)
+    auction_manager_app_id: Mapped[AppId] = mapped_column(
+        ForeignKey("auction_manager.app_id"),
+        index=True,
+    )
 
     # when the record was last updated in the database
     updated_at: Mapped[int] = mapped_column(index=True)  # epoch time

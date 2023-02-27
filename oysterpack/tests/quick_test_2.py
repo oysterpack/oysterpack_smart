@@ -9,7 +9,9 @@ from beaker import (
     external,
     AppPrecompile,
     create,
-    sandbox, Authorize, delete,
+    sandbox,
+    Authorize,
+    delete,
 )
 from beaker.application import get_method_signature
 from beaker.client import ApplicationClient
@@ -25,7 +27,8 @@ from pyteal import (
     Assert,
     InnerTxnBuilder,
     InnerTxn,
-    Txn, )
+    Txn,
+)
 from pyteal.ast import abi
 
 from tests.algorand.test_support import AlgorandTestCase
@@ -103,7 +106,9 @@ class Bar(Application):
     def create(self, owner: abi.Account) -> Expr:
         return Approve()
 
-    @delete(authorize=Authorize.only(Global.creator_address()))  # IF YOU COMMENT THIS OUT THEN THE TEST PASSES ???
+    @delete(
+        authorize=Authorize.only(Global.creator_address())
+    )  # IF YOU COMMENT THIS OUT THEN THE TEST PASSES ???
     def delete(self) -> Expr:
         return Seq(
             # assert that the app has opted out of all assets
@@ -132,9 +137,9 @@ class Foo(Application):
 
     @external
     def create_bar(
-            self,
-            *,
-            output: abi.Uint64,
+        self,
+        *,
+        output: abi.Uint64,
     ) -> Expr:
         return Seq(
             InnerTxnBuilder.ExecuteMethodCall(
@@ -154,19 +159,23 @@ class MyTestCase(AlgorandTestCase):
             sandbox.get_algod_client(), Foo(), signer=account.signer
         )
 
-        foo_id = foo_client.create()
+        foo_client.create()
         foo_client.fund(1_000_000)
 
         bar_app_id = foo_client.call(Foo.create_bar).return_value
         print("bar_app_id=", bar_app_id)
 
-        bar_client = ApplicationClient(sandbox.get_algod_client(), Bar(),app_id=bar_app_id, signer=account.signer)
+        bar_client = ApplicationClient(
+            sandbox.get_algod_client(), Bar(), app_id=bar_app_id, signer=account.signer
+        )
         verify_app(bar_client)
 
     def test_create_bar_directly(self):
         account = sandbox.get_accounts().pop()
 
-        bar_client = ApplicationClient(sandbox.get_algod_client(), Bar(), signer=account.signer)
+        bar_client = ApplicationClient(
+            sandbox.get_algod_client(), Bar(), signer=account.signer
+        )
         bar_app_id = bar_client.create(owner=account.address)
         print("bar_app_id=", bar_app_id)
 

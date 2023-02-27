@@ -11,6 +11,7 @@ from oysterpack.apps.auction_app.commands.data.queries.get_max_auction_app_id im
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
 from oysterpack.apps.auction_app.data import Base
 from tests.apps.auction_app.commands.data import create_auctions
+from tests.apps.auction_app.commands.data import store_auction_manager_app_id
 from tests.test_support import OysterPackTestCase
 
 
@@ -36,6 +37,8 @@ class MyTestCase(OysterPackTestCase):
             count=20,
             auction_app_id_start_at=11,
         )
+        store_auction_manager_app_id(self.session_factory, AppId(100))
+        store_auction_manager_app_id(self.session_factory, AppId(200))
         self.store_auctions(auctions)
 
         self.assertIsNone(self.get_max_auction_app_id(AuctionManagerAppId(10)))

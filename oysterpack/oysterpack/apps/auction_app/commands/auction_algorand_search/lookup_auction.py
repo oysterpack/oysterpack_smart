@@ -7,13 +7,11 @@ from typing import Any, cast
 
 from algosdk.error import AlgodHTTPError
 from algosdk.logic import get_application_address
+from algosdk.v2client.algod import AlgodClient
 from beaker.client.state_decode import decode_state
 
 from oysterpack.algorand.client.model import AppId, AssetId, AssetHolding
 from oysterpack.apps.auction_app.client.auction_client import to_auction_state
-from oysterpack.apps.auction_app.commands.auction_algorand_search.search_support import (
-    AuctionAlgorandSearchSupport,
-)
 from oysterpack.apps.auction_app.domain.auction import (
     AuctionAppId,
     Auction,
@@ -35,18 +33,17 @@ class LookupAuctionRequest:
     auction_manager_app_id: AuctionManagerAppId
 
 
-class LookupAuction(
-    Command[LookupAuctionRequest, Auction | None],
-    AuctionAlgorandSearchSupport,
-):
+class LookupAuction(Command[LookupAuctionRequest, Auction | None]):
     """
-    Runs an Algorand indexer search to lookup up the auction.
-    Deletes are detected.
+    Tries to look up the auction on Algorand.
 
     Asserts
     -------
     1. auction creator address matches the expected auction manager
     """
+
+    def __init__(self, algod_client: AlgodClient):
+        self._algod_client = algod_client
 
     def __call__(self, request: LookupAuctionRequest) -> Auction | None:
         def to_auction(app: dict[str, Any]) -> Auction:

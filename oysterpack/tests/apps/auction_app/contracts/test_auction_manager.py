@@ -163,7 +163,7 @@ class AuctionManagerTestCase(AlgorandTestCase):
             signer=creator.signer,
         )
         seller_app_client = auction_manager_client.copy(signer=seller.signer)
-        
+
         with self.subTest("AuctionManager has not yet deleted finalized any auctions"):
             self.assertIsNone(auction_manager_client.withdraw())
 

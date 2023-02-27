@@ -30,7 +30,7 @@ class LookupTestCase(AlgorandTestCase):
             sender=Address(seller.address), signer=seller.signer
         )
 
-        lookup_auction = LookupAuction(self.indexer, self.algod_client)
+        lookup_auction = LookupAuction(self.algod_client)
         auction = lookup_auction(
             LookupAuctionRequest(
                 AuctionAppId(99999999999),

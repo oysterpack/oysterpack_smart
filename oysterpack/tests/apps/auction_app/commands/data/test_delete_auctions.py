@@ -8,6 +8,7 @@ from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctio
 from oysterpack.apps.auction_app.data import Base
 from oysterpack.apps.auction_app.data.auction import TAuction, TAuctionAsset
 from tests.apps.auction_app.commands.data import create_auctions
+from tests.apps.auction_app.commands.data import store_auction_manager_app_id
 
 
 class DeleteAuctionsTestCase(unittest.TestCase):
@@ -27,6 +28,9 @@ class DeleteAuctionsTestCase(unittest.TestCase):
 
         # insert auctions
         auctions = create_auctions()
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
         result = self.store_auctions(auctions)
         self.assertEqual(len(auctions), result.inserts)
         self.assertEqual(0, result.updates)

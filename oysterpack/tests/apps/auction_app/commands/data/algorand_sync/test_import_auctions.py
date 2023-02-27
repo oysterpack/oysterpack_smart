@@ -23,9 +23,10 @@ from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctio
 from oysterpack.apps.auction_app.data import Base
 from oysterpack.apps.auction_app.data.auction import TAuction
 from tests.algorand.test_support import AlgorandTestCase
+from tests.apps.auction_app.commands.data import store_auction_manager_app_id
 
 
-class MyTestCase(AlgorandTestCase):
+class ImportAuctionsTestCase(AlgorandTestCase):
     def setUp(self) -> None:
         self.setup_database()
         self.setup_contracts()
@@ -46,6 +47,10 @@ class MyTestCase(AlgorandTestCase):
         self.creator_auction_manager_client = create_auction_manager(
             algod_client=self.algod_client,
             signer=creator.signer,
+        )
+
+        store_auction_manager_app_id(
+            self.session_factory, self.creator_auction_manager_client.app_id
         )
 
         self.seller_auction_manager_client = self.creator_auction_manager_client.copy(

@@ -9,7 +9,12 @@ from sqlalchemy.orm import Mapped, sessionmaker, close_all_sessions
 from oysterpack.algorand.client.model import AssetId, Address, AppId
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.auction_app.data.asset_info import TAssetInfo
-from oysterpack.apps.auction_app.data.auction import Base, TAuction, TAuctionAsset
+from oysterpack.apps.auction_app.data.auction import (
+    Base,
+    TAuction,
+    TAuctionAsset,
+    TAuctionManager,
+)
 from oysterpack.apps.auction_app.domain.auction import Auction
 from oysterpack.apps.auction_app.domain.auction_state import AuctionState
 from tests.algorand.test_support import AlgorandTestCase
@@ -39,6 +44,9 @@ class AuctionORMTestCase(AlgorandTestCase):
 
         # create
         with self.Session.begin() as session:  # pylint: disable=no-member
+            auction_manager_app_id = AppId(100)
+            session.add(TAuctionManager(auction_manager_app_id))
+
             for i in range(1, 101):
                 with session.begin_nested():
                     session.add(
@@ -69,7 +77,7 @@ class AuctionORMTestCase(AlgorandTestCase):
             for i in range(1, 11):
                 auction = Auction(
                     app_id=AppId(1 + i),
-                    auction_manager_app_id=AppId(2 + i),
+                    auction_manager_app_id=auction_manager_app_id,
                     state=AuctionState(
                         seller=Address(seller),
                         status=AuctionStatus.NEW,

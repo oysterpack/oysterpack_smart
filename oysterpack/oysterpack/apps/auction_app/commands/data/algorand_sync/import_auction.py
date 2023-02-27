@@ -3,46 +3,39 @@ Command that searches Algorand for auctions to import into the database
 """
 from builtins import NotImplementedError
 from dataclasses import dataclass
-from datetime import datetime, timedelta
 
 from oysterpack.apps.auction_app.commands.auction_algorand_search.lookup_auction import (
     LookupAuction,
 )
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
-from oysterpack.apps.auction_app.domain.auction import AuctionAppId, AuctionManagerAppId
+from oysterpack.apps.auction_app.domain.auction import (
+    AuctionAppId,
+    AuctionManagerAppId,
+    Auction,
+)
 from oysterpack.core.command import Command
 
 
 @dataclass(slots=True)
 class ImportAuctionRequest:
-    auction_app_id: AuctionAppId
+    """
+    ImportAuctionRequest
+    """
+
     auction_manager_app_id: AuctionManagerAppId
+    auction_app_id: AuctionAppId
 
 
-@dataclass(slots=True)
-class ImportAuctionResult:
-    """
-    ImportAuctionResult
-    """
-
-    insert_count: int
-    update_count: int
-
-    start_time: datetime
-    end_time: datetime
-
-    error: Exception | None = None
-
-    @property
-    def import_duration(self) -> timedelta:
-        return self.end_time - self.start_time
-
-
-class ImportAuction(Command[ImportAuctionRequest, ImportAuctionResult]):
+class ImportAuction(Command[ImportAuctionRequest, Auction | None]):
     """
     Lookup the auction on Algorand and imports it into the database.
-    Deletes are handled as well, i.e., if the auction was deleted on Algorand, then it will be deleted from
-    the database.
+
+    Notes
+    -----
+    - If the auction does not exist on Algorand, but exists in the database, then it will be deleted from the database.
+    - If the auction exists in Algorand, then it will be either inserted or updated in the database.
+
+
     """
 
     def __init__(
@@ -54,9 +47,5 @@ class ImportAuction(Command[ImportAuctionRequest, ImportAuctionResult]):
         self._store = store
         self._logger = super().get_logger()
 
-    def __call__(self, request: ImportAuctionRequest) -> ImportAuctionResult:
-        # start_time = datetime.now(UTC)
-        # insert_count = 0
-        # update_count = 0
-
+    def __call__(self, request: ImportAuctionRequest) -> Auction | None:
         raise NotImplementedError

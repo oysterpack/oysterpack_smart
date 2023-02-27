@@ -8,6 +8,7 @@ from oysterpack.apps.auction_app.data import Base
 from oysterpack.apps.auction_app.data.auction import TAuction, TAuctionAsset
 from oysterpack.apps.auction_app.domain.auction import Auction
 from tests.apps.auction_app.commands.data import create_auctions
+from tests.apps.auction_app.commands.data import store_auction_manager_app_id
 
 
 class StoreTestCase(unittest.TestCase):
@@ -26,6 +27,9 @@ class StoreTestCase(unittest.TestCase):
         # pylint: disable=too-many-function-args
 
         auctions = create_auctions()
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
         result = self.store_auctions(auctions)
         self.assertEqual(len(auctions), result.inserts)
         self.assertEqual(0, result.updates)
@@ -78,6 +82,9 @@ class StoreTestCase(unittest.TestCase):
 
         # insert auctions
         auctions = create_auctions()
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
         result = self.store_auctions(auctions)
         self.assertEqual(len(auctions), result.inserts)
         self.assertEqual(0, result.updates)
@@ -125,6 +132,9 @@ class StoreTestCase(unittest.TestCase):
 
     def test_searching_and_paging_auctions(self):
         auctions = create_auctions()
+        store_auction_manager_app_id(
+            self.session_factory, auctions[0].auction_manager_app_id
+        )
         self.store_auctions(auctions)
 
         page_size = 10

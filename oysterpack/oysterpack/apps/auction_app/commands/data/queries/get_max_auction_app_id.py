@@ -1,3 +1,6 @@
+"""
+Provides command to retrieve the max AuctionAppId.
+"""
 from sqlalchemy import select, func
 
 from oysterpack.algorand.client.model import AppId

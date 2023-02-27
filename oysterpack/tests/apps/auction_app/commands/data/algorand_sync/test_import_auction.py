@@ -1,5 +1,4 @@
 import unittest
-from time import sleep
 
 from beaker import sandbox
 from sqlalchemy import create_engine, select, func
@@ -9,24 +8,26 @@ from oysterpack.algorand.client.model import Address
 from oysterpack.apps.auction_app.client.auction_manager_client import (
     create_auction_manager,
 )
-from oysterpack.apps.auction_app.commands.auction_algorand_search.search_auctions import (
-    SearchAuctions,
+from oysterpack.apps.auction_app.commands.auction_algorand_search.lookup_auction import (
+    LookupAuction,
 )
-from oysterpack.apps.auction_app.commands.data.algorand_sync.import_auctions import (
-    ImportAuctions,
-    ImportAuctionsRequest,
+from oysterpack.apps.auction_app.commands.data.algorand_sync.import_auction import (
+    ImportAuction,
 )
-from oysterpack.apps.auction_app.commands.data.queries.get_max_auction_app_id import (
-    GetMaxAuctionAppId,
+from oysterpack.apps.auction_app.commands.data.delete_auctions import DeleteAuctions
+from oysterpack.apps.auction_app.commands.data.queries.get_auction import GetAuction
+from oysterpack.apps.auction_app.commands.data.queries.lookup_auction_manager import (
+    LookupAuctionManager,
 )
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
 from oysterpack.apps.auction_app.data import Base
 from oysterpack.apps.auction_app.data.auction import TAuction
 from tests.algorand.test_support import AlgorandTestCase
+from tests.apps.auction_app.commands.data import create_auctions
 from tests.apps.auction_app.commands.data import register_auction_manager
 
 
-class ImportAuctionsTestCase(AlgorandTestCase):
+class ImportAuctionTestCase(AlgorandTestCase):
     def setUp(self) -> None:
         self.setup_database()
         self.setup_contracts()
@@ -37,7 +38,17 @@ class ImportAuctionsTestCase(AlgorandTestCase):
 
         self.session_factory = sessionmaker(self.engine)
         self.store_auctions = StoreAuctions(self.session_factory)
-        self.get_max_auction_app_id = GetMaxAuctionAppId(self.session_factory)
+        self.lookup_auction_manager = LookupAuctionManager(self.session_factory)
+        self.lookup_auction = LookupAuction(
+            self.algod_client, self.lookup_auction_manager
+        )
+        self.delete_auctions = DeleteAuctions(self.session_factory)
+        self.import_auction = ImportAuction(
+            lookup=self.lookup_auction,
+            store=self.store_auctions,
+            delete=self.delete_auctions,
+        )
+        self.get_auction = GetAuction(self.session_factory)
 
     def setup_contracts(self):
         accounts = sandbox.get_accounts()
@@ -63,50 +74,35 @@ class ImportAuctionsTestCase(AlgorandTestCase):
             self.app_ids.append(
                 self.seller_auction_manager_client.create_auction().app_id
             )
-        sleep(1)  # give the indexer time to index
 
     def tearDown(self) -> None:
         close_all_sessions()
 
     def test_import_auctions(self):
-        logger = self.get_logger("test_import_auctions")
-        import_auctions = ImportAuctions(
-            search=SearchAuctions(
-                indexer_client=self.indexer, algod_client=self.algod_client
-            ),
-            store=self.store_auctions,
-            get_max_auction_app_id=self.get_max_auction_app_id,
-        )
+        for auction_app_id in self.app_ids:
+            self.import_auction(auction_app_id)
 
-        import_auctions_request = ImportAuctionsRequest(
-            auction_manager_app_id=self.seller_auction_manager_client.app_id,
-            algorand_search_limit=2,
-        )
-        import_auctions_result = import_auctions(import_auctions_request)
-        logger.info(import_auctions_result)
-        self.assertEqual(5, import_auctions_result.count)
         with self.session_factory() as session:
             # pylint: disable=not-callable
             auction_count = session.scalar(select(func.count(TAuction.app_id)))
             self.assertEqual(len(self.app_ids), auction_count)
 
-        # create more auctions
-        for _ in range(5):
-            self.app_ids.append(
-                self.seller_auction_manager_client.create_auction().app_id
+        with self.subTest("Auction exists in database but not on Algorand"):
+            # SETUP
+            # create auction directly in the database
+            auctions = create_auctions(
+                auction_manager_app_id=self.creator_auction_manager_client.app_id,
+                auction_app_id_start_at=999999,
+                count=1,
             )
-        sleep(1)  # give the indexer time to index
-
-        import_auctions_result = import_auctions(import_auctions_request)
-        logger.info(import_auctions_result)
-        self.assertEqual(5, import_auctions_result.count)
-        with self.session_factory() as session:
-            # pylint: disable=not-callable
-            auction_count = session.scalar(select(func.count(TAuction.app_id)))
-            self.assertEqual(len(self.app_ids), auction_count)
-
-            for auction in session.scalars(select(TAuction)):
-                self.assertIn(auction.app_id, self.app_ids)
+            self.store_auctions(auctions)
+            # verify that the auction exists in the database
+            self.assertIsNotNone(self.get_auction(auctions[0].app_id))
+            # when the auction does not exist on Algorand, but exists in the database
+            # then the import will delete the auction from the database
+            self.import_auction(auctions[0].app_id)
+            # verify that the auction was deleted from the database
+            self.assertIsNone(self.get_auction(auctions[0].app_id))
 
 
 if __name__ == "__main__":

@@ -33,6 +33,10 @@ class TAuctionManager(Base):
 
     @classmethod
     def create(cls, app_id: AppId) -> "TAuctionManager":
+        """
+        :param app_id: AuctionManager AppId
+        :return: TAuctionManager
+        """
         return TAuctionManager(
             app_id=cast(Mapped[AppId], app_id),
             address=cast(Mapped[Address], get_application_address(app_id)),
@@ -230,10 +234,10 @@ class TAuctionAsset(Base):
 
     @classmethod
     def create(
-            cls,
-            auction_id: AppId,
-            asset_id: AssetId,
-            amount: int,
+        cls,
+        auction_id: AppId,
+        asset_id: AssetId,
+        amount: int,
     ) -> "TAuctionAsset":
         """
         Constructs a TAuctionAsset instance

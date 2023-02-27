@@ -1,27 +1,19 @@
 from datetime import datetime, UTC, timedelta
-from typing import cast
 
 from algosdk.account import generate_account
-from algosdk.logic import get_application_address
-from sqlalchemy.orm import sessionmaker, Mapped
+from sqlalchemy.orm import sessionmaker
 
 from oysterpack.algorand.client.model import Address, AssetId, AppId
+from oysterpack.apps.auction_app.commands.data.register_auction_manager import (
+    RegisterAuctionManager,
+)
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
-from oysterpack.apps.auction_app.data.auction import TAuctionManager
-from oysterpack.apps.auction_app.domain.auction import Auction
+from oysterpack.apps.auction_app.domain.auction import Auction, AuctionManagerAppId
 from oysterpack.apps.auction_app.domain.auction_state import AuctionState
 
 
-def store_auction_manager_app_id(session_factory: sessionmaker, app_id: AppId):
-    with session_factory.begin() as session:
-        auction_manager = session.get(TAuctionManager, app_id)
-        if auction_manager is None:
-            session.add(
-                TAuctionManager(
-                    cast(Mapped[AppId], app_id),
-                    cast(Mapped[Address], get_application_address(app_id)),
-                )
-            )
+def register_auction_manager(session_factory: sessionmaker, app_id: AppId):
+    RegisterAuctionManager(session_factory)(AuctionManagerAppId(app_id))
 
 
 def create_auctions(

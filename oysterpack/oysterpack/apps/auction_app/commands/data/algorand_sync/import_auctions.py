@@ -1,5 +1,5 @@
 """
-Command that searches Algorand for auctions to import into the database
+Provides Command that searches Algorand for auctions to import into the database
 """
 from dataclasses import dataclass
 from datetime import datetime, UTC, timedelta
@@ -44,6 +44,9 @@ class ImportAuctionsResult:
 
     @property
     def import_duration(self) -> timedelta:
+        """
+        :return: import duration
+        """
         return self.end_time - self.start_time
 
 
@@ -108,7 +111,7 @@ class ImportAuctions(Command[ImportAuctionsRequest, ImportAuctionsResult]):
                 start_time=start_time,
                 end_time=datetime.now(UTC),
             )
-        except Exception as err:
+        except Exception as err:  # pylint: disable=broad-exception-caught
             return ImportAuctionsResult(
                 count=count,
                 start_time=start_time,

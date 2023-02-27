@@ -33,4 +33,7 @@ class Auction:
 
     @property
     def auction_manager_app_address(self) -> Address:
+        """
+        :return: AuctionManager application address that corresponds to its app ID
+        """
         return Address(get_application_address(self.auction_manager_app_id))

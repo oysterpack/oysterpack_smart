@@ -2,16 +2,12 @@
 Provides command support for searching Auctions
 """
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import cast
 
 from algosdk.logic import get_application_address
-from beaker.client.state_decode import decode_state
 
-from oysterpack.algorand.client.model import AppId, AssetId, AssetHolding, Address
-from oysterpack.apps.auction_app.client.auction_client import (
-    to_auction_state,
-)
-from oysterpack.apps.auction_app.commands.auction_algorand_search.search_support import (
+from oysterpack.algorand.client.model import AppId, Address
+from oysterpack.apps.auction_app.commands.auction_algorand_search import (
     AuctionAlgorandSearchSupport,
 )
 from oysterpack.apps.auction_app.domain.auction import Auction
@@ -75,38 +71,14 @@ class SearchAuctions(
 
         next_token = result.setdefault("next-token", None)
 
-        def to_auction(app: dict[str, Any]) -> Auction:
-            def get_auction_assets(
-                app_id: AppId,
-                bid_asset_id: AssetId | None,
-            ) -> dict[AssetId, int]:
-                app_address = get_application_address(app_id)
-                auction_assets = [
-                    AssetHolding.from_data(asset)
-                    for asset in self._algod_client.account_info(app_address)["assets"]
-                    if asset["asset-id"] != bid_asset_id
-                ]
-
-                return {
-                    asset_holding.asset_id: asset_holding.amount
-                    for asset_holding in auction_assets
-                }
-
-            state = to_auction_state(
-                cast(
-                    dict[bytes | str, bytes | str | int],
-                    decode_state(app["params"]["global-state"]),
-                )
+        auctions = [
+            AuctionAlgorandSearchSupport.to_auction(
+                app,
+                self._algod_client,
+                args.auction_manager_app_id,
             )
-
-            return Auction(
-                app_id=AppId(app["id"]),
-                auction_manager_app_id=args.auction_manager_app_id,
-                state=state,
-                assets=get_auction_assets(AppId(app["id"]), state.bid_asset_id),
-            )
-
-        auctions = [to_auction(app) for app in result["applications"]]
+            for app in result["applications"]
+        ]
         return AuctionSearchResult(
             auctions=auctions,
             next_token=cast(str | None, next_token),

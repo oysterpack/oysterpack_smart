@@ -3,21 +3,23 @@ import unittest
 from sqlalchemy import create_engine, select, func, text
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
+from oysterpack.apps.auction_app.commands.data.queries.get_auction import GetAuction
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
 from oysterpack.apps.auction_app.data import Base
 from oysterpack.apps.auction_app.data.auction import TAuction, TAuctionAsset
 from oysterpack.apps.auction_app.domain.auction import Auction
 from tests.apps.auction_app.commands.data import create_auctions
-from tests.apps.auction_app.commands.data import store_auction_manager_app_id
+from tests.apps.auction_app.commands.data import register_auction_manager
 
 
-class StoreTestCase(unittest.TestCase):
+class StoreAuctionsTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.engine = create_engine("sqlite:///:memory:", echo=False)
         Base.metadata.create_all(self.engine)
 
         self.session_factory: sessionmaker = sessionmaker(self.engine)
         self.store_auctions = StoreAuctions(self.session_factory)
+        self.get_auction = GetAuction(self.session_factory)
 
     def tearDown(self) -> None:
         close_all_sessions()
@@ -27,12 +29,15 @@ class StoreTestCase(unittest.TestCase):
         # pylint: disable=too-many-function-args
 
         auctions = create_auctions()
-        store_auction_manager_app_id(
+        register_auction_manager(
             self.session_factory, auctions[0].auction_manager_app_id
         )
         result = self.store_auctions(auctions)
         self.assertEqual(len(auctions), result.inserts)
         self.assertEqual(0, result.updates)
+
+        for auction in auctions:
+            self.assertEqual(auction, self.get_auction(auction.app_id))
 
         with self.session_factory() as session:
             query = select(func.count(TAuction.app_id))
@@ -82,7 +87,7 @@ class StoreTestCase(unittest.TestCase):
 
         # insert auctions
         auctions = create_auctions()
-        store_auction_manager_app_id(
+        register_auction_manager(
             self.session_factory, auctions[0].auction_manager_app_id
         )
         result = self.store_auctions(auctions)
@@ -132,7 +137,7 @@ class StoreTestCase(unittest.TestCase):
 
     def test_searching_and_paging_auctions(self):
         auctions = create_auctions()
-        store_auction_manager_app_id(
+        register_auction_manager(
             self.session_factory, auctions[0].auction_manager_app_id
         )
         self.store_auctions(auctions)

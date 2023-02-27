@@ -23,14 +23,16 @@ class LookupAuctionManager(
     """
 
     def __call__(
-            self, id: AuctionManagerAppId | Address
+        self, key: AuctionManagerAppId | Address
     ) -> Tuple[AuctionManagerAppId, Address] | None:
         with self._session_factory() as session:
-            if isinstance(id, int):
-                auction_manager: TAuctionManager | None = session.get(TAuctionManager, id)
-            elif isinstance(id, str):
+            if isinstance(key, int):
+                auction_manager: TAuctionManager | None = session.get(
+                    TAuctionManager, key
+                )
+            elif isinstance(key, str):
                 auction_manager = session.scalar(
-                    select(TAuctionManager).where(TAuctionManager.address == id)
+                    select(TAuctionManager).where(TAuctionManager.address == key)
                 )
             else:
                 raise ValueError("id type must be: AuctionManagerAppId | Address")

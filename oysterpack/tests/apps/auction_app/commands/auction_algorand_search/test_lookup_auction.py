@@ -1,5 +1,6 @@
 import unittest
 
+from algosdk.logic import get_application_address
 from beaker import sandbox
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
@@ -10,6 +11,7 @@ from oysterpack.apps.auction_app.client.auction_manager_client import (
 )
 from oysterpack.apps.auction_app.commands.auction_algorand_search.lookup_auction import (
     LookupAuction,
+    AuctionManagerNotRegisteredError,
 )
 from oysterpack.apps.auction_app.commands.data.queries.lookup_auction_manager import (
     LookupAuctionManager,
@@ -17,7 +19,7 @@ from oysterpack.apps.auction_app.commands.data.queries.lookup_auction_manager im
 from oysterpack.apps.auction_app.data import Base
 from oysterpack.apps.auction_app.domain.auction import AuctionAppId
 from tests.algorand.test_support import AlgorandTestCase
-from tests.apps.auction_app.commands.data import store_auction_manager_app_id
+from tests.apps.auction_app.commands.data import register_auction_manager
 
 
 class LookupTestCase(AlgorandTestCase):
@@ -44,7 +46,7 @@ class LookupTestCase(AlgorandTestCase):
         seller_auction_manager_client = creator_app_client.copy(
             sender=Address(seller.address), signer=seller.signer
         )
-        store_auction_manager_app_id(
+        register_auction_manager(
             self.session_factory, seller_auction_manager_client.app_id
         )
 
@@ -91,6 +93,25 @@ class LookupTestCase(AlgorandTestCase):
 
         auction = lookup_auction(AuctionAppId(seller_app_client.app_id))
         self.assertIsNone(auction)
+
+        with self.subTest("AuctionManager is not registered"):
+            # create a new AuctionManager that is not registered in the database
+            creator_app_client = create_auction_manager(
+                algod_client=self.algod_client,
+                signer=creator.signer,
+            )
+            seller_auction_manager_client = creator_app_client.copy(
+                sender=Address(seller.address), signer=seller.signer
+            )
+            seller_app_client = seller_auction_manager_client.create_auction()
+
+            with self.assertRaises(AuctionManagerNotRegisteredError) as err:
+                lookup_auction(seller_app_client.app_id)
+            self.assertEqual(seller_app_client.app_id, err.exception.auction_app_id)
+            self.assertEqual(
+                get_application_address(creator_app_client.app_id),
+                err.exception.auction_creator,
+            )
 
 
 if __name__ == "__main__":

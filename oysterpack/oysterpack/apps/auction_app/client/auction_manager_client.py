@@ -31,22 +31,22 @@ class AuctionManagerClient(AppClient):
     """
 
     GET_AUCTION_CREATION_FEES_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
+        app=AuctionManager.APP_NAME,
         method=get_method_signature(AuctionManager.get_auction_creation_fees),
     )
 
     CREATE_AUCTION_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
+        app=AuctionManager.APP_NAME,
         method=get_method_signature(AuctionManager.create_auction),
     )
 
     DELETE_FINALIZED_AUCTION_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
+        app=AuctionManager.APP_NAME,
         method=get_method_signature(AuctionManager.delete_finalized_auction),
     )
 
     WITHDRAW_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
+        app=AuctionManager.APP_NAME,
         method=get_method_signature(AuctionManager.withdraw_algo),
     )
 

@@ -12,6 +12,8 @@ from oysterpack.apps.auction_app.client.auction_client import AuctionState
 
 AuctionManagerAppId = NewType("AuctionManagerAppId", AppId)
 
+AuctionAppId = NewType("AuctionAppId", AppId)
+
 
 @dataclass(slots=True)
 class Auction:

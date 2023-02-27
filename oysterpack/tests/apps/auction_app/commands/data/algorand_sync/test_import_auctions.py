@@ -64,6 +64,7 @@ class MyTestCase(AlgorandTestCase):
         close_all_sessions()
 
     def test_import_auctions(self):
+        logger = self.get_logger("test_import_auctions")
         import_auctions = ImportAuctions(
             search=SearchAuctions(
                 indexer_client=self.indexer, algod_client=self.algod_client
@@ -76,7 +77,9 @@ class MyTestCase(AlgorandTestCase):
             auction_manager_app_id=self.seller_auction_manager_client.app_id,
             algorand_search_limit=2,
         )
-        import_auctions(import_auctions_request)
+        import_auctions_result = import_auctions(import_auctions_request)
+        logger.info(import_auctions_result)
+        self.assertEqual(5, import_auctions_result.count)
         with self.session_factory() as session:
             # pylint: disable=not-callable
             auction_count = session.scalar(select(func.count(TAuction.app_id)))
@@ -87,13 +90,18 @@ class MyTestCase(AlgorandTestCase):
             self.app_ids.append(
                 self.seller_auction_manager_client.create_auction().app_id
             )
-        sleep(1)
+        sleep(1)  # give the indexer time to index
 
-        import_auctions(import_auctions_request)
+        import_auctions_result = import_auctions(import_auctions_request)
+        logger.info(import_auctions_result)
+        self.assertEqual(5, import_auctions_result.count)
         with self.session_factory() as session:
             # pylint: disable=not-callable
             auction_count = session.scalar(select(func.count(TAuction.app_id)))
             self.assertEqual(len(self.app_ids), auction_count)
+
+            for auction in session.scalars(select(TAuction)):
+                self.assertIn(auction.app_id, self.app_ids)
 
 
 if __name__ == "__main__":

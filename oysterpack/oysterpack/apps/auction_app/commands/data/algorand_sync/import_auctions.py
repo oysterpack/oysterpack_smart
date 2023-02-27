@@ -2,7 +2,7 @@
 Command that searches Algorand for auctions to import into the database
 """
 from dataclasses import dataclass
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 
 from oysterpack.apps.auction_app.commands.auction_algorand_search.search_auctions import (
     SearchAuctions,
@@ -18,6 +18,10 @@ from oysterpack.core.command import Command
 
 @dataclass(slots=True)
 class ImportAuctionsRequest:
+    """
+    ImportAuctionsRequest
+    """
+
     auction_manager_app_id: AuctionManagerAppId
 
     # limits the number of auctions to fetch per Algorand search
@@ -26,12 +30,21 @@ class ImportAuctionsRequest:
 
 @dataclass(slots=True)
 class ImportAuctionsResult:
+    """
+    ImportAuctionsResult
+    """
+
+    # number of new auctions that were imported into the database
     count: int
 
     start_time: datetime
     end_time: datetime
 
     error: Exception | None = None
+
+    @property
+    def import_duration(self) -> timedelta:
+        return self.end_time - self.start_time
 
 
 class ImportAuctions(Command[ImportAuctionsRequest, ImportAuctionsResult]):
@@ -40,10 +53,10 @@ class ImportAuctions(Command[ImportAuctionsRequest, ImportAuctionsResult]):
     """
 
     def __init__(
-            self,
-            search: SearchAuctions,
-            store: StoreAuctions,
-            get_max_auction_app_id: GetMaxAuctionAppId,
+        self,
+        search: SearchAuctions,
+        store: StoreAuctions,
+        get_max_auction_app_id: GetMaxAuctionAppId,
     ):
         self._search = search
         self._store = store

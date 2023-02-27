@@ -85,7 +85,7 @@ class SearchAuctions(
                 auction_assets = [
                     AssetHolding.from_data(asset)
                     for asset in self._algod_client.account_info(app_address)["assets"]
-                    if asset.asset_id != bid_asset_id
+                    if asset["asset-id"] != bid_asset_id
                 ]
 
                 return {

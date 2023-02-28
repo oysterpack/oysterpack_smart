@@ -98,7 +98,10 @@ class AuctionSearchRequest:
 
     filters: AuctionSearchFilters | None = None
 
-    sort: AuctionSort | None = None
+    # if None, then the default sort is set to TAuction.app_id asc
+    sort: AuctionSort = field(
+        default_factory=lambda: AuctionSort(AuctionSortField.AUCTION_ID)
+    )
 
     # used for paging
     limit: int = 100
@@ -274,9 +277,6 @@ class SearchAuctions(
 
         def add_sort(select_clause: Select) -> Select:
             # pylint: disable=too-many-return-statements
-
-            if request.sort is None:
-                return select_clause.order_by(TAuction.app_id)
 
             match request.sort.field:
                 case AuctionSortField.AUCTION_ID:

@@ -14,6 +14,9 @@ from oysterpack.apps.auction_app.client.auction_client import (
     AuthError,
     AuctionBidder,
 )
+from oysterpack.apps.auction_app.commands.auction_algorand_search.app_exists import (
+    AppExists,
+)
 from oysterpack.apps.auction_app.contracts.auction import (
     Auction,
     AuctionStatus,
@@ -38,6 +41,7 @@ class AuctionTestCase(AlgorandTestCase):
         # ACT
         creator_app_client.create(seller=seller.address)
         auction_client = AuctionClient(creator_app_client)
+        self.assertTrue(AppExists(self.algod_client)(auction_client.app_id))
 
         # ASSERT
         app_state = creator_app_client.get_application_state()

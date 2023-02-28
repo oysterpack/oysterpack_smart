@@ -1,4 +1,5 @@
 import unittest
+from time import sleep
 
 from beaker import sandbox
 from sqlalchemy import create_engine
@@ -65,7 +66,7 @@ class DeleteFinalizedAuctionsTestCase(AlgorandTestCase):
     def tearDown(self) -> None:
         close_all_sessions()
 
-    def test_delete_finalized_auction(self):
+    def test_delete_finalized_auctions(self):
         # SETUP
         accounts = sandbox.get_accounts()
         creator = accounts.pop()
@@ -78,21 +79,38 @@ class DeleteFinalizedAuctionsTestCase(AlgorandTestCase):
         auction_manager_app_id = AuctionManagerAppId(auction_manager_client.app_id)
         self.register_auction_manager(auction_manager_app_id)
 
-        seller_app_client = auction_manager_client.copy(signer=seller.signer)
-        seller_auction_client = seller_app_client.create_auction()
-        seller_auction_client.cancel()
-        seller_auction_client.finalize()
-
-        self.import_auctions(ImportAuctionsRequest(auction_manager_app_id))
-
-        # ACT
         delete_finalized_auctions = DeleteFinalizedAuctions(
             search_auctions=self.search_auctions,
             delete_auctions=self.delete_auctions,
             app_exists=self.app_exists,
             auction_manager_client=auction_manager_client,
         )
-        delete_finalized_auctions(auction_manager_app_id)
+
+        seller_app_client = auction_manager_client.copy(signer=seller.signer)
+        seller_auction_client = seller_app_client.create_auction()
+        seller_auction_client.cancel()
+        seller_auction_client.finalize()
+        sleep(1) # give indexer time to index
+
+        # auctions have not yet been imported into the database
+        delete_count = delete_finalized_auctions(auction_manager_app_id)
+        self.assertEqual(0, delete_count)
+
+        self.import_auctions(ImportAuctionsRequest(auction_manager_app_id))
+        # verify that finalized auction has been imported
+        search_result = self.search_auctions(
+            AuctionSearchRequest(
+                filters=AuctionSearchFilters(
+                    auction_manager_app_id={auction_manager_app_id},
+                    status={AuctionStatus.FINALIZED},
+                )
+            )
+        )
+        self.assertEqual(1, search_result.total_count)
+
+        # ACT
+        delete_count = delete_finalized_auctions(auction_manager_app_id)
+        self.assertEqual(1, delete_count)
 
         # ASSERT
         search_result = self.search_auctions(

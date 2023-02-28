@@ -1,14 +1,15 @@
 """
 Command used to retrieve Auction info from Algorand
 """
-from dataclasses import dataclass
 
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
 
-from oysterpack.algorand.client.model import AppId, Address
 from oysterpack.apps.auction_app.commands.auction_algorand_search import (
     AuctionAlgorandSearchSupport,
+)
+from oysterpack.apps.auction_app.commands.data.errors import (
+    AuctionManagerNotRegisteredError,
 )
 from oysterpack.apps.auction_app.commands.data.queries.lookup_auction_manager import (
     LookupAuctionManager,
@@ -18,16 +19,6 @@ from oysterpack.apps.auction_app.domain.auction import (
     Auction,
 )
 from oysterpack.core.command import Command
-
-
-@dataclass(slots=True)
-class AuctionManagerNotRegisteredError(Exception):
-    """
-    Raised if the Auction creator is a registered AuctionManager
-    """
-
-    auction_app_id: AppId
-    auction_creator: Address
 
 
 class LookupAuction(Command[AuctionAppId, Auction | None]):
@@ -51,9 +42,7 @@ class LookupAuction(Command[AuctionAppId, Auction | None]):
             creator_address = app_info["params"]["creator"]
             result = self._lookup_auction_manager(creator_address)
             if result is None:
-                raise AuctionManagerNotRegisteredError(
-                    AppId(app_info["id"]), creator_address
-                )
+                raise AuctionManagerNotRegisteredError
 
             (auction_manager_app_id, _address) = result
 

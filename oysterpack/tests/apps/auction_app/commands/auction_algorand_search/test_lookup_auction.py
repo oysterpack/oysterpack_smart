@@ -1,6 +1,5 @@
 import unittest
 
-from algosdk.logic import get_application_address
 from beaker import sandbox
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
@@ -105,13 +104,8 @@ class LookupTestCase(AlgorandTestCase):
             )
             seller_app_client = seller_auction_manager_client.create_auction()
 
-            with self.assertRaises(AuctionManagerNotRegisteredError) as err:
+            with self.assertRaises(AuctionManagerNotRegisteredError):
                 lookup_auction(seller_app_client.app_id)
-            self.assertEqual(seller_app_client.app_id, err.exception.auction_app_id)
-            self.assertEqual(
-                get_application_address(creator_app_client.app_id),
-                err.exception.auction_creator,
-            )
 
 
 if __name__ == "__main__":

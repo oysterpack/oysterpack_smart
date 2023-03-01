@@ -40,7 +40,7 @@ class DeleteFinalizedAuctionsRequest:
 
 class DeleteFinalizedAuctions(Command[DeleteFinalizedAuctionsRequest, int]):
     """
-    Deletes finalized auctions on ALgorand and from the database.
+    Deletes finalized auctions on Algorand and from the database.
     """
 
     def __init__(
@@ -49,8 +49,16 @@ class DeleteFinalizedAuctions(Command[DeleteFinalizedAuctionsRequest, int]):
         delete_auctions: DeleteAuctions,
         app_exists: AppExists,
         lookup_auction_manager: LookupAuctionManager,
-        auction_manager_client: AuctionManagerClient,
+        auction_manager_client: AuctionManagerClient | None = None,
     ):
+        """
+        If `auction_manager_client` is specified, then the if the finalized Auction exists on Algorand,
+        then it will be deleted on Algorand before deleting it from the database.
+
+        If `auction_manager_client` is None, then the finalized Auction will only be deleted in the database if it
+        does not exist on Algorand.
+        """
+
         self._search = search_auctions
         self._delete = delete_auctions
         self._app_exists_on_algorand = app_exists
@@ -98,9 +106,21 @@ class DeleteFinalizedAuctions(Command[DeleteFinalizedAuctionsRequest, int]):
             raise AuctionManagerNotRegisteredError
 
     def _delete_auctions(self, search_results: AuctionSearchResult) -> int:
-        for auction in search_results.auctions:
-            if self._app_exists_on_algorand(auction.app_id):
-                self._auction_manager_client.delete_finalized_auction(auction.app_id)
+        if self._auction_manager_client:
+            for auction in search_results.auctions:
+                if self._app_exists_on_algorand(auction.app_id):
+                    self._auction_manager_client.delete_finalized_auction(
+                        auction.app_id
+                    )
 
-        self._delete([auction.app_id for auction in search_results.auctions])
-        return len(search_results.auctions)
+            self._delete([auction.app_id for auction in search_results.auctions])
+            return len(search_results.auctions)
+
+        # else delete finalized auction from the database if they don't exist on Algorand
+        auction_app_ids_to_delete = [
+            auction.app_id
+            for auction in search_results.auctions
+            if not self._app_exists_on_algorand(auction.app_id)
+        ]
+        self._delete(auction_app_ids_to_delete)
+        return len(auction_app_ids_to_delete)

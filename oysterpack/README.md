@@ -20,3 +20,8 @@ Algorand
   - provides algod and indexer hosting services
     - free tier provides 50 req/s per IP (6000 req/s globally
 - [PyWalletConnect](https://pypi.org/project/pyWalletConnect)
+
+
+RX
+--
+- https://rxmarbles.com/

@@ -95,6 +95,9 @@ class AuctionManagerTestCase(AlgorandTestCase):
             self.assertEqual("auction is not finalized", str(err.exception))
 
         with self.subTest("delete finalized Auction"):
+            # setting the bid asset requires the seller to deposit ALGO in the auction contract to
+            # cover asset opt-in storage fees. Account storage fees will not be refunded.
+            # When the finalized auction is deleted, the Auction ALGO account is closed out to the AuctionManager.
             gold_asset_id, gold_asset_manager_address = self.create_test_asset("GOLD$")
             starting_asset_balance = 1_000_000
             self._optin_asset_and_seed_balance(

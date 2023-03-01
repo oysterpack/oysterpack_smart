@@ -216,6 +216,67 @@ class DeleteFinalizedAuctionsTestCase(AlgorandTestCase):
         )
         self.assertEqual(0, search_result.total_count)
 
+    def test_delete_finalized_auctions_not_exists_on_algorand(self):
+        # SETUP
+        accounts = sandbox.get_accounts()
+        creator = accounts.pop()
+        seller = accounts.pop()
+
+        auction_manager_client = create_auction_manager(
+            algod_client=self.algod_client,
+            signer=creator.signer,
+        )
+        auction_manager_app_id = AuctionManagerAppId(auction_manager_client.app_id)
+
+        request = DeleteFinalizedAuctionsRequest(
+            auction_manager_app_id=auction_manager_app_id
+        )
+
+        delete_finalized_auctions = DeleteFinalizedAuctions(
+            search_auctions=self.search_auctions,
+            delete_auctions=self.delete_auctions,
+            app_exists=self.app_exists,
+            lookup_auction_manager=self.lookup_auction_manager,
+        )
+
+        seller_app_client = auction_manager_client.copy(signer=seller.signer)
+        seller_auction_client = seller_app_client.create_auction()
+        seller_auction_client.cancel()
+        seller_auction_client.finalize()
+        sleep(1)  # give indexer time to index
+
+        self.register_auction_manager(auction_manager_app_id)
+        self.import_auctions(ImportAuctionsRequest(auction_manager_app_id))
+        # verify that finalized auction has been imported
+        search_result = self.search_auctions(
+            AuctionSearchRequest(
+                filters=AuctionSearchFilters(
+                    auction_manager_app_id={auction_manager_app_id},
+                    status={AuctionStatus.FINALIZED},
+                )
+            )
+        )
+        self.assertEqual(1, search_result.total_count)
+
+        # delete finalized auction from Algorand
+        auction_manager_client.delete_finalized_auction(seller_auction_client.app_id)
+        sleep(1)  # give indexer time to index
+
+        # ACT
+        delete_count = delete_finalized_auctions(request)
+        self.assertEqual(1, delete_count)
+
+        # ASSERT
+        search_result = self.search_auctions(
+            AuctionSearchRequest(
+                filters=AuctionSearchFilters(
+                    auction_manager_app_id={auction_manager_app_id},
+                    status={AuctionStatus.FINALIZED},
+                )
+            )
+        )
+        self.assertEqual(0, search_result.total_count)
+
 
 if __name__ == "__main__":
     unittest.main()

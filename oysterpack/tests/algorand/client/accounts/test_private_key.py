@@ -68,9 +68,10 @@ class AlgoPrivateKeyTestCase(unittest.TestCase):
         recipient = AlgoPrivateKey(sk)
 
         msg = b"Algorand is the future of finance"
-        encrypted_msg = sender.encrypt(msg, recipient.encryption_address)
-        decrypted_msg = recipient.decrypt(encrypted_msg, sender.encryption_address)
-        self.assertEqual(decrypted_msg, msg)
+        with self.subTest("recipient decrypts encrypted message from sender"):
+            encrypted_msg = sender.encrypt(msg, recipient.encryption_address)
+            decrypted_msg = recipient.decrypt(encrypted_msg, sender.encryption_address)
+            self.assertEqual(decrypted_msg, msg)
 
         with self.subTest(
             "decrypting a message using the wrong recipient address should raise a CryptoError"
@@ -87,6 +88,15 @@ class AlgoPrivateKeyTestCase(unittest.TestCase):
             wrong_sender = AlgoPrivateKey(sk)
             with self.assertRaises(CryptoError):
                 recipient.decrypt(encrypted_msg, wrong_sender.encryption_address)
+
+        with self.subTest("sender is also recpient"):
+            encrypted_msg = sender.encrypt(msg)
+            decrypted_msg = sender.decrypt(encrypted_msg)
+            self.assertEqual(decrypted_msg, msg)
+
+            # no other account should be able to decrypt the message
+            with self.assertRaises(CryptoError):
+                recipient.decrypt(encrypted_msg)
 
     def test_sign_verify(self):
         sk, pk = generate_account()

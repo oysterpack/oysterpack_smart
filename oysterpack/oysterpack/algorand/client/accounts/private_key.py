@@ -31,7 +31,11 @@ class AlgoPrivateKey(PrivateKey):
 
     Messages are encrypted using box encryption using the recipient's encryption address.
     The encrypted message can only be decrypted by the intended recipient using its private key
-    and the senser's public EncryptionAddress.
+    and the sender's public EncryptionAddress.
+
+    NOTES
+    -----
+    - Self encrypted messages can be created, i.e., sender == recipient
     """
 
     def __init__(self, algo_private_key: str | bytes | Mnemonic):
@@ -62,7 +66,7 @@ class AlgoPrivateKey(PrivateKey):
         :return: Algorand private key encoded as a 25-word mnemonic
         """
         return Mnemonic.from_word_list(
-            mnemonic.from_private_key(base64.b64encode(bytes(self)))
+            mnemonic.from_private_key(base64.b64encode(bytes(self)).decode())
         )
 
     @property
@@ -72,7 +76,7 @@ class AlgoPrivateKey(PrivateKey):
 
         :return: base32 encoded public encryption key
         """
-        return EncryptionAddress(encode_address(bytes(self.public_key)))
+        return EncryptionAddress(Address(encode_address(bytes(self.public_key))))
 
     @property
     def signing_key(self) -> SigningKey:
@@ -94,19 +98,35 @@ class AlgoPrivateKey(PrivateKey):
             Address(encode_address(bytes(self.signing_key.verify_key)))
         )
 
-    def encrypt(self, msg: bytes, recipient: EncryptionAddress) -> EncryptedMessage:
+    def encrypt(
+        self, msg: bytes, recipient: EncryptionAddress | None = None
+    ) -> EncryptedMessage:
         """
-        Encrypts a message that can only be decrypted by the recipient's private key
-        """
-        return Box(self, encryption_address_to_public_key(recipient)).encrypt(msg)
+        Encrypts a message that can only be decrypted by the recipient's private key.
 
-    def decrypt(self, msg: EncryptedMessage, sender: EncryptionAddress) -> bytes:
+        :param recipient: if None, then recipient is set to self
+        """
+        return Box(
+            self,
+            encryption_address_to_public_key(
+                recipient if recipient else self.encryption_address
+            ),
+        ).encrypt(msg)
+
+    def decrypt(
+        self, msg: EncryptedMessage, sender: EncryptionAddress | None = None
+    ) -> bytes:
         """
         Decrypts a message that was encrypted by the sender.
+
+        :param recipient: if None, then recipient is set to self
         """
-        return Box(self, encryption_address_to_public_key(sender)).decrypt(
-            msg.ciphertext, msg.nonce
-        )
+        return Box(
+            self,
+            encryption_address_to_public_key(
+                sender if sender else self.encryption_address
+            ),
+        ).decrypt(msg.ciphertext, msg.nonce)
 
     def sign(self, msg: bytes) -> SignedMessage:
         """

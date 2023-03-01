@@ -4,12 +4,10 @@ Command to insert/update Auctions into the database
 
 from dataclasses import dataclass
 
-from oysterpack.apps.auction_app.commands.data import (
-    SqlAlchemySupport,
-)
+from sqlalchemy.orm import sessionmaker
+
 from oysterpack.apps.auction_app.data.auction import TAuction
 from oysterpack.apps.auction_app.domain.auction import Auction
-from oysterpack.core.command import Command
 
 
 @dataclass
@@ -22,10 +20,7 @@ class StoreAuctionsResult:
     updates: int
 
 
-class StoreAuctions(
-    Command[list[Auction], StoreAuctionsResult],
-    SqlAlchemySupport,
-):
+
     """
     Stores the auctions in the database.
 
@@ -33,6 +28,9 @@ class StoreAuctions(
     If the auction does not exist in the database, then it will be inserted.
     Otherwise, the auction will be updated.
     """
+
+    def __init__(self, session_factory: sessionmaker):
+        self._session_factory = session_factory
 
     def __call__(self, auctions: list[Auction]) -> StoreAuctionsResult:
         if len(auctions) == 0:

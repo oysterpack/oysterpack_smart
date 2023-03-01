@@ -5,9 +5,7 @@ Command used to retrieve Auction info from Algorand
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
 
-from oysterpack.apps.auction_app.commands.auction_algorand_search import (
-    AuctionAlgorandSearchSupport,
-)
+from oysterpack.apps.auction_app.commands.auction_algorand_search import to_auction
 from oysterpack.apps.auction_app.commands.data.errors import (
     AuctionManagerNotRegisteredError,
 )
@@ -48,7 +46,7 @@ class LookupAuction(Command[AuctionAppId, Auction | None]):
 
             (auction_manager_app_id, _address) = result
 
-            return AuctionAlgorandSearchSupport.to_auction(
+            return to_auction(
                 app_info,
                 self._algod_client,
                 auction_manager_app_id,

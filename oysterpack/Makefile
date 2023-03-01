@@ -18,6 +18,9 @@ check:
 	mypy tests
 	pylint -E ./oysterpack ./tests
 
+pyright:
+	pyright oysterpack
+
 pylint:
 	pylint ./oysterpack
 

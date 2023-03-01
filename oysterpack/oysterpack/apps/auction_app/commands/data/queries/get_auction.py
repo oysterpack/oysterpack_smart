@@ -1,19 +1,20 @@
 """
 Retrieves an Auction from the database
 """
-from oysterpack.apps.auction_app.commands.data import SqlAlchemySupport
+from sqlalchemy.orm import sessionmaker
+
 from oysterpack.apps.auction_app.data.auction import TAuction
 from oysterpack.apps.auction_app.domain.auction import AuctionAppId, Auction
 from oysterpack.core.command import Command
 
 
-class GetAuction(
-    Command[AuctionAppId, Auction | None],
-    SqlAlchemySupport,
-):
+class GetAuction(Command[AuctionAppId, Auction | None]):
     """
     Retrieves Auction from the database by its AppId
     """
+
+    def __init__(self, session_factory: sessionmaker):
+        self._session_factory = session_factory
 
     def __call__(self, auction_app_id: AuctionAppId) -> Auction | None:
         with self._session_factory() as session:

@@ -440,13 +440,6 @@ class Auction(Application, _AuctionState):
             self.status.set(Int(AuctionStatus.BID_ACCEPTED.value)),
         )
 
-    @external(read_only=True)
-    def latest_timestamp(self, *, output: abi.Uint64) -> Expr:
-        """
-        Get the latest confirmed block UNIX timestamp
-        """
-        return output.set(Global.latest_timestamp())
-
     @external
     def finalize(self, asset: abi.Asset, close_to: abi.Account) -> Expr:
         """
@@ -527,6 +520,13 @@ class Auction(Application, _AuctionState):
             Reject(),
             close_out_asset(),
         )
+
+    @external(read_only=True)
+    def latest_timestamp(self, *, output: abi.Uint64) -> Expr:
+        """
+        Get the latest confirmed block UNIX timestamp
+        """
+        return output.set(Global.latest_timestamp())
 
     def _assert_no_freeze_clawback(self, asset: abi.Asset) -> Expr:
         return Seq(

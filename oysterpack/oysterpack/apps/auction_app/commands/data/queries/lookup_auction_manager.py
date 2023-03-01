@@ -4,23 +4,25 @@ Lookup an auction manager record by app ID or address
 from typing import Tuple
 
 from sqlalchemy import select
+from sqlalchemy.orm import sessionmaker
 
 from oysterpack.algorand.client.model import Address
-from oysterpack.apps.auction_app.commands.data import SqlAlchemySupport
 from oysterpack.apps.auction_app.data.auction import TAuctionManager
 from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId
 from oysterpack.core.command import Command
 
 
 class LookupAuctionManager(
-    Command[AuctionManagerAppId | Address, Tuple[AuctionManagerAppId, Address] | None],
-    SqlAlchemySupport,
+    Command[AuctionManagerAppId | Address, Tuple[AuctionManagerAppId, Address] | None]
 ):
     """
     Looks up the auction manager either by app ID or app address.
 
     Returns None, if the auction manager does not exist in the database
     """
+
+    def __init__(self, session_factory: sessionmaker):
+        self._session_factory = session_factory
 
     def __call__(
         self, key: AuctionManagerAppId | Address

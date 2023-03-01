@@ -8,11 +8,9 @@ from enum import auto
 from typing import Optional
 
 from sqlalchemy import Select, select, func, and_, or_, false
+from sqlalchemy.orm import sessionmaker
 
 from oysterpack.algorand.client.model import AppId, Address, AssetId
-from oysterpack.apps.auction_app.commands.data import (
-    SqlAlchemySupport,
-)
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.auction_app.data.auction import TAuction, TAuctionAsset
 from oysterpack.apps.auction_app.domain.auction import Auction
@@ -172,13 +170,13 @@ class AuctionSearchRequest:
         )
 
 
-class SearchAuctions(
-    Command[AuctionSearchRequest, AuctionSearchResult],
-    SqlAlchemySupport,
-):
+class SearchAuctions(Command[AuctionSearchRequest, AuctionSearchResult]):
     """
     SearchAuctions
     """
+
+    def __init__(self, session_factory: sessionmaker):
+        self._session_factory = session_factory
 
     def __call__(self, request: AuctionSearchRequest) -> AuctionSearchResult:
         # pylint: disable=too-many-statements

@@ -3,20 +3,20 @@ Unregisters an AuctionManager
 """
 
 from sqlalchemy import delete
+from sqlalchemy.orm import sessionmaker
 
-from oysterpack.apps.auction_app.commands.data import SqlAlchemySupport
 from oysterpack.apps.auction_app.data.auction import TAuctionManager, TAuction
 from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId
 from oysterpack.core.command import Command
 
 
-class UnregisterAuctionManager(
-    Command[AuctionManagerAppId, None],
-    SqlAlchemySupport,
-):
+class UnregisterAuctionManager(Command[AuctionManagerAppId, None]):
     """
     Unregistering an AuctionManager will cascade delete all associated Auctions.
     """
+
+    def __init__(self, session_factory: sessionmaker):
+        self._session_factory = session_factory
 
     def __call__(self, auction_manager_app_id: AuctionManagerAppId):
         with self._session_factory.begin() as session:

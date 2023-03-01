@@ -5,11 +5,11 @@ from dataclasses import dataclass
 from typing import cast
 
 from algosdk.logic import get_application_address
+from algosdk.v2client.algod import AlgodClient
+from algosdk.v2client.indexer import IndexerClient
 
 from oysterpack.algorand.client.model import AppId, Address
-from oysterpack.apps.auction_app.commands.auction_algorand_search import (
-    AuctionAlgorandSearchSupport,
-)
+from oysterpack.apps.auction_app.commands.auction_algorand_search import to_auction
 from oysterpack.apps.auction_app.domain.auction import Auction
 from oysterpack.core.command import Command
 
@@ -54,13 +54,18 @@ class AuctionSearchResult:
     next_token: str | None
 
 
-class SearchAuctions(
-    Command[AuctionSearchRequest, AuctionSearchResult],
-    AuctionAlgorandSearchSupport,
-):
+class SearchAuctions(Command[AuctionSearchRequest, AuctionSearchResult]):
     """
     Used to search for Auction apps on Algorand.
     """
+
+    def __init__(
+        self,
+        indexer_client: IndexerClient,
+        algod_client: AlgodClient,
+    ):
+        self._indexer_client = indexer_client
+        self._algod_client = algod_client
 
     def __call__(self, args: AuctionSearchRequest) -> AuctionSearchResult:
         result = self._indexer_client.search_applications(
@@ -72,7 +77,7 @@ class SearchAuctions(
         next_token = result.setdefault("next-token", None)
 
         auctions = [
-            AuctionAlgorandSearchSupport.to_auction(
+            to_auction(
                 app,
                 self._algod_client,
                 args.auction_manager_app_id,

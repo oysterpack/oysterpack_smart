@@ -10,7 +10,7 @@ from algosdk.atomic_transaction_composer import (
 )
 from algosdk.v2client.algod import AlgodClient
 from beaker.application import get_method_signature
-from beaker.client import ApplicationClient
+from beaker.client.application_client import ApplicationClient
 from beaker.consts import algo
 
 from oysterpack.algorand.client.model import AppId, Address

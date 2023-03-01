@@ -1,7 +1,7 @@
 import unittest
 
 from beaker import sandbox
-from sqlalchemy import create_engine, select, func
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
 from oysterpack.algorand.client.model import Address
@@ -14,21 +14,21 @@ from oysterpack.apps.auction_app.commands.auction_algorand_search.lookup_auction
 from oysterpack.apps.auction_app.commands.data.algorand_sync.import_auction import (
     ImportAuction,
 )
+from oysterpack.apps.auction_app.commands.data.algorand_sync.refresh_auctions import (
+    RefreshAuctions,
+)
 from oysterpack.apps.auction_app.commands.data.delete_auctions import DeleteAuctions
 from oysterpack.apps.auction_app.commands.data.errors import (
     AuctionManagerNotRegisteredError,
 )
-from oysterpack.apps.auction_app.commands.data.queries.get_auction import GetAuction
 from oysterpack.apps.auction_app.commands.data.queries.lookup_auction_manager import (
     LookupAuctionManager,
 )
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
 from oysterpack.apps.auction_app.data import Base
-from oysterpack.apps.auction_app.data.auction import TAuction
+from oysterpack.apps.auction_app.domain.auction import Auction, AuctionAppId
 from tests.algorand.test_support import AlgorandTestCase
-from tests.apps.auction_app.commands.data import create_auctions
 from tests.apps.auction_app.commands.data import register_auction_manager
-from tests.apps.auction_app.commands.data import unregister_auction_manager
 
 
 class ImportAuctionTestCase(AlgorandTestCase):
@@ -52,7 +52,7 @@ class ImportAuctionTestCase(AlgorandTestCase):
             store=self.store_auctions,
             delete=self.delete_auctions,
         )
-        self.get_auction = GetAuction(self.session_factory)
+        self.refresh_auctions = RefreshAuctions(import_auction=self.import_auction)
 
     def setup_contracts(self):
         accounts = sandbox.get_accounts()
@@ -74,54 +74,55 @@ class ImportAuctionTestCase(AlgorandTestCase):
             signer=seller.signer,
         )
 
-        self.app_ids = []
-        for _ in range(5):
-            self.app_ids.append(
-                self.seller_auction_manager_client.create_auction().app_id
-            )
-
     def tearDown(self) -> None:
         close_all_sessions()
 
-    def test_import_auctions(self):
-        with self.subTest("when auctions exist on Algorand, but not in the database"):
-            for auction_app_id in self.app_ids:
-                self.import_auction(auction_app_id)
+    def test_refresh_auctions(self):
+        with self.subTest("when auctions exist on Algorand but not in the database"):
+            app_ids = []
+            app_clients = []
+            for _ in range(5):
+                app_client = self.seller_auction_manager_client.create_auction()
+                app_clients.append(app_client)
+                app_ids.append(app_client.app_id)
 
-            # verify auctions were imported into the database
-            with self.session_factory() as session:
-                # pylint: disable=not-callable
-                auction_count = session.scalar(select(func.count(TAuction.app_id)))
-                self.assertEqual(len(self.app_ids), auction_count)
+            result = self.refresh_auctions(app_ids)
+            self.assertEqual(5, len(result))
+            for auction_app_id, value in result.items():
+                self.assertIn(auction_app_id, app_ids)
+                self.assertIsInstance(value, Auction)
 
-        with self.subTest("Auction exists in database but not on Algorand"):
-            # SETUP
-            # create auction directly in the database
-            auctions = create_auctions(
-                auction_manager_app_id=self.creator_auction_manager_client.app_id,
-                auction_app_id_start_at=999999,
-                count=1,
-            )
-            self.store_auctions(auctions)
-            # verify that the auction exists in the database
-            self.assertIsNotNone(self.get_auction(auctions[0].app_id))
-            # when the auction does not exist on Algorand, but exists in the database
-            # then the import will delete the auction from the database
-            self.import_auction(auctions[0].app_id)
-            # verify that the auction was deleted from the database
-            self.assertIsNone(self.get_auction(auctions[0].app_id))
-
-        with self.subTest(
-            "when trying to import auctions whose AuctionManager is not registered in the database"
-        ):
-            unregister_auction_manager(
-                self.session_factory,
-                self.creator_auction_manager_client.app_id,
+        with self.subTest("when auctions have been deleted on Algorand"):
+            # finalize and delete an auction
+            app_client = app_clients.pop()
+            app_client.cancel()
+            app_client.finalize()
+            self.creator_auction_manager_client.delete_finalized_auction(
+                app_client.app_id
             )
 
-            with self.assertRaises(AuctionManagerNotRegisteredError):
-                for auction_app_id in self.app_ids:
-                    self.import_auction(auction_app_id)
+            result = self.refresh_auctions(app_ids)
+            self.assertEqual(5, len(result))
+            for auction_app_id, value in result.items():
+                self.assertIn(auction_app_id, app_ids)
+                if auction_app_id == app_client.app_id:
+                    self.assertIsNone(value)
+                else:
+                    self.assertIsInstance(value, Auction)
+
+        with self.subTest("when AuctionManager is not registered"):
+            # create new Auction from unregistered AuctionManager
+            auction_manager_client = create_auction_manager(
+                algod_client=self.algod_client,
+                signer=sandbox.get_accounts().pop().signer,
+            )
+            auction_client = auction_manager_client.create_auction()
+
+            result = self.refresh_auctions([AuctionAppId(auction_client.app_id)])
+            self.assertEqual(1, len(result))
+            self.assertIsInstance(
+                result[auction_client.app_id], AuctionManagerNotRegisteredError
+            )
 
 
 if __name__ == "__main__":

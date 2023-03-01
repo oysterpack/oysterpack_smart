@@ -322,7 +322,7 @@ class WalletSession:
                 password=self._wallet.pswd,
                 txn=txn,
                 signing_address=signing_address,
-            )
+            )  # type: ignore
         except KMDHTTPError as err:
             if str(err).index("could not decode request body") != -1:
                 # the workaround for the above issue is to export the key and sign the transaction on the client side

@@ -14,6 +14,7 @@ check:
 	flake8 oysterpack
 	flake8 tests
 	mypy oysterpack
+	pyright oysterpack
 	mypy tests
 	pylint -E ./oysterpack ./tests
 

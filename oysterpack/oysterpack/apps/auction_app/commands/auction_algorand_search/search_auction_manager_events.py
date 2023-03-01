@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from typing import Any
 
-from algosdk.abi import UintType
+from algosdk.abi.uint_type import UintType
 from algosdk.v2client.indexer import IndexerClient
 
 from oysterpack.algorand.client.model import AppId, TxnId
@@ -22,6 +22,7 @@ class AuctionManagerEvent(IntEnum):
     """
     AuctionManager Events
     """
+
     AUCTION_CREATED = auto()
     AUCTION_DELETED = auto()
 

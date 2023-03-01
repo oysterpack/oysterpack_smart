@@ -5,7 +5,7 @@ Bitset data structure that can be used to store application state.
 from abc import ABC, abstractmethod
 from copy import copy
 
-from beaker import AccountStateValue, ApplicationStateValue
+from beaker.state import AccountStateValue, ApplicationStateValue
 from pyteal import Int, TealType, Expr
 from pyteal.ast import abi
 

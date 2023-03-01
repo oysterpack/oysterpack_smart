@@ -8,8 +8,8 @@ from algosdk.error import AlgodHTTPError
 from algosdk.logic import get_application_address
 from algosdk.transaction import SuggestedParams
 from algosdk.v2client.algod import AlgodClient
-from beaker import AppPrecompile
-from beaker.client import ApplicationClient
+from beaker.client.application_client import ApplicationClient
+from beaker.precompile import AppPrecompile
 from pyteal import Bytes
 
 from oysterpack.algorand.client.model import AppId, Address, MicroAlgos

@@ -7,6 +7,9 @@ from oysterpack.algorand.client.model import Address, AssetId, AppId
 from oysterpack.apps.auction_app.commands.data.register_auction_manager import (
     RegisterAuctionManager,
 )
+from oysterpack.apps.auction_app.commands.data.unregister_auction_manager import (
+    UnregisterAuctionManager,
+)
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.auction_app.domain.auction import Auction, AuctionManagerAppId
 from oysterpack.apps.auction_app.domain.auction_state import AuctionState
@@ -14,6 +17,10 @@ from oysterpack.apps.auction_app.domain.auction_state import AuctionState
 
 def register_auction_manager(session_factory: sessionmaker, app_id: AppId):
     RegisterAuctionManager(session_factory)(AuctionManagerAppId(app_id))
+
+
+def unregister_auction_manager(session_factory: sessionmaker, app_id: AppId):
+    UnregisterAuctionManager(session_factory)(AuctionManagerAppId(app_id))
 
 
 def create_auctions(

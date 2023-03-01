@@ -81,7 +81,7 @@ class AlgorandTestCase(OysterPackTestCase):
         freeze: Address | None = None,
         clawback: Address | None = None,
         unit_name: str | None = None,
-        url: str | None = None,
+        url: str = "",
         metadata_hash: bytes | None = None,
     ) -> tuple[AssetId, Address]:
         """

@@ -24,6 +24,8 @@ from oysterpack.core.command import Command
 class LookupAuction(Command[AuctionAppId, Auction | None]):
     """
     Tries to look up the auction on Algorand.
+
+    :exception AuctionManagerNotRegisteredError: if the auction creator is not a registered AuctionManager
     """
 
     def __init__(

@@ -4,14 +4,10 @@ Auction Manager smart contract
 
 from typing import Final
 
-from beaker import (
-    Application,
-    AppPrecompile,
-    ApplicationStateValue,
-    Authorize,
-)
-from beaker.application import get_method_signature
-from beaker.decorators import create, external
+from beaker.application import get_method_signature, Application
+from beaker.decorators import create, external, Authorize
+from beaker.precompile import AppPrecompile
+from beaker.state import ApplicationStateValue
 from pyteal import (
     Expr,
     InnerTxnBuilder,
@@ -110,7 +106,7 @@ class AuctionManager(Application):
                 app_id=None,
                 method_signature=get_method_signature(Auction.create),
                 args=[Txn.sender()],
-                extra_fields=self.auction.get_create_config() | {TxnField.fee: Int(0)},
+                extra_fields=self.auction.get_create_config() | {TxnField.fee: Int(0)},  # type: ignore
             ),
             output.set(InnerTxn.created_application_id()),
         )

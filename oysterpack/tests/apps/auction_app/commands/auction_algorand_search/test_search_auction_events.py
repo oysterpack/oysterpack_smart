@@ -16,7 +16,7 @@ from oysterpack.apps.auction_app.commands.auction_algorand_search.search_auction
 from tests.algorand.test_support import AlgorandTestCase
 
 
-class MyTestCase(AlgorandTestCase):
+class SearchAuctionEventsTestCase(AlgorandTestCase):
     def test_search_auction_events(self):
         logger = super().get_logger("test_search_auction_events")
         search_auction_events = SearchAuctionEvents(self.indexer)
@@ -57,7 +57,7 @@ class MyTestCase(AlgorandTestCase):
             asset_reserve_address=bid_asset_manager_address,
         )
 
-        start_time = datetime.now(UTC)
+        start_time = datetime.now(UTC) + timedelta(days=1)
         end_time = start_time + timedelta(days=3)
         for auction_client in auction_clients:
             auction_client.set_bid_asset(bid_asset_id, 10_000)

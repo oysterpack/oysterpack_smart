@@ -30,7 +30,7 @@ def create(
     clawback: Address | None = None,
     default_frozen: bool | None = None,
     metadata_hash: bytes | None = None,
-    url: str | None = None,
+    url: str = "",
     note: bytes | None = None,
 ) -> AssetCreateTxn:
     """

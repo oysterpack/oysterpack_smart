@@ -29,6 +29,6 @@ def suggested_params_with_flat_flee(
     :param txn_count: specifies how many transactions to pay for
     """
     suggested_params = algod_client.suggested_params()
-    suggested_params.fee = suggested_params.min_fee * txn_count
+    suggested_params.fee = suggested_params.min_fee * txn_count  # type: ignore
     suggested_params.flat_fee = True
     return suggested_params

@@ -15,7 +15,7 @@ from algosdk.constants import ZERO_ADDRESS
 from algosdk.encoding import encode_address
 from algosdk.error import AlgodHTTPError
 from beaker.application import get_method_signature
-from beaker.client import ApplicationClient
+from beaker.client.application_client import ApplicationClient
 
 from oysterpack.algorand.client.assets.asset_config import AssetConfig
 from oysterpack.algorand.client.model import (
@@ -264,7 +264,7 @@ class AuctionBidder(_AuctionClientSupport):
         if auction_state.highest_bidder:
             highest_bidder = auction_state.highest_bidder
             # transaction fees need to cover the inner transaction to refund the highest bidder
-            suggested_params.fee = suggested_params.min_fee * 2
+            suggested_params.fee = suggested_params.min_fee * 2  # type: ignore
         else:
             highest_bidder = Address(ZERO_ADDRESS)
 

@@ -4,13 +4,10 @@ Auction smart contract
 
 from typing import Final, Any
 
-from beaker import (
-    Application,
-    ApplicationStateValue,
-    Authorize,
-)
+from beaker.application import Application
 from beaker.consts import algo
-from beaker.decorators import create, delete, external
+from beaker.decorators import create, delete, external, Authorize
+from beaker.state import ApplicationStateValue
 from pyteal import (
     TealType,
     Expr,

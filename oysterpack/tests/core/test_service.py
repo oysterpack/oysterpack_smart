@@ -12,8 +12,8 @@ from oysterpack.core.rx import default_scheduler
 from oysterpack.core.service import (
     Service,
     ServiceCommand,
-    ServiceStateEvent,
-    ServiceState,
+    ServiceLifecycleEvent,
+    ServiceLifecycleState,
     ServiceStartError,
     ServiceStopError,
 )
@@ -52,13 +52,13 @@ class FooService(Service):
 
 
 @dataclass
-class ServiceStateSubscriber(Observer[ServiceStateEvent]):
-    events_received: list[ServiceStateEvent] = field(default_factory=list)
-    event: ServiceStateEvent | None = None
+class ServiceStateSubscriber(Observer[ServiceLifecycleEvent]):
+    events_received: list[ServiceLifecycleEvent] = field(default_factory=list)
+    event: ServiceLifecycleEvent | None = None
     error: Exception | None = None
     completed: bool = False
 
-    def on_next(self, event: ServiceStateEvent) -> None:
+    def on_next(self, event: ServiceLifecycleEvent) -> None:
         logger.info(f"ServiceStateSubscriber.on_next(): {event}")
         self.event = event
         self.events_received.append(event)
@@ -78,15 +78,14 @@ class ServiceTestCase(OysterPackTestCase):
         commands_observable = commands.pipe(observe_on(default_scheduler))
 
         foo = FooService(commands_observable)
+
         # subscribe to service state events
         foo_state_observer = ServiceStateSubscriber()
-        foo.state_observable().subscribe(foo_state_observer)
+        foo.state_observable.subscribe(foo_state_observer)
         # signal the service to start
         commands.on_next(ServiceCommand.START)
 
-        # wait until service has started
-        while not foo.running:
-            sleep(0.001)
+        foo.await_running()
 
         # healthcheck is scheduled to run every second
         # sleep for 2 seconds to give time to run heatlh checks
@@ -108,11 +107,11 @@ class ServiceTestCase(OysterPackTestCase):
 
         self.assertEqual(
             [
-                ServiceStateEvent(foo.name, ServiceState.NEW),
-                ServiceStateEvent(foo.name, ServiceState.STARTING),
-                ServiceStateEvent(foo.name, ServiceState.RUNNING),
-                ServiceStateEvent(foo.name, ServiceState.STOPPING),
-                ServiceStateEvent(foo.name, ServiceState.STOPPED),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.NEW),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STARTING),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.RUNNING),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPING),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPED),
             ],
             foo_state_observer.events_received,
         )
@@ -125,7 +124,7 @@ class ServiceTestCase(OysterPackTestCase):
         foo.start_error = Exception("BOOM!")
         # subscribe to service state events
         foo_state_observer = ServiceStateSubscriber()
-        foo.state_observable().subscribe(foo_state_observer)
+        foo.state_observable.subscribe(foo_state_observer)
         # signal the service to start
         commands.on_next(ServiceCommand.START)
 
@@ -135,11 +134,11 @@ class ServiceTestCase(OysterPackTestCase):
 
         self.assertEqual(
             [
-                ServiceStateEvent(foo.name, ServiceState.NEW),
-                ServiceStateEvent(foo.name, ServiceState.STARTING),
-                ServiceStateEvent(foo.name, ServiceState.START_FAILED),
-                ServiceStateEvent(foo.name, ServiceState.STOPPING),
-                ServiceStateEvent(foo.name, ServiceState.STOPPED),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.NEW),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STARTING),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.START_FAILED),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPING),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPED),
             ],
             foo_state_observer.events_received,
         )
@@ -154,7 +153,7 @@ class ServiceTestCase(OysterPackTestCase):
         foo.stop_error = Exception("BOOM!")
         # subscribe to service state events
         foo_state_observer = ServiceStateSubscriber()
-        foo.state_observable().subscribe(foo_state_observer)
+        foo.state_observable.subscribe(foo_state_observer)
         # signal the service to start
         commands.on_next(ServiceCommand.START)
 
@@ -171,11 +170,11 @@ class ServiceTestCase(OysterPackTestCase):
 
         self.assertEqual(
             [
-                ServiceStateEvent(foo.name, ServiceState.NEW),
-                ServiceStateEvent(foo.name, ServiceState.STARTING),
-                ServiceStateEvent(foo.name, ServiceState.RUNNING),
-                ServiceStateEvent(foo.name, ServiceState.STOPPING),
-                ServiceStateEvent(foo.name, ServiceState.STOPPED),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.NEW),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STARTING),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.RUNNING),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPING),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPED),
             ],
             foo_state_observer.events_received,
         )
@@ -191,7 +190,7 @@ class ServiceTestCase(OysterPackTestCase):
         foo.stop_error = Exception("STOP FAILED!")
         # subscribe to service state events
         foo_state_observer = ServiceStateSubscriber()
-        foo.state_observable().subscribe(foo_state_observer)
+        foo.state_observable.subscribe(foo_state_observer)
         # signal the service to start
         commands.on_next(ServiceCommand.START)
 
@@ -200,7 +199,7 @@ class ServiceTestCase(OysterPackTestCase):
             sleep(0.001)
 
         commands.on_next(ServiceCommand.STOP)
-        while foo.state != ServiceState.STOPPED:
+        while foo.state != ServiceLifecycleState.STOPPED:
             sleep(0.001)
 
         # trying to stop the service when it's stopped should be a noop
@@ -208,11 +207,11 @@ class ServiceTestCase(OysterPackTestCase):
 
         self.assertEqual(
             [
-                ServiceStateEvent(foo.name, ServiceState.NEW),
-                ServiceStateEvent(foo.name, ServiceState.STARTING),
-                ServiceStateEvent(foo.name, ServiceState.START_FAILED),
-                ServiceStateEvent(foo.name, ServiceState.STOPPING),
-                ServiceStateEvent(foo.name, ServiceState.STOPPED),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.NEW),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STARTING),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.START_FAILED),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPING),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPED),
             ],
             foo_state_observer.events_received,
         )

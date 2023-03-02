@@ -1,8 +1,9 @@
 import logging
 from abc import ABC
 from dataclasses import dataclass
+from datetime import timedelta
 from enum import IntEnum, auto
-from threading import Timer
+from threading import Timer, Event
 
 from reactivex import Observable, Subject
 from reactivex.operators import observe_on
@@ -12,7 +13,12 @@ from oysterpack.core.health_check import HealthCheck, HealthCheckResult
 from oysterpack.core.rx import default_scheduler
 
 
-class ServiceState(IntEnum):
+class ServiceLifecycleState(IntEnum):
+    """
+    Service lifecycle states
+
+    Normal service lifecycle: NEW -> STARTING -> RUNNING -> STOPPING -> STOPPED
+    """
     NEW = auto()
 
     STARTING = auto()
@@ -27,12 +33,18 @@ class ServiceState(IntEnum):
 
 
 @dataclass(slots=True)
-class ServiceStateEvent:
+class ServiceLifecycleEvent:
+    """
+    Service lifecycle state events
+    """
     service_name: str
-    state: ServiceState
+    state: ServiceLifecycleState
 
 
 class ServiceCommand(IntEnum):
+    """
+    Commands used to manage the service.
+    """
     START = auto()
     STOP = auto()
 
@@ -77,15 +89,15 @@ class Service(ABC):
     """
 
     def __init__(self, commands: Observable[ServiceCommand]):
-        self._state = ServiceState.NEW
+        self._state = ServiceLifecycleState.NEW
         self._logger = logging.getLogger(self.__class__.__name__)
 
         # setup stream to publish service state events
-        self._state_subject: BehaviorSubject[ServiceStateEvent] = BehaviorSubject(
-            ServiceStateEvent(self.name, self._state)
+        self._state_subject: BehaviorSubject[ServiceLifecycleEvent] = BehaviorSubject(
+            ServiceLifecycleEvent(self.name, self._state)
         )
         self._state_observable: Observable[
-            ServiceStateEvent
+            ServiceLifecycleEvent
         ] = self._state_subject.pipe(observe_on(default_scheduler))
 
         def on_command(command: ServiceCommand):
@@ -106,21 +118,29 @@ class Service(ABC):
         ] = self._healthchecks_subject.pipe(observe_on(default_scheduler))
         self._healthcheck_timer: Timer | None = None
 
+        self._running_event = Event()
+
     @property
     def name(self) -> str:
         return self.__class__.__name__
 
     @property
-    def state(self) -> ServiceState:
+    def state(self) -> ServiceLifecycleState:
         return self._state
 
     @property
     def running(self) -> bool:
-        return self._state == ServiceState.RUNNING
+        return self._state == ServiceLifecycleState.RUNNING
+
+    def await_running(self, timeout: timedelta | None = None):
+        """
+        Used to await the service is running
+        """
+        self._running_event.wait(timeout.seconds if timeout else None)
 
     @property
     def stopped(self) -> bool:
-        return self._state == ServiceState.STOPPED
+        return self._state == ServiceLifecycleState.STOPPED
 
     @property
     def healthchecks(self) -> list[HealthCheck]:
@@ -155,18 +175,18 @@ class Service(ABC):
             self._healthcheck_timer.start()
             self._logger.info(f"scheduled healthcheck: {healthcheck}")
 
-        if self._state in [ServiceState.RUNNING, ServiceState.STARTING]:
+        if self._state in [ServiceLifecycleState.RUNNING, ServiceLifecycleState.STARTING]:
             return
 
-        if self._state == ServiceState.NEW:
-            self._state_subject.on_next(self._set_state(ServiceState.STARTING))
+        if self._state == ServiceLifecycleState.NEW:
+            self._state_subject.on_next(self._set_state(ServiceLifecycleState.STARTING))
             try:
                 self._start()
-                self._state_subject.on_next(self._set_state(ServiceState.RUNNING))
+                self._state_subject.on_next(self._set_state(ServiceLifecycleState.RUNNING))
                 for healthcheck in self.healthchecks:
                     schedule_healthcheck(healthcheck)
             except Exception as err:
-                self._state_subject.on_next(self._set_state(ServiceState.START_FAILED))
+                self._state_subject.on_next(self._set_state(ServiceLifecycleState.START_FAILED))
                 self.stop()
                 raise ServiceStartError(
                     self.name, "error occurred while starting"
@@ -188,19 +208,19 @@ class Service(ABC):
         - The service can only be stopped when state is in [RUNNING, START_FAILED, NEW]
         - When state in [STOPPED, STOPPING], then this is a noop
         """
-        if self._state in [ServiceState.STOPPED, ServiceState.STOPPING]:
+        if self._state in [ServiceLifecycleState.STOPPED, ServiceLifecycleState.STOPPING]:
             return
 
-        if self._state in [ServiceState.RUNNING, ServiceState.START_FAILED]:
+        if self._state in [ServiceLifecycleState.RUNNING, ServiceLifecycleState.START_FAILED]:
             # stop running health checks
             self._healthchecks_subject.on_completed()
             self._healthchecks_subject.dispose()
 
-            start_failed = self._state == ServiceState.START_FAILED
-            self._state_subject.on_next(self._set_state(ServiceState.STOPPING))
+            start_failed = self._state == ServiceLifecycleState.START_FAILED
+            self._state_subject.on_next(self._set_state(ServiceLifecycleState.STOPPING))
             try:
                 self._stop()
-                self._state_subject.on_next(self._set_state(ServiceState.STOPPED))
+                self._state_subject.on_next(self._set_state(ServiceLifecycleState.STOPPED))
                 if start_failed:
                     self._state_subject.on_error(
                         ServiceStartError(
@@ -211,7 +231,7 @@ class Service(ABC):
                 else:
                     self._state_subject.on_completed()
             except Exception as err:
-                self._state_subject.on_next(self._set_state(ServiceState.STOPPED))
+                self._state_subject.on_next(self._set_state(ServiceLifecycleState.STOPPED))
                 if start_failed:
                     self._state_subject.on_error(
                         ServiceStopError(
@@ -228,11 +248,11 @@ class Service(ABC):
                 self._state_subject.dispose()
                 if self._healthcheck_timer:
                     self._healthcheck_timer.cancel()
-        elif self._state == ServiceState.NEW:
-            self._state_subject.on_next(self._set_state(ServiceState.STOPPED))
+        elif self._state == ServiceLifecycleState.NEW:
+            self._state_subject.on_next(self._set_state(ServiceLifecycleState.STOPPED))
             self._state_subject.on_completed()
             self._state_subject.dispose()
-        elif self._state == ServiceState.STARTING:
+        elif self._state == ServiceLifecycleState.STARTING:
             error = ServiceStopError(
                 self.name,
                 f"service cannot be stopped when state is: {self._state}",
@@ -240,9 +260,11 @@ class Service(ABC):
             self._state_subject.on_error(error)
             raise error
 
-    def state_observable(self) -> Observable[ServiceStateEvent]:
+    @property
+    def state_observable(self) -> Observable[ServiceLifecycleEvent]:
         return self._state_observable
 
+    @property
     def healthchecks_observable(self) -> Observable[HealthCheckResult]:
         return self._healthchecks_observable
 
@@ -262,7 +284,9 @@ class Service(ABC):
         """
         pass
 
-    def _set_state(self, state: ServiceState) -> ServiceStateEvent:
+    def _set_state(self, state: ServiceLifecycleState) -> ServiceLifecycleEvent:
         self._logger.info(f"state transition: {self._state.name} -> {state.name}")
+        if state == ServiceLifecycleState.RUNNING:
+            self._running_event.set()
         self._state = state
-        return ServiceStateEvent(self.name, state)
+        return ServiceLifecycleEvent(self.name, state)

@@ -2,7 +2,6 @@
 Provides Command that searches Algorand for auctions to import into the database
 """
 from dataclasses import dataclass
-from datetime import datetime, UTC, timedelta
 
 from oysterpack.apps.auction_app.commands.auction_algorand_search.search_auctions import (
     SearchAuctions,
@@ -12,7 +11,7 @@ from oysterpack.apps.auction_app.commands.data.queries.get_max_auction_app_id im
     GetMaxAuctionAppId,
 )
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
-from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId
+from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId, Auction
 from oysterpack.core.command import Command
 
 
@@ -24,33 +23,11 @@ class ImportAuctionsRequest:
 
     auction_manager_app_id: AuctionManagerAppId
 
-    # limits the number of auctions to fetch per Algorand search
-    algorand_search_limit: int = 100
+    # max number of auctions to import in this batch
+    batch_size: int = 100
 
 
-@dataclass(slots=True)
-class ImportAuctionsResult:
-    """
-    ImportAuctionsResult
-    """
-
-    # number of new auctions that were imported into the database
-    count: int
-
-    start_time: datetime
-    end_time: datetime
-
-    error: Exception | None = None
-
-    @property
-    def import_duration(self) -> timedelta:
-        """
-        :return: import duration
-        """
-        return self.end_time - self.start_time
-
-
-class ImportAuctions(Command[ImportAuctionsRequest, ImportAuctionsResult]):
+class ImportAuctions(Command[ImportAuctionsRequest, list[Auction]]):
     """
     Searches Algorand for Auctions to import into the database.
     """
@@ -66,55 +43,26 @@ class ImportAuctions(Command[ImportAuctionsRequest, ImportAuctionsResult]):
         self._get_max_auction_app_id = get_max_auction_app_id
         self._logger = super().get_logger()
 
-    def __call__(self, request: ImportAuctionsRequest) -> ImportAuctionsResult:
-        start_time = datetime.now(UTC)
-        count = 0
-        try:
-            max_auction_app_id = self._get_max_auction_app_id(
-                request.auction_manager_app_id
-            )
-            self._logger.info(
-                "auction_manager_app_id = %s, max_auction_app_id = %s",
-                request.auction_manager_app_id,
-                max_auction_app_id,
-            )
+    def __call__(self, request: ImportAuctionsRequest) -> list[Auction]:
+        max_auction_app_id = self._get_max_auction_app_id(
+            request.auction_manager_app_id
+        )
+        self._logger.info(
+            "auction_manager_app_id = %s, max_auction_app_id = %s",
+            request.auction_manager_app_id,
+            max_auction_app_id,
+        )
 
-            search_request = AuctionSearchRequest(
-                auction_manager_app_id=request.auction_manager_app_id,
-                limit=request.algorand_search_limit,
-                next_token=max_auction_app_id,
-            )
-            search_result = self._search(search_request)
-            self._logger.debug(search_result)
-            if len(search_result.auctions) == 0:
-                return ImportAuctionsResult(
-                    count=count,
-                    start_time=start_time,
-                    end_time=datetime.now(UTC),
-                )
+        search_request = AuctionSearchRequest(
+            auction_manager_app_id=request.auction_manager_app_id,
+            limit=request.batch_size,
+            next_token=max_auction_app_id,
+        )
+        search_result = self._search(search_request)
+        self._logger.debug(search_result)
+        if len(search_result.auctions) == 0:
+            return []
 
-            store_result = self._store(search_result.auctions)
-            self._logger.info(store_result)
-            count += store_result.inserts
-
-            while search_result.next_token is not None:
-                search_request.next_token = search_result.next_token
-                search_result = self._search(search_request)
-                self._logger.debug(search_result)
-
-                store_result = self._store(search_result.auctions)
-                self._logger.info(store_result)
-                count += store_result.inserts
-
-            return ImportAuctionsResult(
-                count=count,
-                start_time=start_time,
-                end_time=datetime.now(UTC),
-            )
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            return ImportAuctionsResult(
-                count=count,
-                start_time=start_time,
-                end_time=datetime.now(UTC),
-                error=err,
-            )
+        store_result = self._store(search_result.auctions)
+        self._logger.info(store_result)
+        return search_result.auctions

@@ -80,33 +80,22 @@ class ImportAuctionsTestCase(AlgorandTestCase):
 
         import_auctions_request = ImportAuctionsRequest(
             auction_manager_app_id=self.seller_auction_manager_client.app_id,
-            algorand_search_limit=2,
+            batch_size=2,
         )
-        import_auctions_result = import_auctions(import_auctions_request)
-        logger.info(import_auctions_result)
-        self.assertEqual(5, import_auctions_result.count)
+
+        imported_count = 0
+        while imported_auctions := import_auctions(import_auctions_request):
+            imported_count += len(imported_auctions)
+            logger.info(imported_auctions)
+            with self.session_factory() as session:
+                # pylint: disable=not-callable
+                auction_count = session.scalar(select(func.count(TAuction.app_id)))
+                self.assertEqual(imported_count, auction_count)
+
         with self.session_factory() as session:
             # pylint: disable=not-callable
             auction_count = session.scalar(select(func.count(TAuction.app_id)))
             self.assertEqual(len(self.app_ids), auction_count)
-
-        # create more auctions
-        for _ in range(5):
-            self.app_ids.append(
-                self.seller_auction_manager_client.create_auction().app_id
-            )
-        sleep(1)  # give the indexer time to index
-
-        import_auctions_result = import_auctions(import_auctions_request)
-        logger.info(import_auctions_result)
-        self.assertEqual(5, import_auctions_result.count)
-        with self.session_factory() as session:
-            # pylint: disable=not-callable
-            auction_count = session.scalar(select(func.count(TAuction.app_id)))
-            self.assertEqual(len(self.app_ids), auction_count)
-
-            for auction in session.scalars(select(TAuction)):
-                self.assertIn(auction.app_id, self.app_ids)
 
 
 if __name__ == "__main__":

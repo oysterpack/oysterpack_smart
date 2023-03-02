@@ -1,11 +1,13 @@
 import logging
 import unittest
 from dataclasses import dataclass, field
+from datetime import timedelta
 from time import sleep
 
 from reactivex import Subject, Observer
 from reactivex.operators import observe_on
 
+from oysterpack.core.health_check import HealthCheck, HealthCheckImpact
 from oysterpack.core.rx import default_scheduler
 from oysterpack.core.service import (
     Service,
@@ -20,6 +22,20 @@ from tests.test_support import OysterPackTestCase
 logger = logging.getLogger("ServiceTestCase")
 
 
+class FooHealthCheck(HealthCheck):
+    def __init__(self, name: str = "foo"):
+        super().__init__(
+            name=name,
+            impact=HealthCheckImpact.HIGH,
+            description="Foo health check",
+            tags={"database"},
+            run_interval=timedelta(seconds=1),
+        )
+
+    def execute(self):
+        logger.info("executing FooHealthCheck")
+
+
 class FooService(Service):
     start_error: Exception | None = None
     stop_error: Exception | None = None
@@ -27,6 +43,8 @@ class FooService(Service):
     def _start(self):
         if self.start_error:
             raise self.start_error
+
+        self._healthchecks = [FooHealthCheck(), FooHealthCheck("bar")]
 
     def _stop(self):
         if self.stop_error:
@@ -69,6 +87,14 @@ class ServiceTestCase(OysterPackTestCase):
         # wait until service has started
         while not foo.running:
             sleep(0.001)
+
+        # healthcheck is scheduled to run every second
+        # sleep for 2 seconds to give time to run heatlh checks
+        sleep(3)
+
+        for healthcheck in foo.healthchecks:
+            self.assertIsNotNone(healthcheck.last_result)
+            logger.info(f"last healthcheck result: {healthcheck.last_result}")
 
         # trying to start the service when it's running should be a noop
         commands.on_next(ServiceCommand.START)

@@ -2,11 +2,13 @@ import logging
 from abc import ABC
 from dataclasses import dataclass
 from enum import IntEnum, auto
+from threading import Timer
 
-from reactivex import Observable
+from reactivex import Observable, Subject
 from reactivex.operators import observe_on
 from reactivex.subject import BehaviorSubject
 
+from oysterpack.core.health_check import HealthCheck, HealthCheckResult
 from oysterpack.core.rx import default_scheduler
 
 
@@ -70,13 +72,15 @@ class Service(ABC):
     - Services have a defined lifecycle. The service lifecycle states are defined by `ServiceState`.
     - Services can be signalled to start and stop async. Services subscribe to an `Observable[ServiceCommand]`
     - Service lifecycle events are published on an Observable[ServiceStateEvent]
-
+    - Services define and schedule their own health checks. Healthcheck results are published on an
+      Observable[HealthCheckResult].
     """
 
     def __init__(self, commands: Observable[ServiceCommand]):
         self._state = ServiceState.NEW
         self._logger = logging.getLogger(self.__class__.__name__)
 
+        # setup stream to publish service state events
         self._state_subject: BehaviorSubject[ServiceStateEvent] = BehaviorSubject(
             ServiceStateEvent(self.name, self._state)
         )
@@ -94,6 +98,14 @@ class Service(ABC):
 
         commands.subscribe(on_command)
 
+        # healthchecks
+        self._healthchecks: list[HealthCheck] = []
+        self._healthchecks_subject: Subject[HealthCheckResult] = Subject()
+        self._healthchecks_observable: Observable[
+            HealthCheckResult
+        ] = self._healthchecks_subject.pipe(observe_on(default_scheduler))
+        self._healthcheck_timer: Timer | None = None
+
     @property
     def name(self) -> str:
         return self.__class__.__name__
@@ -110,6 +122,10 @@ class Service(ABC):
     def stopped(self) -> bool:
         return self._state == ServiceState.STOPPED
 
+    @property
+    def healthchecks(self) -> list[HealthCheck]:
+        return self._healthchecks[:]
+
     def start(self):
         """
         Start the service
@@ -122,6 +138,23 @@ class Service(ABC):
           a chance to clean up any resources while trying to start.
           - the error will be published on the Observable stream and the error will be raised
         """
+
+        def schedule_healthcheck(healthcheck: HealthCheck):
+            def run_healthcheck(healthcheck: HealthCheck):
+                healthcheck()
+                self._healthcheck_timer = Timer(
+                    healthcheck.run_interval.seconds, run_healthcheck, (healthcheck,)
+                )
+                self._healthcheck_timer.daemon = True
+                self._healthcheck_timer.start()
+
+            self._healthcheck_timer = Timer(
+                healthcheck.run_interval.seconds, run_healthcheck, (healthcheck,)
+            )
+            self._healthcheck_timer.daemon = True
+            self._healthcheck_timer.start()
+            self._logger.info(f"scheduled healthcheck: {healthcheck}")
+
         if self._state in [ServiceState.RUNNING, ServiceState.STARTING]:
             return
 
@@ -130,6 +163,8 @@ class Service(ABC):
             try:
                 self._start()
                 self._state_subject.on_next(self._set_state(ServiceState.RUNNING))
+                for healthcheck in self.healthchecks:
+                    schedule_healthcheck(healthcheck)
             except Exception as err:
                 self._state_subject.on_next(self._set_state(ServiceState.START_FAILED))
                 self.stop()
@@ -157,6 +192,10 @@ class Service(ABC):
             return
 
         if self._state in [ServiceState.RUNNING, ServiceState.START_FAILED]:
+            # stop running health checks
+            self._healthchecks_subject.on_completed()
+            self._healthchecks_subject.dispose()
+
             start_failed = self._state == ServiceState.START_FAILED
             self._state_subject.on_next(self._set_state(ServiceState.STOPPING))
             try:
@@ -185,8 +224,14 @@ class Service(ABC):
                 raise ServiceStopError(
                     self.name, "error occurred while stopping"
                 ) from err
+            finally:
+                self._state_subject.dispose()
+                if self._healthcheck_timer:
+                    self._healthcheck_timer.cancel()
         elif self._state == ServiceState.NEW:
             self._state_subject.on_next(self._set_state(ServiceState.STOPPED))
+            self._state_subject.on_completed()
+            self._state_subject.dispose()
         elif self._state == ServiceState.STARTING:
             error = ServiceStopError(
                 self.name,
@@ -198,9 +243,16 @@ class Service(ABC):
     def state_observable(self) -> Observable[ServiceStateEvent]:
         return self._state_observable
 
+    def healthchecks_observable(self) -> Observable[HealthCheckResult]:
+        return self._healthchecks_observable
+
     def _start(self):
         """
-        override to perform any startup work
+        Override to perform any startup work.
+
+        Notes
+        -----
+        - Service HealthCheck(s) are expected to be created during startup
         """
         pass
 

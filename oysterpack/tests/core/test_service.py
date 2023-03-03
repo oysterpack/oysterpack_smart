@@ -39,12 +39,18 @@ class FooHealthCheck(HealthCheck):
 class FooService(Service):
     start_error: Exception | None = None
     stop_error: Exception | None = None
+    start_sleep: timedelta | None = None
 
     def _start(self):
         if self.start_error:
             raise self.start_error
 
         self._healthchecks = [FooHealthCheck(), FooHealthCheck("bar")]
+
+        if self.start_sleep:
+            logger.info(f"sleeping for {self.start_sleep}")
+            sleep(self.start_sleep.seconds)
+            logger.info("done sleeping")
 
     def _stop(self):
         if self.stop_error:
@@ -81,7 +87,7 @@ class ServiceTestCase(OysterPackTestCase):
 
         # subscribe to service state events
         foo_state_observer = ServiceStateSubscriber()
-        foo.state_observable.subscribe(foo_state_observer)
+        foo.lifecycle_state_observable.subscribe(foo_state_observer)
         # signal the service to start
         commands.on_next(ServiceCommand.START)
 
@@ -124,7 +130,7 @@ class ServiceTestCase(OysterPackTestCase):
         foo.start_error = Exception("BOOM!")
         # subscribe to service state events
         foo_state_observer = ServiceStateSubscriber()
-        foo.state_observable.subscribe(foo_state_observer)
+        foo.lifecycle_state_observable.subscribe(foo_state_observer)
         # signal the service to start
         commands.on_next(ServiceCommand.START)
 
@@ -145,6 +151,34 @@ class ServiceTestCase(OysterPackTestCase):
 
         self.assertIsInstance(foo_state_observer.error, ServiceStartError)
 
+    def test_service_start_timeout(self):
+        commands = Subject()
+        commands_observable = commands.pipe(observe_on(default_scheduler))
+
+        foo = FooService(commands_observable)
+        foo.start_sleep = timedelta(seconds=2)
+        # subscribe to service state events
+        foo_state_observer = ServiceStateSubscriber()
+        foo.lifecycle_state_observable.subscribe(foo_state_observer)
+        # signal the service to start
+        commands.on_next(ServiceCommand.START)
+
+        with self.assertRaises(TimeoutError):
+            foo.await_running(timedelta(seconds=1))
+
+        foo.await_running(timedelta(seconds=2))
+
+        sleep(0.1)  # give the service time to transition to RUNNING
+
+        self.assertEqual(
+            [
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.NEW),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STARTING),
+                ServiceLifecycleEvent(foo.name, ServiceLifecycleState.RUNNING),
+            ],
+            foo_state_observer.events_received,
+        )
+
     def test_service_stop_error(self):
         commands = Subject()
         commands_observable = commands.pipe(observe_on(default_scheduler))
@@ -153,7 +187,7 @@ class ServiceTestCase(OysterPackTestCase):
         foo.stop_error = Exception("BOOM!")
         # subscribe to service state events
         foo_state_observer = ServiceStateSubscriber()
-        foo.state_observable.subscribe(foo_state_observer)
+        foo.lifecycle_state_observable.subscribe(foo_state_observer)
         # signal the service to start
         commands.on_next(ServiceCommand.START)
 
@@ -190,7 +224,7 @@ class ServiceTestCase(OysterPackTestCase):
         foo.stop_error = Exception("STOP FAILED!")
         # subscribe to service state events
         foo_state_observer = ServiceStateSubscriber()
-        foo.state_observable.subscribe(foo_state_observer)
+        foo.lifecycle_state_observable.subscribe(foo_state_observer)
         # signal the service to start
         commands.on_next(ServiceCommand.START)
 

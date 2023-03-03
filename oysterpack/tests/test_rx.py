@@ -3,7 +3,7 @@ from threading import current_thread
 from time import sleep
 
 import reactivex
-from reactivex import Observer
+from reactivex import Observer, Subject
 from reactivex import operators as ops
 from reactivex.abc import ObserverBase, DisposableBase, SchedulerBase
 from reactivex.internal import SequenceContainsNoElementsError
@@ -81,6 +81,20 @@ class RxTestCase(unittest.TestCase):
             observable.run()
         except SequenceContainsNoElementsError as err:
             print(err)
+
+    def test_flatmap(self):
+        observables = [Subject(), Subject()]
+
+        subject = Subject()
+        for observable in observables:
+            observable.subscribe(subject)
+
+        subject.subscribe(print)
+
+        count = 0
+        for observable in observables:
+            count += 1
+            observable.on_next(count)
 
 
 if __name__ == "__main__":

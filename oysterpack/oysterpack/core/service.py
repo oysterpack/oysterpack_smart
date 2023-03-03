@@ -19,6 +19,7 @@ class ServiceLifecycleState(IntEnum):
 
     Normal service lifecycle: NEW -> STARTING -> RUNNING -> STOPPING -> STOPPED
     """
+
     NEW = auto()
 
     STARTING = auto()
@@ -37,6 +38,7 @@ class ServiceLifecycleEvent:
     """
     Service lifecycle state events
     """
+
     service_name: str
     state: ServiceLifecycleState
 
@@ -45,6 +47,7 @@ class ServiceCommand(IntEnum):
     """
     Commands used to manage the service.
     """
+
     START = auto()
     STOP = auto()
 
@@ -88,7 +91,7 @@ class Service(ABC):
       Observable[HealthCheckResult].
     """
 
-    def __init__(self, commands: Observable[ServiceCommand]):
+    def __init__(self, commands: Observable[ServiceCommand] | None = None):
         self._state = ServiceLifecycleState.NEW
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -100,15 +103,7 @@ class Service(ABC):
             ServiceLifecycleEvent
         ] = self._state_subject.pipe(observe_on(default_scheduler))
 
-        def on_command(command: ServiceCommand):
-            self._logger.info(f"received ServiceCommand: {command.name}")
-            match command:
-                case ServiceCommand.START:
-                    self.start()
-                case ServiceCommand.STOP:
-                    self.stop()
-
-        commands.subscribe(on_command)
+        self._subscribe_commands(commands)
 
         # healthchecks
         self._healthchecks: list[HealthCheck] = []
@@ -119,6 +114,20 @@ class Service(ABC):
         self._healthcheck_timer: Timer | None = None
 
         self._running_event = Event()
+        self._stopped_event = Event()
+
+    def _subscribe_commands(self, commands: Observable[ServiceCommand] | None = None):
+        if commands:
+
+            def on_command(command: ServiceCommand):
+                self._logger.info(f"received ServiceCommand: {command.name}")
+                match command:
+                    case ServiceCommand.START:
+                        self.start()
+                    case ServiceCommand.STOP:
+                        self.stop()
+
+            commands.subscribe(on_command)
 
     @property
     def name(self) -> str:
@@ -136,7 +145,15 @@ class Service(ABC):
         """
         Used to await the service is running
         """
-        self._running_event.wait(timeout.seconds if timeout else None)
+        if not self._running_event.wait(timeout.seconds if timeout else None):
+            raise TimeoutError
+
+    def await_stopped(self, timeout: timedelta | None = None):
+        """
+        Used to await service shutdown
+        """
+        if not self._stopped_event.wait(timeout.seconds if timeout else None):
+            raise TimeoutError
 
     @property
     def stopped(self) -> bool:
@@ -175,18 +192,25 @@ class Service(ABC):
             self._healthcheck_timer.start()
             self._logger.info(f"scheduled healthcheck: {healthcheck}")
 
-        if self._state in [ServiceLifecycleState.RUNNING, ServiceLifecycleState.STARTING]:
+        if self._state in [
+            ServiceLifecycleState.RUNNING,
+            ServiceLifecycleState.STARTING,
+        ]:
             return
 
         if self._state == ServiceLifecycleState.NEW:
             self._state_subject.on_next(self._set_state(ServiceLifecycleState.STARTING))
             try:
                 self._start()
-                self._state_subject.on_next(self._set_state(ServiceLifecycleState.RUNNING))
+                self._state_subject.on_next(
+                    self._set_state(ServiceLifecycleState.RUNNING)
+                )
                 for healthcheck in self.healthchecks:
                     schedule_healthcheck(healthcheck)
             except Exception as err:
-                self._state_subject.on_next(self._set_state(ServiceLifecycleState.START_FAILED))
+                self._state_subject.on_next(
+                    self._set_state(ServiceLifecycleState.START_FAILED)
+                )
                 self.stop()
                 raise ServiceStartError(
                     self.name, "error occurred while starting"
@@ -208,10 +232,16 @@ class Service(ABC):
         - The service can only be stopped when state is in [RUNNING, START_FAILED, NEW]
         - When state in [STOPPED, STOPPING], then this is a noop
         """
-        if self._state in [ServiceLifecycleState.STOPPED, ServiceLifecycleState.STOPPING]:
+        if self._state in [
+            ServiceLifecycleState.STOPPED,
+            ServiceLifecycleState.STOPPING,
+        ]:
             return
 
-        if self._state in [ServiceLifecycleState.RUNNING, ServiceLifecycleState.START_FAILED]:
+        if self._state in [
+            ServiceLifecycleState.RUNNING,
+            ServiceLifecycleState.START_FAILED,
+        ]:
             # stop running health checks
             self._healthchecks_subject.on_completed()
             self._healthchecks_subject.dispose()
@@ -220,7 +250,9 @@ class Service(ABC):
             self._state_subject.on_next(self._set_state(ServiceLifecycleState.STOPPING))
             try:
                 self._stop()
-                self._state_subject.on_next(self._set_state(ServiceLifecycleState.STOPPED))
+                self._state_subject.on_next(
+                    self._set_state(ServiceLifecycleState.STOPPED)
+                )
                 if start_failed:
                     self._state_subject.on_error(
                         ServiceStartError(
@@ -231,7 +263,9 @@ class Service(ABC):
                 else:
                     self._state_subject.on_completed()
             except Exception as err:
-                self._state_subject.on_next(self._set_state(ServiceLifecycleState.STOPPED))
+                self._state_subject.on_next(
+                    self._set_state(ServiceLifecycleState.STOPPED)
+                )
                 if start_failed:
                     self._state_subject.on_error(
                         ServiceStopError(
@@ -261,7 +295,7 @@ class Service(ABC):
             raise error
 
     @property
-    def state_observable(self) -> Observable[ServiceLifecycleEvent]:
+    def lifecycle_state_observable(self) -> Observable[ServiceLifecycleEvent]:
         return self._state_observable
 
     @property
@@ -286,7 +320,12 @@ class Service(ABC):
 
     def _set_state(self, state: ServiceLifecycleState) -> ServiceLifecycleEvent:
         self._logger.info(f"state transition: {self._state.name} -> {state.name}")
+
+        self._state = state
+
         if state == ServiceLifecycleState.RUNNING:
             self._running_event.set()
-        self._state = state
+        if state == ServiceLifecycleState.STOPPED:
+            self._stopped_event.set()
+
         return ServiceLifecycleEvent(self.name, state)

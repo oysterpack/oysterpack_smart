@@ -11,7 +11,6 @@ from algosdk.v2client.indexer import IndexerClient
 from oysterpack.algorand.client.model import AppId, Address
 from oysterpack.apps.auction_app.commands.auction_algorand_search import to_auction
 from oysterpack.apps.auction_app.domain.auction import Auction
-from oysterpack.core.command import Command
 
 
 @dataclass(slots=True)
@@ -54,7 +53,7 @@ class AuctionSearchResult:
     next_token: str | None
 
 
-class SearchAuctions(Command[AuctionSearchRequest, AuctionSearchResult]):
+class SearchAuctions:
     """
     Used to search for Auction apps on Algorand.
     """

@@ -6,10 +6,9 @@ from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
 
 from oysterpack.algorand.client.model import AppId
-from oysterpack.core.command import Command
 
 
-class AppExists(Command[AppId, bool]):
+class AppExists:
     """
     Checks that the application exists on Algorand
     """

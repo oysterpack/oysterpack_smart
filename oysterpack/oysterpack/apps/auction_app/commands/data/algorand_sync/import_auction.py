@@ -11,10 +11,10 @@ from oysterpack.apps.auction_app.domain.auction import (
     AuctionAppId,
     Auction,
 )
-from oysterpack.core.command import Command
+from oysterpack.core.logging import get_logger
 
 
-class ImportAuction(Command[AuctionAppId, Auction | None]):
+class ImportAuction:
     """
     Imports the Auction from Algorand into the database.
 
@@ -34,7 +34,7 @@ class ImportAuction(Command[AuctionAppId, Auction | None]):
         self._store = store
         self._delete = delete
 
-        self._logger = super().get_logger()
+        self._logger = get_logger(self)
 
     def __call__(self, auction_app_id: AuctionAppId) -> Auction | None:
         auction = self._lookup_auction(auction_app_id)

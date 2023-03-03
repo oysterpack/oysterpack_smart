@@ -9,10 +9,9 @@ from sqlalchemy.orm import Mapped, sessionmaker
 from oysterpack.algorand.client.model import AppId, Address
 from oysterpack.apps.auction_app.data.auction import TAuctionManager
 from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId
-from oysterpack.core.command import Command
 
 
-class RegisterAuctionManager(Command[AuctionManagerAppId, None]):
+class RegisterAuctionManager:
     """
     Registers the AuctionManager in the database
     """

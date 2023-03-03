@@ -9,12 +9,9 @@ from sqlalchemy.orm import sessionmaker
 from oysterpack.algorand.client.model import Address
 from oysterpack.apps.auction_app.data.auction import TAuctionManager
 from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId
-from oysterpack.core.command import Command
 
 
-class LookupAuctionManager(
-    Command[AuctionManagerAppId | Address, Tuple[AuctionManagerAppId, Address] | None]
-):
+class LookupAuctionManager:
     """
     Looks up the auction manager either by app ID or app address.
 

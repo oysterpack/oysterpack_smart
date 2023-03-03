@@ -14,7 +14,7 @@ from oysterpack.algorand.client.model import AppId, Address, AssetId
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.auction_app.data.auction import TAuction, TAuctionAsset
 from oysterpack.apps.auction_app.domain.auction import Auction
-from oysterpack.core.command import Command
+from oysterpack.core.logging import get_logger
 
 
 class AuctionSortField(IntEnum):
@@ -170,7 +170,7 @@ class AuctionSearchRequest:
         )
 
 
-class SearchAuctions(Command[AuctionSearchRequest, AuctionSearchResult]):
+class SearchAuctions:
     """
     SearchAuctions
     """
@@ -181,7 +181,7 @@ class SearchAuctions(Command[AuctionSearchRequest, AuctionSearchResult]):
     def __call__(self, request: AuctionSearchRequest) -> AuctionSearchResult:
         # pylint: disable=too-many-statements
 
-        logger = super().get_logger()
+        logger = get_logger(self)
 
         def build_where_clause(select_clause: Select) -> Select:
             # pylint: disable=too-many-branches

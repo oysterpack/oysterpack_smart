@@ -7,7 +7,11 @@ from time import sleep
 from reactivex import Subject, Observer, Observable
 from reactivex.operators import observe_on
 
-from oysterpack.core.health_check import HealthCheck, HealthCheckImpact, HealthCheckResult
+from oysterpack.core.health_check import (
+    HealthCheck,
+    HealthCheckImpact,
+    HealthCheckResult,
+)
 from oysterpack.core.rx import default_scheduler
 from oysterpack.core.service import (
     Service,
@@ -81,7 +85,9 @@ class ServiceStateSubscriber(Observer[ServiceLifecycleEvent]):
 class ServiceTestCase(OysterPackTestCase):
     def test_service_lifecycle(self) -> None:
         commands: Subject[ServiceCommand] = Subject()
-        commands_observable: Observable[ServiceCommand] = commands.pipe(observe_on(default_scheduler))
+        commands_observable: Observable[ServiceCommand] = commands.pipe(
+            observe_on(default_scheduler)
+        )
 
         foo = FooService(commands_observable)
 
@@ -151,17 +157,24 @@ class ServiceTestCase(OysterPackTestCase):
                 try:
                     self.assertEqual(
                         [
-                            ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPING),
-                            ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPED),
-                            ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STARTING),
-                            ServiceLifecycleEvent(foo.name, ServiceLifecycleState.RUNNING),
+                            ServiceLifecycleEvent(
+                                foo.name, ServiceLifecycleState.STOPPING
+                            ),
+                            ServiceLifecycleEvent(
+                                foo.name, ServiceLifecycleState.STOPPED
+                            ),
+                            ServiceLifecycleEvent(
+                                foo.name, ServiceLifecycleState.STARTING
+                            ),
+                            ServiceLifecycleEvent(
+                                foo.name, ServiceLifecycleState.RUNNING
+                            ),
                         ],
                         foo_state_observer.events_received,
                     )
                     break
                 except AssertionError:
                     sleep(0.1)
-
 
     def test_service_start_error(self):
         commands = Subject()

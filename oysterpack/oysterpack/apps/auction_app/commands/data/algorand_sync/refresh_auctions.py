@@ -8,14 +8,13 @@ from oysterpack.apps.auction_app.commands.data.errors import (
     AuctionManagerNotRegisteredError,
 )
 from oysterpack.apps.auction_app.domain.auction import AuctionAppId, Auction
-from oysterpack.core.command import Command
 
 RefreshAuctionsResult = dict[
     AuctionAppId, Auction | None | AuctionManagerNotRegisteredError
 ]
 
 
-class RefreshAuctions(Command[list[AuctionAppId], RefreshAuctionsResult]):
+class RefreshAuctions:
     """
     If the Auction exists on Algorand, then its state will be imported into the database.
     Otherwise, the Auction will be deleted from the database.

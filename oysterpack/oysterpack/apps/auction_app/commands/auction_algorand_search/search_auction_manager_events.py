@@ -15,7 +15,6 @@ from oysterpack.apps.auction_app.client.auction_manager_client import (
     AuctionManagerClient,
 )
 from oysterpack.apps.auction_app.domain.auction import AuctionAppId
-from oysterpack.core.command import Command
 
 
 class AuctionManagerEvent(IntEnum):
@@ -54,9 +53,7 @@ class SearchAuctionManagerEventsResult:
     next_token: str | None = None
 
 
-class SearchAuctionManagerEvents(
-    Command[SearchAuctionManagerEventsRequest, SearchAuctionManagerEventsResult]
-):
+class SearchAuctionManagerEvents:
     """
     Used to search Algorand transactions for AuctionManager events
     """

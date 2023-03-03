@@ -48,6 +48,7 @@ class HealthCheckImpact(IntEnum):
 class HealthCheckException(Exception):
     "Base health check exception"
 
+
 class YellowHealthCheck(HealthCheckException):
     """
     Indicates HealthCheck is in a YELLOW state

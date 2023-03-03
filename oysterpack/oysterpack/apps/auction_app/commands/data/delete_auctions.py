@@ -7,10 +7,9 @@ from sqlalchemy.orm import sessionmaker
 
 from oysterpack.algorand.client.model import AppId
 from oysterpack.apps.auction_app.data.auction import TAuction
-from oysterpack.core.command import Command
 
 
-class DeleteAuctions(Command[list[AppId], None]):
+class DeleteAuctions:
     """
     Deletes auctions from the database for the specified auction app IDs.
 

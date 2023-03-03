@@ -7,10 +7,9 @@ from sqlalchemy.orm import sessionmaker
 
 from oysterpack.apps.auction_app.data.auction import TAuctionManager, TAuction
 from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId
-from oysterpack.core.command import Command
 
 
-class UnregisterAuctionManager(Command[AuctionManagerAppId, None]):
+class UnregisterAuctionManager:
     """
     Unregistering an AuctionManager will cascade delete all associated Auctions.
     """

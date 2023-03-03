@@ -24,7 +24,7 @@ from oysterpack.apps.auction_app.commands.data.queries.search_auctions import (
 )
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId
-from oysterpack.core.command import Command
+from oysterpack.core.logging import get_logger
 
 
 @dataclass(slots=True)
@@ -38,7 +38,7 @@ class DeleteFinalizedAuctionsRequest:
     batch_size: int = 100
 
 
-class DeleteFinalizedAuctions(Command[DeleteFinalizedAuctionsRequest, int]):
+class DeleteFinalizedAuctions:
     """
     Deletes finalized auctions on Algorand and from the database.
     """
@@ -64,7 +64,7 @@ class DeleteFinalizedAuctions(Command[DeleteFinalizedAuctionsRequest, int]):
         self._app_exists_on_algorand = app_exists
         self._lookup_auction_manager = lookup_auction_manager
         self._auction_manager_client = auction_manager_client
-        self._logger = super().get_logger()
+        self._logger = get_logger(self)
 
     def __call__(self, request: DeleteFinalizedAuctionsRequest) -> int:
         self._validate_request(request)

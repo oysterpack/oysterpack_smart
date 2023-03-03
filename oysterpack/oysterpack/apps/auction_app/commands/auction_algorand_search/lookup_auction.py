@@ -16,10 +16,9 @@ from oysterpack.apps.auction_app.domain.auction import (
     AuctionAppId,
     Auction,
 )
-from oysterpack.core.command import Command
 
 
-class LookupAuction(Command[AuctionAppId, Auction | None]):
+class LookupAuction:
     """
     Tries to look up the auction on Algorand.
 

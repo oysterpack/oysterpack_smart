@@ -4,6 +4,7 @@ Provides support for logging
 
 import logging
 import time
+from typing import Any
 
 
 def configure_logging(level: int = logging.WARNING):
@@ -28,3 +29,14 @@ def configure_logging(level: int = logging.WARNING):
         format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s", level=level
     )
     logging.captureWarnings(True)
+
+
+def get_logger(obj: Any, name: str | None = None) -> logging.Logger:
+    """
+    Returns a logger using the class name as the logger name.
+    If `name` is specifed, then it is appended to the class name: `{self.__class__.__name__}.{name}`
+    """
+    if name is None:
+        return logging.getLogger(obj.__class__.__name__)
+
+    return logging.getLogger(f"{obj.__class__.__name__}.{name}")

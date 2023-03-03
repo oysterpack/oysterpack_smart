@@ -5,10 +5,9 @@ from sqlalchemy.orm import sessionmaker
 
 from oysterpack.apps.auction_app.data.auction import TAuction
 from oysterpack.apps.auction_app.domain.auction import AuctionAppId, Auction
-from oysterpack.core.command import Command
 
 
-class GetAuction(Command[AuctionAppId, Auction | None]):
+class GetAuction:
     """
     Retrieves Auction from the database by its AppId
     """

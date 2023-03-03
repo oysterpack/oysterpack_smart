@@ -9,7 +9,7 @@ configure_logging(level=logging.DEBUG)
 
 class OysterPackTestCase(unittest.TestCase):
     maxDiff = None
-    
+
     def get_logger(self, name: str) -> Logger:
         return logging.getLogger(f"{self.__class__.__name__}.{name}")
 

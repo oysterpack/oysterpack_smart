@@ -12,7 +12,6 @@ from oysterpack.apps.auction_app.client.auction_client import (
     AuctionClient,
     AuctionBidder,
 )
-from oysterpack.core.command import Command
 
 
 class AuctionEvent(IntEnum):
@@ -60,9 +59,7 @@ class SearchAuctionEventsResult:
     next_token: str | None
 
 
-class SearchAuctionEvents(
-    Command[SearchAuctionEventsRequest, SearchAuctionEventsResult]
-):
+class SearchAuctionEvents:
     """
     Used to search Algorand transactions for Auction events
     """

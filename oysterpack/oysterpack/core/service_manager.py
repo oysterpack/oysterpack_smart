@@ -124,5 +124,3 @@ class ServiceManager:
             except TimeoutError as err:
                 self._logger.error("service shutdown timed out: %s", service.name)
                 raise err
-
-

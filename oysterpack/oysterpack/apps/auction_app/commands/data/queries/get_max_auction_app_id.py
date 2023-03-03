@@ -7,10 +7,9 @@ from sqlalchemy.orm import sessionmaker
 from oysterpack.algorand.client.model import AppId
 from oysterpack.apps.auction_app.data.auction import TAuction
 from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId
-from oysterpack.core.command import Command
 
 
-class GetMaxAuctionAppId(Command[AuctionManagerAppId, AppId | None]):
+class GetMaxAuctionAppId:
     """
     Returns None if no auctions exist in the database for the specified auction manager app ID.
     """

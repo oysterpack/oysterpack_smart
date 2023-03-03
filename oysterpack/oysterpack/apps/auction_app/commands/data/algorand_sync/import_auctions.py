@@ -12,7 +12,7 @@ from oysterpack.apps.auction_app.commands.data.queries.get_max_auction_app_id im
 )
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
 from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId, Auction
-from oysterpack.core.command import Command
+from oysterpack.core.logging import get_logger
 
 
 @dataclass(slots=True)
@@ -27,7 +27,7 @@ class ImportAuctionsRequest:
     batch_size: int = 100
 
 
-class ImportAuctions(Command[ImportAuctionsRequest, list[Auction]]):
+class ImportAuctions:
     """
     Searches Algorand for Auctions to import into the database.
     """
@@ -41,7 +41,7 @@ class ImportAuctions(Command[ImportAuctionsRequest, list[Auction]]):
         self._search = search
         self._store = store
         self._get_max_auction_app_id = get_max_auction_app_id
-        self._logger = super().get_logger()
+        self._logger = get_logger(self)
 
     def __call__(self, request: ImportAuctionsRequest) -> list[Auction]:
         max_auction_app_id = self._get_max_auction_app_id(

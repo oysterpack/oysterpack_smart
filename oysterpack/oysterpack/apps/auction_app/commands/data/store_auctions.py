@@ -8,7 +8,6 @@ from sqlalchemy.orm import sessionmaker
 
 from oysterpack.apps.auction_app.data.auction import TAuction
 from oysterpack.apps.auction_app.domain.auction import Auction
-from oysterpack.core.command import Command
 
 
 @dataclass
@@ -21,7 +20,7 @@ class StoreAuctionsResult:
     updates: int
 
 
-class StoreAuctions(Command[list[Auction], StoreAuctionsResult]):
+class StoreAuctions:
     """
     Stores the auctions in the database.
 

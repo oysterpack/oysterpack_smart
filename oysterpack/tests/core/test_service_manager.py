@@ -117,7 +117,6 @@ class ServiceTestCase(OysterPackTestCase):
             for service in service_manager._services.values():
                 self.assertTrue(service.running)
 
-
     def test_assertions(self):
         with self.subTest("at least 1 service must be specified"):
             with self.assertRaises(AssertionError) as err:

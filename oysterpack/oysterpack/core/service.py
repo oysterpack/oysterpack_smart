@@ -172,20 +172,6 @@ class Service(ABC):
         """
         return self._state == ServiceLifecycleState.RUNNING
 
-    def await_running(self, timeout: timedelta | None = None):
-        """
-        Used to await the service is running
-        """
-        if not self._running_event.wait(timeout.seconds if timeout else None):
-            raise TimeoutError
-
-    def await_stopped(self, timeout: timedelta | None = None):
-        """
-        Used to await service shutdown
-        """
-        if not self._stopped_event.wait(timeout.seconds if timeout else None):
-            raise TimeoutError
-
     @property
     def stopped(self) -> bool:
         """
@@ -199,6 +185,38 @@ class Service(ABC):
         :return: list[HealthCheck]
         """
         return self._healthchecks[:]
+
+    @property
+    def lifecycle_state_observable(self) -> Observable[ServiceLifecycleEvent]:
+        """
+        Used to monitor service lifecycle events.
+
+        :return: Observable[ServiceLifecycleEvent]
+        """
+        return self._state_observable
+
+    @property
+    def healthchecks_observable(self) -> Observable[HealthCheckResult]:
+        """
+        Used to monitor service health checks.
+
+        :return: Observable[HealthCheckResult]
+        """
+        return self._healthchecks_observable
+
+    def await_running(self, timeout: timedelta | None = None):
+        """
+        Used to await the service is running
+        """
+        if not self._running_event.wait(timeout.seconds if timeout else None):
+            raise TimeoutError
+
+    def await_stopped(self, timeout: timedelta | None = None):
+        """
+        Used to await service shutdown
+        """
+        if not self._stopped_event.wait(timeout.seconds if timeout else None):
+            raise TimeoutError
 
     def start(self):
         """
@@ -331,23 +349,17 @@ class Service(ABC):
             self._state_subject.on_error(error)
             raise error
 
-    @property
-    def lifecycle_state_observable(self) -> Observable[ServiceLifecycleEvent]:
-        """
-        Used to monitor service lifecycle events.
+    def _set_state(self, state: ServiceLifecycleState) -> ServiceLifecycleEvent:
+        self._logger.info("state transition: %s -> %s", self._state.name, state.name)
 
-        :return: Observable[ServiceLifecycleEvent]
-        """
-        return self._state_observable
+        self._state = state
 
-    @property
-    def healthchecks_observable(self) -> Observable[HealthCheckResult]:
-        """
-        Used to monitor service health checks.
+        if state == ServiceLifecycleState.RUNNING:
+            self._running_event.set()
+        if state == ServiceLifecycleState.STOPPED:
+            self._stopped_event.set()
 
-        :return: Observable[HealthCheckResult]
-        """
-        return self._healthchecks_observable
+        return ServiceLifecycleEvent(self.name, state)
 
     def _start(self):
         """
@@ -362,15 +374,3 @@ class Service(ABC):
         """
         override to perform any shutdown work
         """
-
-    def _set_state(self, state: ServiceLifecycleState) -> ServiceLifecycleEvent:
-        self._logger.info("state transition: %s -> %s", self._state.name, state.name)
-
-        self._state = state
-
-        if state == ServiceLifecycleState.RUNNING:
-            self._running_event.set()
-        if state == ServiceLifecycleState.STOPPED:
-            self._stopped_event.set()
-
-        return ServiceLifecycleEvent(self.name, state)

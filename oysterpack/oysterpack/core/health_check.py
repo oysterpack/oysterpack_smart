@@ -45,13 +45,16 @@ class HealthCheckImpact(IntEnum):
     LOW = auto()
 
 
-class YellowHealthCheck(Exception):
+class HealthCheckException(Exception):
+    "Base health check exception"
+
+class YellowHealthCheck(HealthCheckException):
     """
     Indicates HealthCheck is in a YELLOW state
     """
 
 
-class RedHealthCheck(Exception):
+class RedHealthCheck(HealthCheckException):
     """
     Indicates HealthCheck is in a RED state
     """

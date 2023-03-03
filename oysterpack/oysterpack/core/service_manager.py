@@ -71,6 +71,15 @@ class ServiceManager:
         """
         return self._services
 
+    @property
+    def service_lifecycle_event_observable(self) -> Observable[ServiceLifecycleEvent]:
+        """
+        Used to monitor lifecycle events for all managed services.
+
+        :return: Observable[ServiceLifecycleEvent]
+        """
+        return self._service_lifecycle_event_observable
+
     def start(self):
         """
         Initiates service startup on all the services being managed.
@@ -115,11 +124,4 @@ class ServiceManager:
                 self._logger.error("service shutdown timed out: %s", service.name)
                 raise err
 
-    @property
-    def service_lifecycle_event_observable(self) -> Observable[ServiceLifecycleEvent]:
-        """
-        Used to monitor lifecycle events for all managed services.
 
-        :return: Observable[ServiceLifecycleEvent]
-        """
-        return self._service_lifecycle_event_observable

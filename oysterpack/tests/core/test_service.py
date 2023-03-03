@@ -45,11 +45,11 @@ class FooService(Service):
     stop_error: Exception | None = None
     start_sleep: timedelta | None = None
 
+    _healthchecks: list[HealthCheck] = [FooHealthCheck(), FooHealthCheck("bar")]
+
     def _start(self):
         if self.start_error:
             raise self.start_error
-
-        self._healthchecks = [FooHealthCheck(), FooHealthCheck("bar")]
 
         if self.start_sleep:
             logger.info(f"sleeping for {self.start_sleep}")

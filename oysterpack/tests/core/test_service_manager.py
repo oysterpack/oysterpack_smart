@@ -34,11 +34,11 @@ class FooService(Service):
     start_error: Exception | None = None
     stop_error: Exception | None = None
 
+    _healthchecks = [FooHealthCheck(), FooHealthCheck("bar")]
+
     def _start(self):
         if self.start_error is not None:
             raise self.start_error
-
-        self._healthchecks = [FooHealthCheck(), FooHealthCheck("bar")]
 
     def _stop(self):
         if self.stop_error is not None:
@@ -49,6 +49,8 @@ class BarService(Service):
     start_error: Exception | None = None
     stop_error: Exception | None = None
 
+    _healthchecks = [FooHealthCheck(), FooHealthCheck("bar")]
+
     @property
     def name(self) -> str:
         return "Bar"
@@ -56,8 +58,6 @@ class BarService(Service):
     def _start(self):
         if self.start_error is not None:
             raise self.start_error
-
-        self._healthchecks = [FooHealthCheck(), FooHealthCheck("bar")]
 
     def _stop(self):
         if self.stop_error is not None:

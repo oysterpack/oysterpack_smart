@@ -102,6 +102,9 @@ class Service(ABC):
 
     # pylint: disable=too-many-instance-attributes
 
+    # subclasses should override to register health checks
+    _healthchecks: list[HealthCheck] = []
+
     def __init__(self, commands: Observable[ServiceCommand] | None = None):
         """
 
@@ -115,7 +118,6 @@ class Service(ABC):
         self._init_lifecycle_state_observable()
         self._subscribe_commands(commands)
 
-        self._healthchecks: list[HealthCheck] = []
         self._healthcheck_timer: Timer | None = None
         self._init_healthcheck_observable()
 
@@ -189,7 +191,7 @@ class Service(ABC):
         """
         :return: list[HealthCheck]
         """
-        return self._healthchecks[:]
+        return self._healthchecks
 
     @property
     def lifecycle_state_observable(self) -> Observable[ServiceLifecycleEvent]:
@@ -382,10 +384,6 @@ class Service(ABC):
     def _start(self):
         """
         Override to perform any startup work.
-
-        Notes
-        -----
-        - Service HealthCheck(s) are expected to be created during startup by setting `Service._healthchecks`
         """
 
     def _stop(self):

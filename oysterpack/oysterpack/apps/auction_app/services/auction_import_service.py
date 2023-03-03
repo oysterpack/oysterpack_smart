@@ -31,7 +31,7 @@ class AuctionImportService(Service):
         import_auctions: ImportAuctions,
         get_auction_managers: GetRegisteredAuctionManagers,
         commands: Observable[ServiceCommand] | None = None,
-        poll_interval: timedelta = timedelta(seconds=3)
+        poll_interval: timedelta = timedelta(seconds=3),
     ):
         super().__init__(commands)
         self._import_auctions = import_auctions

@@ -103,7 +103,7 @@ class AuctionImportServiceTestCase(AlgorandTestCase):
         imported_auctions: list[Auction] = []
 
         def on_next(auctions: list[Auction]):
-            nonlocal  imported_auctions
+            nonlocal imported_auctions
             imported_auctions += auctions
 
         self.auction_import_service.imported_auctions_observable.subscribe(on_next)

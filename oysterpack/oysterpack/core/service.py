@@ -349,6 +349,10 @@ class Service(ABC):
             raise error
 
     def restart(self):
+        """
+        Used to restart the service.
+        """
+
         if self.running:
             self.stop()
 

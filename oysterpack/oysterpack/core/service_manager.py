@@ -94,6 +94,7 @@ class ServiceManager:
     def stop(self):
         """
         Initiates service shutdown on all the services being managed
+
         :return:
         """
         self._command_subject.on_next(ServiceCommand.STOP)

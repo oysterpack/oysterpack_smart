@@ -4,10 +4,10 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from time import sleep
 
-from reactivex import Subject, Observer
+from reactivex import Subject, Observer, Observable
 from reactivex.operators import observe_on
 
-from oysterpack.core.health_check import HealthCheck, HealthCheckImpact
+from oysterpack.core.health_check import HealthCheck, HealthCheckImpact, HealthCheckResult
 from oysterpack.core.rx import default_scheduler
 from oysterpack.core.service import (
     Service,
@@ -79,15 +79,24 @@ class ServiceStateSubscriber(Observer[ServiceLifecycleEvent]):
 
 
 class ServiceTestCase(OysterPackTestCase):
-    def test_service_lifecycle(self):
-        commands = Subject()
-        commands_observable = commands.pipe(observe_on(default_scheduler))
+    def test_service_lifecycle(self) -> None:
+        commands: Subject[ServiceCommand] = Subject()
+        commands_observable: Observable[ServiceCommand] = commands.pipe(observe_on(default_scheduler))
 
         foo = FooService(commands_observable)
 
         # subscribe to service state events
         foo_state_observer = ServiceStateSubscriber()
         foo.lifecycle_state_observable.subscribe(foo_state_observer)
+
+        healthcheck_results: list[HealthCheckResult] = []
+
+        def on_healthcheck_result(result: HealthCheckResult):
+            logger.info(result)
+            healthcheck_results.append(result)
+
+        foo.healthchecks_observable.subscribe(on_healthcheck_result)
+
         # signal the service to start
         commands.on_next(ServiceCommand.START)
 
@@ -101,6 +110,9 @@ class ServiceTestCase(OysterPackTestCase):
             self.assertIsNotNone(healthcheck.last_result)
             logger.info(f"last healthcheck result: {healthcheck.last_result}")
 
+        # check that healthcheck results were publised on the Observable
+        self.assertGreater(len(healthcheck_results), 0)
+
         # trying to start the service when it's running should be a noop
         commands.on_next(ServiceCommand.START)
 
@@ -110,6 +122,7 @@ class ServiceTestCase(OysterPackTestCase):
 
         # trying to stop the service when it's stopped should be a noop
         commands.on_next(ServiceCommand.STOP)
+        foo.await_stopped()
 
         self.assertEqual(
             [
@@ -121,6 +134,34 @@ class ServiceTestCase(OysterPackTestCase):
             ],
             foo_state_observer.events_received,
         )
+
+        with self.subTest("start the stopped service"):
+            commands.on_next(ServiceCommand.START)
+            foo.await_running()
+
+        with self.subTest("running service can be restarted"):
+            foo_state_observer.events_received.clear()
+            foo.restart()
+
+            foo.await_running()
+
+            # check events were streamed
+            # events are streamed async, thus we need to give them time to stream through
+            for _ in range(10):
+                try:
+                    self.assertEqual(
+                        [
+                            ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPING),
+                            ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STOPPED),
+                            ServiceLifecycleEvent(foo.name, ServiceLifecycleState.STARTING),
+                            ServiceLifecycleEvent(foo.name, ServiceLifecycleState.RUNNING),
+                        ],
+                        foo_state_observer.events_received,
+                    )
+                    break
+                except AssertionError:
+                    sleep(0.1)
+
 
     def test_service_start_error(self):
         commands = Subject()

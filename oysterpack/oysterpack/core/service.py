@@ -25,6 +25,8 @@ class ServiceLifecycleState(IntEnum):
     Service lifecycle states
 
     Normal service lifecycle: NEW -> STARTING -> RUNNING -> STOPPING -> STOPPED
+
+    A stopped service can be restarted, i.e., STOPPED -> STARTING
     """
 
     NEW = auto()
@@ -110,7 +112,17 @@ class Service(ABC):
         self._state = ServiceLifecycleState.NEW
         self._logger = logging.getLogger(self.__class__.__name__)
 
-        # setup stream to publish service state events
+        self._init_lifecycle_state_observable()
+        self._subscribe_commands(commands)
+
+        self._healthchecks: list[HealthCheck] = []
+        self._healthcheck_timer: Timer | None = None
+        self._init_healthcheck_observable()
+
+        self._running_event = Event()
+        self._stopped_event = Event()
+
+    def _init_lifecycle_state_observable(self) -> None:
         self._state_subject: BehaviorSubject[ServiceLifecycleEvent] = BehaviorSubject(
             ServiceLifecycleEvent(self.name, self._state)
         )
@@ -118,18 +130,11 @@ class Service(ABC):
             ServiceLifecycleEvent
         ] = self._state_subject.pipe(observe_on(default_scheduler))
 
-        self._subscribe_commands(commands)
-
-        # healthchecks
-        self._healthchecks: list[HealthCheck] = []
+    def _init_healthcheck_observable(self) -> None:
         self._healthchecks_subject: Subject[HealthCheckResult] = Subject()
         self._healthchecks_observable: Observable[
             HealthCheckResult
         ] = self._healthchecks_subject.pipe(observe_on(default_scheduler))
-        self._healthcheck_timer: Timer | None = None
-
-        self._running_event = Event()
-        self._stopped_event = Event()
 
     def _subscribe_commands(self, commands: Observable[ServiceCommand] | None = None):
         if commands:
@@ -224,7 +229,7 @@ class Service(ABC):
 
         Notes
         -----
-        - The service can only be started when service state == NEW
+        - The service can only be started when service state in [NEW, STOPPED]
         - When state is in [RUNNING, STARTING], then this is a noop
         - If en error occurs while trying to start the service, then stop will be triggered to give the service
           a chance to clean up any resources while trying to start.
@@ -233,7 +238,7 @@ class Service(ABC):
 
         def schedule_healthcheck(healthcheck: HealthCheck):
             def run_healthcheck(healthcheck: HealthCheck):
-                healthcheck()
+                self._healthchecks_subject.on_next(healthcheck())
                 self._healthcheck_timer = Timer(
                     healthcheck.run_interval.seconds, run_healthcheck, (healthcheck,)
                 )
@@ -253,13 +258,15 @@ class Service(ABC):
         ]:
             return
 
-        if self._state == ServiceLifecycleState.NEW:
+        if self._state in [ServiceLifecycleState.NEW, ServiceLifecycleState.STOPPED]:
             self._state_subject.on_next(self._set_state(ServiceLifecycleState.STARTING))
+
             try:
                 self._start()
                 self._state_subject.on_next(
                     self._set_state(ServiceLifecycleState.RUNNING)
                 )
+
                 for healthcheck in self.healthchecks:
                     schedule_healthcheck(healthcheck)
             except Exception as err:
@@ -297,9 +304,6 @@ class Service(ABC):
             ServiceLifecycleState.RUNNING,
             ServiceLifecycleState.START_FAILED,
         ]:
-            # stop running health checks
-            self._healthchecks_subject.on_completed()
-            self._healthchecks_subject.dispose()
 
             start_failed = self._state == ServiceLifecycleState.START_FAILED
             self._state_subject.on_next(self._set_state(ServiceLifecycleState.STOPPING))
@@ -315,8 +319,6 @@ class Service(ABC):
                             "service was stopped because it failed to start",
                         )
                     )
-                else:
-                    self._state_subject.on_completed()
             except Exception as err:
                 self._state_subject.on_next(
                     self._set_state(ServiceLifecycleState.STOPPED)
@@ -334,13 +336,10 @@ class Service(ABC):
                     self.name, "error occurred while stopping"
                 ) from err
             finally:
-                self._state_subject.dispose()
                 if self._healthcheck_timer:
                     self._healthcheck_timer.cancel()
         elif self._state == ServiceLifecycleState.NEW:
             self._state_subject.on_next(self._set_state(ServiceLifecycleState.STOPPED))
-            self._state_subject.on_completed()
-            self._state_subject.dispose()
         elif self._state == ServiceLifecycleState.STARTING:
             error = ServiceStopError(
                 self.name,
@@ -349,13 +348,28 @@ class Service(ABC):
             self._state_subject.on_error(error)
             raise error
 
+    def restart(self):
+        if self.running:
+            self.stop()
+
+        if self._state in [ServiceLifecycleState.STOPPED, ServiceLifecycleState.NEW]:
+            self.start()
+            return
+
+        self.await_stopped()
+        self.start()
+
     def _set_state(self, state: ServiceLifecycleState) -> ServiceLifecycleEvent:
         self._logger.info("state transition: %s -> %s", self._state.name, state.name)
 
         self._state = state
 
+        if state == ServiceLifecycleState.STARTING:
+            self._stopped_event.clear()
         if state == ServiceLifecycleState.RUNNING:
             self._running_event.set()
+        if state == ServiceLifecycleState.STOPPING:
+            self._running_event.clear()
         if state == ServiceLifecycleState.STOPPED:
             self._stopped_event.set()
 
@@ -367,7 +381,7 @@ class Service(ABC):
 
         Notes
         -----
-        - Service HealthCheck(s) are expected to be created during startup
+        - Service HealthCheck(s) are expected to be created during startup by setting `Service._healthchecks`
         """
 
     def _stop(self):

@@ -2,7 +2,6 @@ import logging
 import unittest
 from dataclasses import dataclass, field
 from datetime import timedelta
-from time import sleep
 
 from reactivex import Observer
 
@@ -103,16 +102,21 @@ class ServiceTestCase(OysterPackTestCase):
         for service in service_manager._services.values():
             self.assertTrue(service.running)
 
-        # healthcheck is scheduled to run every second
-        # sleep for 2 seconds to give time to run heatlh checks
-        sleep(3)
-
         service_manager.stop()
 
         service_manager.await_stopped()
 
         for service in service_manager._services.values():
             self.assertTrue(service.stopped)
+
+        with self.subTest("services can be started back up after being stopped"):
+            service_manager.start()
+
+            service_manager.await_running()
+
+            for service in service_manager._services.values():
+                self.assertTrue(service.running)
+
 
     def test_assertions(self):
         with self.subTest("at least 1 service must be specified"):

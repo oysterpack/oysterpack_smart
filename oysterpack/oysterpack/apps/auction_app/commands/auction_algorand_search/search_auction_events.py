@@ -63,6 +63,10 @@ class SearchAuctionEventsResult:
 class SearchAuctionEvents(
     Command[SearchAuctionEventsRequest, SearchAuctionEventsResult]
 ):
+    """
+    Used to search Algorand transactions for Auction events
+    """
+
     def __init__(self, indexer: IndexerClient):
         self._indexer = indexer
 

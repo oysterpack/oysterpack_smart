@@ -1,9 +1,14 @@
+"""
+Provides standard for building services
+"""
+
 import logging
 from abc import ABC
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import IntEnum, auto
 from threading import Timer, Event
+from typing import Tuple
 
 from reactivex import Observable, Subject
 from reactivex.operators import observe_on
@@ -11,6 +16,8 @@ from reactivex.subject import BehaviorSubject
 
 from oysterpack.core.health_check import HealthCheck, HealthCheckResult
 from oysterpack.core.rx import default_scheduler
+
+ServiceKey = Tuple[type, str]
 
 
 class ServiceLifecycleState(IntEnum):
@@ -91,7 +98,15 @@ class Service(ABC):
       Observable[HealthCheckResult].
     """
 
+    # pylint: disable=too-many-instance-attributes
+
     def __init__(self, commands: Observable[ServiceCommand] | None = None):
+        """
+
+        :param commands: service subscribes to commands. This provides a mechanism to manage services by publishing
+                         commands through the Observable
+        """
+
         self._state = ServiceLifecycleState.NEW
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -120,7 +135,7 @@ class Service(ABC):
         if commands:
 
             def on_command(command: ServiceCommand):
-                self._logger.info(f"received ServiceCommand: {command.name}")
+                self._logger.info("received ServiceCommand: %s", command.name)
                 match command:
                     case ServiceCommand.START:
                         self.start()
@@ -131,14 +146,30 @@ class Service(ABC):
 
     @property
     def name(self) -> str:
+        """
+        By default, the type class name is used.
+        """
         return self.__class__.__name__
 
     @property
+    def key(self) -> ServiceKey:
+        """
+        :return: ServiceKey
+        """
+        return (type(self), self.name)
+
+    @property
     def state(self) -> ServiceLifecycleState:
+        """
+        :return: ServiceLifecycleState
+        """
         return self._state
 
     @property
     def running(self) -> bool:
+        """
+        :return: True is service is running
+        """
         return self._state == ServiceLifecycleState.RUNNING
 
     def await_running(self, timeout: timedelta | None = None):
@@ -157,10 +188,16 @@ class Service(ABC):
 
     @property
     def stopped(self) -> bool:
+        """
+        :return: True if service is stopped
+        """
         return self._state == ServiceLifecycleState.STOPPED
 
     @property
     def healthchecks(self) -> list[HealthCheck]:
+        """
+        :return: list[HealthCheck]
+        """
         return self._healthchecks[:]
 
     def start(self):
@@ -190,7 +227,7 @@ class Service(ABC):
             )
             self._healthcheck_timer.daemon = True
             self._healthcheck_timer.start()
-            self._logger.info(f"scheduled healthcheck: {healthcheck}")
+            self._logger.info("scheduled healthcheck: %s", healthcheck)
 
         if self._state in [
             ServiceLifecycleState.RUNNING,
@@ -296,10 +333,20 @@ class Service(ABC):
 
     @property
     def lifecycle_state_observable(self) -> Observable[ServiceLifecycleEvent]:
+        """
+        Used to monitor service lifecycle events.
+
+        :return: Observable[ServiceLifecycleEvent]
+        """
         return self._state_observable
 
     @property
     def healthchecks_observable(self) -> Observable[HealthCheckResult]:
+        """
+        Used to monitor service health checks.
+
+        :return: Observable[HealthCheckResult]
+        """
         return self._healthchecks_observable
 
     def _start(self):
@@ -310,16 +357,14 @@ class Service(ABC):
         -----
         - Service HealthCheck(s) are expected to be created during startup
         """
-        pass
 
     def _stop(self):
         """
         override to perform any shutdown work
         """
-        pass
 
     def _set_state(self, state: ServiceLifecycleState) -> ServiceLifecycleEvent:
-        self._logger.info(f"state transition: {self._state.name} -> {state.name}")
+        self._logger.info("state transition: %s -> %s", self._state.name, state.name)
 
         self._state = state
 

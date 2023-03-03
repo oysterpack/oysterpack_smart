@@ -8,8 +8,22 @@ from enum import IntEnum, auto
 
 
 class HealthCheckStatus(IntEnum):
+    """
+    HealthCheckStatus
+    """
+
+    # healthy
     GREEN = auto()
+
+    # service is functioning but requires attention, e.g.,
+    # - resources may be running low (low disk space, high system load, etc)
+    # - degraded performance
+    # - intermittment failures
     YELLOW = auto()
+
+    # unhealthy, e.g.
+    # - service is down
+    # - service not meeting SLA
     RED = auto()
 
 
@@ -32,15 +46,23 @@ class HealthCheckImpact(IntEnum):
 
 
 class YellowHealthCheck(Exception):
-    pass
+    """
+    Indicates HealthCheck is in a YELLOW state
+    """
 
 
 class RedHealthCheck(Exception):
-    pass
+    """
+    Indicates HealthCheck is in a RED state
+    """
 
 
 @dataclass(slots=True)
 class HealthCheckResult:
+    """
+    HealthCheckResult
+    """
+
     # HealthCheck.name
     name: str
 
@@ -56,6 +78,10 @@ class HealthCheckResult:
 
 @dataclass(slots=True)
 class HealthCheck(ABC):
+    """
+    HealthCheck
+    """
+
     name: str
 
     # used to categorize healthchecks, e.g database, algod, algo_indexer
@@ -87,7 +113,7 @@ class HealthCheck(ABC):
                 duration=datetime.now(UTC) - start,
                 error=err,
             )
-        except Exception as err:
+        except Exception as err:  # pylint: disable=broad-exception-caught
             self.last_result = HealthCheckResult(
                 name=self.name,
                 status=HealthCheckStatus.RED,

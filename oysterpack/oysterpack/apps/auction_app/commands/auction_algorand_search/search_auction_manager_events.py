@@ -57,6 +57,10 @@ class SearchAuctionManagerEventsResult:
 class SearchAuctionManagerEvents(
     Command[SearchAuctionManagerEventsRequest, SearchAuctionManagerEventsResult]
 ):
+    """
+    Used to search Algorand transactions for AuctionManager events
+    """
+
     def __init__(self, indexer: IndexerClient):
         self._indexer = indexer
 

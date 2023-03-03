@@ -59,8 +59,9 @@ class AuctionImportServiceTestCase(AlgorandTestCase):
 
     def setup_database(self):
         # in-memory database canot be used here because the import process runs in a separate thread
-        db_file = Path(Path.cwd()) / ".." / "temp" / f"{self.__class__.__name__}.sqlite"
-        Path.unlink(db_file)
+        db_file = Path(f"{self.__class__.__name__}.sqlite")
+        if db_file.exists():
+            Path.unlink(db_file)
         self.engine = create_engine(f"sqlite:///{db_file}", echo=False)
         Base.metadata.create_all(self.engine)
 

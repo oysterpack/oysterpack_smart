@@ -37,14 +37,13 @@ wrapt = {version = ">=1.14,<2", markers = "python_version >= \"3.11\""}
 
 [[package]]
 name = "beaker-pyteal"
-version = "0.6.0"
+version = "0.6.1"
 description = "A Framework for building PyTeal Applications"
 category = "main"
 optional = false
 python-versions = ">=3.10,<4.0"
 files = [
-    {file = "beaker_pyteal-0.6.0-py3-none-any.whl", hash = "sha256:5a01f3767159a6dcfd78326e5a76ee44443a01f3271e24338e7f2a2b04490d75"},
-    {file = "beaker_pyteal-0.6.0.tar.gz", hash = "sha256:103870c5b450f5430820f7cceb636269566dc67e65592a020ee9c0a8188a444b"},
+    {file = "beaker_pyteal-0.6.1-py3-none-any.whl", hash = "sha256:75fca51724b2fe5c93e593c4d550e03fec8a7e6c756ca6443399421a6a6fbcec"},
 ]
 
 [package.dependencies]
@@ -699,14 +698,14 @@ files = [
 
 [[package]]
 name = "platformdirs"
-version = "3.0.0"
+version = "3.1.0"
 description = "A small Python package for determining appropriate platform-specific dirs, e.g. a \"user data dir\"."
 category = "dev"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "platformdirs-3.0.0-py3-none-any.whl", hash = "sha256:b1d5eb14f221506f50d6604a561f4c5786d9e80355219694a1b244bcd96f4567"},
-    {file = "platformdirs-3.0.0.tar.gz", hash = "sha256:8a1228abb1ef82d788f74139988b137e78692984ec7b08eaa6c65f1723af28f9"},
+    {file = "platformdirs-3.1.0-py3-none-any.whl", hash = "sha256:13b08a53ed71021350c9e300d4ea8668438fb0046ab3937ac9a29913a1a1350a"},
+    {file = "platformdirs-3.1.0.tar.gz", hash = "sha256:accc3665857288317f32c7bebb5a8e482ba717b474f3fc1d18ca7f9214be0cef"},
 ]
 
 [package.extras]
@@ -811,14 +810,14 @@ files = [
 
 [[package]]
 name = "pylint"
-version = "2.16.2"
+version = "2.16.3"
 description = "python code static checker"
 category = "dev"
 optional = false
 python-versions = ">=3.7.2"
 files = [
-    {file = "pylint-2.16.2-py3-none-any.whl", hash = "sha256:ff22dde9c2128cd257c145cfd51adeff0be7df4d80d669055f24a962b351bbe4"},
-    {file = "pylint-2.16.2.tar.gz", hash = "sha256:13b2c805a404a9bf57d002cd5f054ca4d40b0b87542bdaba5e05321ae8262c84"},
+    {file = "pylint-2.16.3-py3-none-any.whl", hash = "sha256:3e803be66e3a34c76b0aa1a3cf4714b538335e79bd69718d34fcf36d8fff2a2b"},
+    {file = "pylint-2.16.3.tar.gz", hash = "sha256:0decdf8dfe30298cd9f8d82e9a1542da464db47da60e03641631086671a03621"},
 ]
 
 [package.dependencies]

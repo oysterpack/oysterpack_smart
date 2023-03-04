@@ -90,7 +90,7 @@ class HealthCheck(ABC):
 
     # used to categorize healthchecks, e.g database, algod, algo_indexer
     tags: set[str]
-    description: str
+    description: str | list[str]
 
     impact: HealthCheckImpact
 

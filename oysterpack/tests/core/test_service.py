@@ -130,6 +130,8 @@ class ServiceTestCase(OysterPackTestCase):
         commands.on_next(ServiceCommand.STOP)
         foo.await_stopped()
 
+        sleep(0.1)  # give time for events to stream through the Observable
+
         self.assertEqual(
             [
                 ServiceLifecycleEvent(foo.name, ServiceLifecycleState.NEW),

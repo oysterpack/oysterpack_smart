@@ -6,12 +6,17 @@ from dataclasses import dataclass
 from oysterpack.apps.auction_app.commands.auction_algorand_search.search_auctions import (
     SearchAuctions,
     AuctionSearchRequest,
+    AuctionSearchResult,
 )
 from oysterpack.apps.auction_app.commands.data.queries.get_max_auction_app_id import (
     GetMaxAuctionAppId,
 )
 from oysterpack.apps.auction_app.commands.data.store_auctions import StoreAuctions
-from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId, Auction
+from oysterpack.apps.auction_app.domain.auction import (
+    AuctionManagerAppId,
+    Auction,
+    AuctionAppId,
+)
 from oysterpack.core.logging import get_logger
 
 
@@ -44,15 +49,31 @@ class ImportAuctions:
         self._logger = get_logger(self)
 
     def __call__(self, request: ImportAuctionsRequest) -> list[Auction]:
-        max_auction_app_id = self._get_max_auction_app_id(
+        # app ID is used as the next token
+        # query the database to get the max auction app ID to pick up where we left off
+        max_auction_app_id = self.__get_max_auction_app_id(
             request.auction_manager_app_id
         )
+        search_result = self.__search(request, max_auction_app_id)
+        if len(search_result.auctions) == 0:
+            return []
+        self.__store(search_result.auctions)
+        return search_result.auctions
+
+    def __get_max_auction_app_id(
+        self, auction_manager_app_id: AuctionManagerAppId
+    ) -> AuctionAppId | None:
+        max_auction_app_id = self._get_max_auction_app_id(auction_manager_app_id)
         self._logger.info(
             "auction_manager_app_id = %s, max_auction_app_id = %s",
-            request.auction_manager_app_id,
+            auction_manager_app_id,
             max_auction_app_id,
         )
+        return max_auction_app_id
 
+    def __search(
+        self, request: ImportAuctionsRequest, max_auction_app_id: AuctionAppId | None
+    ) -> AuctionSearchResult:
         search_request = AuctionSearchRequest(
             auction_manager_app_id=request.auction_manager_app_id,
             limit=request.batch_size,
@@ -60,9 +81,8 @@ class ImportAuctions:
         )
         search_result = self._search(search_request)
         self._logger.debug(search_result)
-        if len(search_result.auctions) == 0:
-            return []
+        return search_result
 
-        store_result = self._store(search_result.auctions)
+    def __store(self, auctions: list[Auction]):
+        store_result = self._store(auctions)
         self._logger.info(store_result)
-        return search_result.auctions

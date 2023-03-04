@@ -24,6 +24,8 @@ from oysterpack.core.service import Service, ServiceCommand
 class AuctionImportService(Service):
     """
     Launches a background thread that polls Algorand for new Auctions for each registered AuctionManager.
+
+    When new auctions are imported, they are published to an Observable stream.
     """
 
     def __init__(

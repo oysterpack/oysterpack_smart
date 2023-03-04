@@ -27,7 +27,8 @@ class LookupAuctionManager:
         with self._session_factory() as session:
             if isinstance(key, int):
                 auction_manager: TAuctionManager | None = session.get(
-                    TAuctionManager, key
+                    TAuctionManager,
+                    key,
                 )
             elif isinstance(key, str):
                 auction_manager = session.scalar(

@@ -64,13 +64,7 @@ class SearchAuctionManagerEvents:
     def __call__(
         self, request: SearchAuctionManagerEventsRequest
     ) -> SearchAuctionManagerEventsResult:
-        result = self._indexer.search_transactions(
-            application_id=request.auction_manager_app_id,
-            note_prefix=self._txn_note_prefix(request.event).encode(),
-            limit=request.limit,
-            next_page=request.next_token,
-        )
-
+        result = self.__search_transactions(request)
         if len(result["transactions"]) == 0:
             return SearchAuctionManagerEventsResult(event=request.event)
 
@@ -81,6 +75,16 @@ class SearchAuctionManagerEvents:
                 for txn in result["transactions"]
             },
             next_token=result["next-token"],
+        )
+
+    def __search_transactions(
+        self, request: SearchAuctionManagerEventsRequest
+    ) -> dict[str, Any]:
+        return self._indexer.search_transactions(
+            application_id=request.auction_manager_app_id,
+            note_prefix=self._txn_note_prefix(request.event).encode(),
+            limit=request.limit,
+            next_page=request.next_token,
         )
 
     def _auction_app_id(

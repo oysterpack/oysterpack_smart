@@ -34,17 +34,14 @@ class LookupAuction:
         self._lookup_auction_manager = lookup_auction_manager
 
     def __call__(self, auction_app_id: AuctionAppId) -> Auction | None:
-
         try:
             app_info = self._algod_client.application_info(auction_app_id)
-
             creator_address = app_info["params"]["creator"]
             result = self._lookup_auction_manager(creator_address)
             if result is None:
                 raise AuctionManagerNotRegisteredError
 
             (auction_manager_app_id, _address) = result
-
             return to_auction(
                 app_info,
                 self._algod_client,

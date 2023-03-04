@@ -2,7 +2,7 @@
 Provides command support for searching Auctions
 """
 from dataclasses import dataclass
-from typing import cast
+from typing import cast, Any
 
 from algosdk.logic import get_application_address
 from algosdk.v2client.algod import AlgodClient
@@ -66,24 +66,29 @@ class SearchAuctions:
         self._indexer_client = indexer_client
         self._algod_client = algod_client
 
-    def __call__(self, args: AuctionSearchRequest) -> AuctionSearchResult:
-        result = self._indexer_client.search_applications(
-            creator=args.auction_manager_address,
-            limit=args.limit,
-            next_page=args.next_token,
+    def __call__(self, request: AuctionSearchRequest) -> AuctionSearchResult:
+        result = self.__search_applications(request)
+        next_token = result.setdefault("next-token", None)
+        return AuctionSearchResult(
+            auctions=self.__auctions(result, request.auction_manager_app_id),
+            next_token=cast(str | None, next_token),
         )
 
-        next_token = result.setdefault("next-token", None)
+    def __search_applications(self, request: AuctionSearchRequest) -> dict[str, Any]:
+        return self._indexer_client.search_applications(
+            creator=request.auction_manager_address,
+            limit=request.limit,
+            next_page=request.next_token,
+        )
 
-        auctions = [
+    def __auctions(
+        self, search_result: dict[str, Any], auction_manager_app_id: AppId
+    ) -> list[Auction]:
+        return [
             to_auction(
                 app,
                 self._algod_client,
-                args.auction_manager_app_id,
+                auction_manager_app_id,
             )
-            for app in result["applications"]
+            for app in search_result["applications"]
         ]
-        return AuctionSearchResult(
-            auctions=auctions,
-            next_token=cast(str | None, next_token),
-        )

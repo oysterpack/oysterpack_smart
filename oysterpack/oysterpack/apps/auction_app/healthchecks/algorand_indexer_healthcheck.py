@@ -1,7 +1,6 @@
 """
 Algorand Indexer HealthCheck
 """
-from dataclasses import dataclass
 
 from algosdk.error import IndexerHTTPError
 from algosdk.v2client.indexer import IndexerClient
@@ -9,24 +8,13 @@ from algosdk.v2client.indexer import IndexerClient
 from oysterpack.apps.auction_app.commands.data.queries.get_auction_managers import (
     GetRegisteredAuctionManagers,
 )
-from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId
+from oysterpack.apps.auction_app.healthchecks.errors import (
+    AuctionManagerAppLookupFailed,
+)
 from oysterpack.core.health_check import (
     HealthCheck,
     HealthCheckImpact,
-    YellowHealthCheck,
 )
-
-
-@dataclass
-class AuctionManagerAppLookupFailed(YellowHealthCheck):
-    """
-    Indicates the indexer is running, but failed to find the AuctionManager application.
-
-    This is flagged as yellow because the indexer may be lagging or the contract has been deleted on the blockchain
-    but is still registered in the database.
-    """
-
-    auction_manager_app_id: AuctionManagerAppId
 
 
 class AlgorandIndexerHealthCheck(HealthCheck):
@@ -43,8 +31,8 @@ class AlgorandIndexerHealthCheck(HealthCheck):
             name="algorand_indexer",
             impact=HealthCheckImpact.HIGH,
             description=[
-                "Retrieve the first block from the Indexer",
-                "Lookup the application for each registered AuctionManager",
+                "Retrieves the first block from the Indexer",
+                "Looks up the application for each registered AuctionManager",
             ],
             tags={"algorand", "indexer"},
         )

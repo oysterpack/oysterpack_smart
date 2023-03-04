@@ -16,6 +16,7 @@ class RegisteredAuctionManager:
     """
     Registered AuctionManager
     """
+
     app_id: AuctionManagerAppId
     address: Address
 

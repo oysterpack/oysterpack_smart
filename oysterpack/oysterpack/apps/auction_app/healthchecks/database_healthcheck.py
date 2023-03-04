@@ -17,6 +17,7 @@ class DatabaseHealthCheck(HealthCheck):
     """
     Auction database health check
     """
+
     def __init__(self, session_factory: sessionmaker):
         super().__init__(
             name="auction_database",

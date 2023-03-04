@@ -10,6 +10,11 @@ from oysterpack.core.health_check import HealthCheck, HealthCheckImpact, RedHeal
 
 @dataclass(slots=True)
 class AlgorandNodeNotCaughtUp(RedHealthCheck):
+    """
+    Indicates the node is in catchup mode.
+    While in catchup mode, transactions will not be accepted, i.e., submitting transactions will fail.
+    """
+
     catchup_time: int
 
 

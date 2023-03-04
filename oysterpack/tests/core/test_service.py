@@ -192,7 +192,7 @@ class ServiceTestCase(OysterPackTestCase):
         while not foo.stopped:
             sleep(0.001)
 
-        sleep(0.1) # give time for the events to be published on the Observable stream
+        sleep(0.1)  # give time for the events to be published on the Observable stream
 
         self.assertEqual(
             [

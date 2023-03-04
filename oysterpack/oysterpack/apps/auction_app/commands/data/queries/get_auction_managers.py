@@ -1,14 +1,24 @@
 """
 Used to retrieve the list of registered AuctionManager apps from the database
 """
-from collections import namedtuple
+from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
+from oysterpack.algorand.client.model import Address
 from oysterpack.apps.auction_app.data.auction import TAuctionManager
+from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId
 
-RegisteredAuctionManager = namedtuple("RegisteredAuctionManager", ["app_id", "address"])
+
+@dataclass(slots=True)
+class RegisteredAuctionManager:
+    """
+    Registered AuctionManager
+    """
+    app_id: AuctionManagerAppId
+    address: Address
+
 
 RegisteredAuctionManagers = list[RegisteredAuctionManager]
 
@@ -25,7 +35,8 @@ class GetRegisteredAuctionManagers:
         with self._session_factory() as session:
             return [
                 RegisteredAuctionManager(
-                    auction_manager.app_id, auction_manager.address
+                    auction_manager.app_id,
+                    auction_manager.address,
                 )
                 for auction_manager in session.scalars(select(TAuctionManager))
             ]

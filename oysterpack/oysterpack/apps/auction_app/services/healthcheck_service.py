@@ -57,13 +57,13 @@ class HealthCheckService(Service):
         :return: latest health check results grouped by status
         """
         grouped_results: dict[HealthCheckStatus, list[HealthCheckResult]] = {}
-        for k, g in itertools.groupby(
+        for key, group in itertools.groupby(
             self.latest_healthcheck_results, lambda result: result.status
         ):
-            if k in grouped_results:
-                grouped_results[k] += g
+            if key in grouped_results:
+                grouped_results[key] += group
             else:
-                grouped_results[k] = list(g)
+                grouped_results[key] = list(group)
 
         return grouped_results
 

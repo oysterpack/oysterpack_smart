@@ -21,7 +21,7 @@ class AlgorandNodeHealthCheckTestCase(AlgorandTestCase):
 
         with self.subTest("invalid API token"):
             healthcheck = AlgorandNodeHealthCheck(
-                AlgodClient("INVALID_TOKEN", "http://localhost:8080")
+                AlgodClient("INVALID_TOKEN", self.algod_client.algod_address)
             )
             result = healthcheck()
             self.assertEqual(HealthCheckStatus.RED, result.status)

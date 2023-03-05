@@ -184,9 +184,9 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
 
         def get_auction_event_count(evt: AuctionManagerEvent | None = None) -> int:
             if evt is None:
-                return sum([len(event.auction_txn_ids) for event in events])
+                return sum([len(event.auction_txns) for event in events])
             return sum(
-                [len(event.auction_txn_ids) for event in events if event.event == evt]
+                [len(event.auction_txns) for event in events if event.event == evt]
             )
 
         self.service.observable.subscribe(on_event)

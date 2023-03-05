@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from threading import Thread
 from time import sleep
+from typing import Iterable, Tuple
 
 from reactivex import Observable, Subject
 from reactivex.operators import observe_on
@@ -17,6 +18,7 @@ from oysterpack.apps.auction_app.commands.auction_algorand_search.search_auction
     AuctionManagerEvent,
     SearchAuctionManagerEventsRequest,
     Transaction,
+    SearchAuctionManagerEventsResult,
 )
 from oysterpack.apps.auction_app.commands.data.algorand_sync.refresh_auctions import (
     RefreshAuctions,
@@ -33,12 +35,15 @@ from oysterpack.core.logging import get_logger
 from oysterpack.core.rx import default_scheduler
 from oysterpack.core.service import Service, ServiceCommand
 
+MinRound = int | None
+NextToken = str | None
+
 
 @dataclass(slots=True)
 class AuctionManagerWatcherServiceEvent:
     auction_manager_app_id: AuctionManagerAppId
     event: AuctionManagerEvent
-    auction_txn_ids: dict[AuctionAppId, Transaction]
+    auction_txns: dict[AuctionAppId, Transaction]
 
 
 class AuctionManagerWatcherService(Service):
@@ -73,15 +78,78 @@ class AuctionManagerWatcherService(Service):
 
     def _start(self):
         """
+        For each registered AuctionManager, search for Auctions that have been created and deleted since the last search.
+        Retrieve SearchAuctionManagerEvents request params from the database to continue from the last search.
+        Process each Auction create/delete event by importing/deleting the auctions in the database.
+        Save the search result next-token and the confirmed round for the event transaction.
+        If the search result next-token is None, then sleep.
+
         Steps
         -----
-        1. get list of registered auction managers
-        2. for each registered auction manager spawn a thread to monitor events
+        1. for each registered auction manager
         3. Handle each event accordingly
         4. Publish the events to an Observable stream
+        5.
         """
 
         logger = get_logger(self)
+
+        def get_request_params(
+            auction_manager_app_id: AuctionManagerAppId,
+            event: AuctionManagerEvent,
+        ) -> Tuple[MinRound, NextToken]:
+            state = self.get_state(auction_manager_app_id)
+            return (
+                (state[event].min_round, state[event].next_token)
+                if event in state
+                else (None, None)
+            )
+
+        def search_auction_manager_events(
+            auction_manager_app_id: AuctionManagerAppId,
+            event: AuctionManagerEvent,
+            min_round: MinRound,
+            next_token: NextToken,
+        ) -> SearchAuctionManagerEventsResult:
+            return self._search_auction_manager_events(
+                SearchAuctionManagerEventsRequest(
+                    auction_manager_app_id=auction_manager_app_id,
+                    event=event,
+                    min_round=min_round,
+                    next_token=next_token,
+                    limit=self._batch_size,
+                )
+            )
+
+        def publish_event(
+            auction_manager_app_id: AuctionManagerAppId,
+            event: AuctionManagerEvent,
+            auction_txns: dict[AuctionAppId, Transaction],
+        ):
+            self._subject.on_next(
+                AuctionManagerWatcherServiceEvent(
+                    auction_manager_app_id,
+                    event,
+                    auction_txns,
+                )
+            )
+
+        def save_search_params(
+            auction_manager_app_id: AuctionManagerAppId,
+            event: AuctionManagerEvent,
+            txns: Iterable[Transaction],
+            next_token: NextToken,
+        ):
+            max_confirmed_round = max([txn.confirmed_round for txn in txns])
+            self._save_state(
+                SearchAuctionManagerEventsServiceState(
+                    service_name=self.name,
+                    auction_manager_app_id=auction_manager_app_id,
+                    event=event,
+                    min_round=max_confirmed_round,
+                    next_token=next_token,
+                )
+            )
 
         def run() -> None:
             logger.info("running")
@@ -98,21 +166,19 @@ class AuctionManagerWatcherService(Service):
                             logger.info("stop signalled - exiting")
                             return
 
-                        state = self.get_state(registered_auction_manager.app_id)
-                        min_round = state[event].min_round if event in state else None
-                        next_token = state[event].next_token if event in state else None
-                        result = self._search_auction_manager_events(
-                            SearchAuctionManagerEventsRequest(
-                                auction_manager_app_id=registered_auction_manager.app_id,
-                                event=event,
-                                min_round=min_round,
-                                limit=self._batch_size,
-                                next_token=next_token,
-                            )
+                        min_round, next_token = get_request_params(
+                            registered_auction_manager.app_id, event
+                        )
+                        result = search_auction_manager_events(
+                            auction_manager_app_id=registered_auction_manager.app_id,
+                            event=event,
+                            min_round=min_round,
+                            next_token=next_token,
                         )
 
                         if not has_more_results:
                             has_more_results = result.next_token is not None
+
                         logger.debug(
                             "has_more_results=%s, next_token=%s, min_round=%s",
                             has_more_results,
@@ -122,28 +188,18 @@ class AuctionManagerWatcherService(Service):
 
                         if result.auction_txns and len(result.auction_txns) > 0:
                             self._refresh_auctions(list(result.auction_txns.keys()))
-                            self._subject.on_next(
-                                AuctionManagerWatcherServiceEvent(
-                                    registered_auction_manager.app_id,
-                                    event,
-                                    result.auction_txns,
-                                )
+                            publish_event(
+                                registered_auction_manager.app_id,
+                                event,
+                                result.auction_txns,
                             )
-                            max_confirmed_round = max(
-                                [
-                                    txn.confirmed_round
-                                    for txn in result.auction_txns.values()
-                                ]
+                            save_search_params(
+                                auction_manager_app_id=registered_auction_manager.app_id,
+                                event=event,
+                                txns=result.auction_txns.values(),
+                                next_token=result.next_token,
                             )
-                            self._save_state(
-                                SearchAuctionManagerEventsServiceState(
-                                    service_name=self.name,
-                                    auction_manager_app_id=registered_auction_manager.app_id,
-                                    event=event,
-                                    min_round=max_confirmed_round,
-                                    next_token=result.next_token,
-                                )
-                            )
+
                     if not has_more_results:
                         logger.debug("sleeping")
                         sleep(self._poll_interval.seconds)

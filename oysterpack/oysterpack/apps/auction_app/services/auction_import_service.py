@@ -32,10 +32,11 @@ class AuctionImportService(Service):
         self,
         import_auctions: ImportAuctions,
         get_auction_managers: GetRegisteredAuctionManagers,
-        commands: Observable[ServiceCommand] | None = None,
         poll_interval: timedelta = timedelta(seconds=3),
+        commands: Observable[ServiceCommand] | None = None,
     ):
         super().__init__(commands)
+
         self._import_auctions = import_auctions
         self._get_auction_managers = get_auction_managers
         self._poll_interval = poll_interval
@@ -55,8 +56,8 @@ class AuctionImportService(Service):
     def _start(self):
         logger = get_logger(self)
 
-        def _run_import():
-            logger.info("import thread is running")
+        def run():
+            logger.info("running")
             while not self._stopped_event.is_set():
                 auction_managers = self._get_auction_managers()
 
@@ -74,14 +75,14 @@ class AuctionImportService(Service):
                         self._subject.on_next(auctions)
                     else:
                         if self._stopped_event.is_set():
-                            logger.info("stop signalled - import thread is exiting")
+                            logger.info("stop signalled - exiting")
                             return
                 sleep(self._poll_interval.seconds)
 
-            logger.info("stop signalled - import thread is exiting")
+            logger.info("stop signalled - exiting")
 
         Thread(
-            target=_run_import,
-            name=self.__class__.__name__,
+            target=run,
+            name=self.name,
             daemon=True,
         ).start()

@@ -21,8 +21,14 @@ class SearchAuctionManagerEventsTestCase(AlgorandTestCase):
         search_auction_events = SearchAuctionManagerEvents(self.indexer)
 
         def search_events(
-            event: AuctionManagerEvent, auction_client_app_ids: list[AppId] | None
+            event: AuctionManagerEvent,
+            auction_app_ids: list[AppId] | None,
         ):
+            """
+            :param event: event to search for
+            :param auction_app_ids: the expected auctions that should result for the event search
+            :return:
+            """
             request = SearchAuctionManagerEventsRequest(
                 auction_manager_app_id=creator_app_client.app_id,
                 event=event,
@@ -30,12 +36,41 @@ class SearchAuctionManagerEventsTestCase(AlgorandTestCase):
             result = search_auction_events(request)
             logger.info(result)
             self.assertEqual(event, result.event)
-            if auction_client_app_ids is None:
-                self.assertIsNone(result.auctions)
+            if auction_app_ids is None:
+                self.assertIsNone(result.auction_txns)
             else:
-                self.assertEqual(len(auction_client_app_ids), len(result.auctions))
-                for app_id in auction_client_app_ids:
-                    self.assertIn(app_id, result.auctions)
+                self.assertEqual(len(auction_app_ids), len(result.auction_txns))
+                for app_id in auction_app_ids:
+                    self.assertIn(app_id, result.auction_txns)
+
+                # check the confirmed round
+                for txn in result.auction_txns.values():
+                    txn_info = self.indexer.transaction(txn.id)
+                    self.assertEqual(
+                        txn.confirmed_round, txn_info["transaction"]["confirmed-round"]
+                    )
+
+                    # test min_round filter
+                    confirmed_round = txn.confirmed_round
+                    request = SearchAuctionManagerEventsRequest(
+                        auction_manager_app_id=creator_app_client.app_id,
+                        event=event,
+                        min_round=confirmed_round,
+                    )
+                    result = search_auction_events(request)
+                    self.assertIsNotNone(result.auction_txns)
+                    for txn in result.auction_txns.values():
+                        self.assertGreaterEqual(txn.confirmed_round, confirmed_round)
+
+                    # when min_round is greater than latest confirmed round
+                    request = SearchAuctionManagerEventsRequest(
+                        auction_manager_app_id=creator_app_client.app_id,
+                        event=event,
+                        min_round=confirmed_round + 10,
+                    )
+                    result = search_auction_events(request)
+                    # then we expect no txn events
+                    self.assertIsNone(result.auction_txns)
 
         # SETUP
         accounts = sandbox.get_accounts()

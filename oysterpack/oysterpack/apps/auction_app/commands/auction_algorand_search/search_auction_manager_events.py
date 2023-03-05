@@ -35,8 +35,15 @@ class SearchAuctionManagerEventsRequest:
     auction_manager_app_id: AppId
     event: AuctionManagerEvent
 
+    min_round: int | None = None
     limit: int = 100
     next_token: str | None = None
+
+
+@dataclass(slots=True)
+class Transaction:
+    id: TxnId
+    confirmed_round: int
 
 
 @dataclass(slots=True)
@@ -47,7 +54,7 @@ class SearchAuctionManagerEventsResult:
 
     event: AuctionManagerEvent
 
-    auctions: dict[AuctionAppId, TxnId] | None = None
+    auction_txns: dict[AuctionAppId, Transaction] | None = None
 
     # used for paging
     next_token: str | None = None
@@ -70,8 +77,10 @@ class SearchAuctionManagerEvents:
 
         return SearchAuctionManagerEventsResult(
             event=request.event,
-            auctions={
-                self._auction_app_id(request.event, txn): txn["id"]
+            auction_txns={
+                self._auction_app_id(request.event, txn): Transaction(
+                    txn["id"], txn["confirmed-round"]
+                )
                 for txn in result["transactions"]
             },
             next_token=result["next-token"],
@@ -84,6 +93,7 @@ class SearchAuctionManagerEvents:
             application_id=request.auction_manager_app_id,
             note_prefix=self._txn_note_prefix(request.event).encode(),
             limit=request.limit,
+            min_round=request.min_round,
             next_page=request.next_token,
         )
 

@@ -298,6 +298,8 @@ class ServiceTestCase(OysterPackTestCase):
         # trying to stop the service when it's stopped should be a noop
         commands.on_next(ServiceCommand.STOP)
 
+        sleep(0.1)  # give time for the events to stream through the Observable
+
         self.assertEqual(
             [
                 ServiceLifecycleEvent(foo.name, ServiceLifecycleState.NEW),

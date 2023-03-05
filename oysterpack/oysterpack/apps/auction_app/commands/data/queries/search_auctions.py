@@ -183,61 +183,51 @@ class SearchAuctions:
 
         logger = get_logger(self)
 
-        def build_where_clause(select_clause: Select) -> Select:
+        def build_where_clause(query: Select) -> Select:
             # pylint: disable=too-many-branches
 
             if request.filters is None:
-                return select_clause
+                return query
 
             if len(request.filters.app_id) > 0:
-                select_clause = select_clause.where(
-                    TAuction.app_id.in_(request.filters.app_id)
-                )
+                query = query.where(TAuction.app_id.in_(request.filters.app_id))
 
             if len(request.filters.auction_manager_app_id) > 0:
-                select_clause = select_clause.where(
+                query = query.where(
                     TAuction.auction_manager_app_id.in_(
                         request.filters.auction_manager_app_id
                     )
                 )
 
             if len(request.filters.status) > 0:
-                select_clause = select_clause.where(
-                    TAuction.status.in_(request.filters.status)
-                )
+                query = query.where(TAuction.status.in_(request.filters.status))
 
             if len(request.filters.seller) > 0:
-                select_clause = select_clause.where(
-                    TAuction.seller.in_(request.filters.seller)
-                )
+                query = query.where(TAuction.seller.in_(request.filters.seller))
 
             if len(request.filters.bid_asset_id) > 0:
-                select_clause = select_clause.where(
+                query = query.where(
                     TAuction.bid_asset_id.in_(request.filters.bid_asset_id)
                 )
 
             if request.filters.min_bid and request.filters.min_bid > 0:
-                select_clause = select_clause.where(
-                    TAuction.min_bid >= request.filters.min_bid
-                )
+                query = query.where(TAuction.min_bid >= request.filters.min_bid)
 
             if len(request.filters.highest_bidder) > 0:
-                select_clause = select_clause.where(
+                query = query.where(
                     TAuction.highest_bidder.in_(request.filters.highest_bidder)
                 )
 
             if request.filters.highest_bid and request.filters.highest_bid > 0:
-                select_clause = select_clause.where(
-                    TAuction.highest_bid >= request.filters.highest_bid
-                )
+                query = query.where(TAuction.highest_bid >= request.filters.highest_bid)
 
             if request.filters.start_time:
-                select_clause = select_clause.where(
+                query = query.where(
                     TAuction.start_time >= int(request.filters.start_time.timestamp())
                 )
 
             if request.filters.end_time:
-                select_clause = select_clause.where(
+                query = query.where(
                     TAuction.end_time <= int(request.filters.end_time.timestamp())
                 )
 
@@ -258,20 +248,18 @@ class SearchAuctions:
             ]
 
             if len(assets) > 0 and len(request.filters.asset_amounts) == 0:
-                select_clause = select_clause.where(TAuctionAsset.asset_id.in_(assets))
+                query = query.where(TAuctionAsset.asset_id.in_(assets))
             elif len(request.filters.asset_amounts) > 0 and len(assets) == 0:
-                select_clause = select_clause.where(
-                    or_(false(), *asset_amount_filter_expressions)
-                )
+                query = query.where(or_(false(), *asset_amount_filter_expressions))
             elif len(request.filters.asset_amounts) > 0 and len(assets) > 0:
-                select_clause = select_clause.where(
+                query = query.where(
                     or_(
                         TAuctionAsset.asset_id.in_(assets),
                         *asset_amount_filter_expressions,
                     )
                 )
 
-            return select_clause
+            return query
 
         def add_sort(select_clause: Select) -> Select:
             # pylint: disable=too-many-return-statements

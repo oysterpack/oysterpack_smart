@@ -26,10 +26,9 @@ class AuctionORMTestCase(AlgorandTestCase):
         self.engine = create_engine("sqlite:///:memory:", echo=False)
         Base.metadata.create_all(self.engine)
 
-        self.Session = sessionmaker(self.engine)
-        print(f"type(self.Session) = {type(self.Session)}")
+        self.session_factory = sessionmaker(self.engine)
 
-        with self.Session() as session:
+        with self.session_factory() as session:
             result = session.scalars(text("PRAGMA foreign_keys")).one()
             self.assertEqual(1, result, "foreign keys should be enabled in SQLite")
 
@@ -44,12 +43,14 @@ class AuctionORMTestCase(AlgorandTestCase):
         _, seller = generate_account()
 
         # create
-        with self.Session.begin() as session:  # pylint: disable=no-member
+        with self.session_factory.begin() as session:  # pylint: disable=no-member
             auction_manager_app_id = AppId(100)
             session.add(
                 TAuctionManager(
-                    auction_manager_app_id,
-                    get_application_address(auction_manager_app_id),
+                    cast(Mapped[AppId], auction_manager_app_id),
+                    cast(
+                        Mapped[Address], get_application_address(auction_manager_app_id)
+                    ),
                 )
             )
 
@@ -96,7 +97,7 @@ class AuctionORMTestCase(AlgorandTestCase):
                 session.add(TAuction.create(auction))
 
         # read
-        with self.Session() as session:
+        with self.session_factory() as session:
             self.assertEqual(
                 10,
                 session.scalars(select(func.count(TAuction.app_id))).one(),
@@ -119,7 +120,7 @@ class AuctionORMTestCase(AlgorandTestCase):
                 print(auction.to_auction())
 
         # update
-        with self.Session.begin() as session:  # pylint: disable=no-member
+        with self.session_factory.begin() as session:  # pylint: disable=no-member
             auction = session.get(TAuction, 2)
             self.assertIsNotNone(auction)
             previous_auction_state = auction.to_auction()
@@ -130,7 +131,7 @@ class AuctionORMTestCase(AlgorandTestCase):
                 }
             )
 
-        with self.Session() as session:
+        with self.session_factory() as session:
             for asset_id, _amount in previous_auction_state.assets.items():
                 query = (
                     select(TAuctionAsset)
@@ -141,12 +142,12 @@ class AuctionORMTestCase(AlgorandTestCase):
                 self.assertIsNone(rs)
 
         # delete
-        with self.Session.begin() as session:  # pylint: disable=no-member
+        with self.session_factory.begin() as session:  # pylint: disable=no-member
             auction = session.get(TAuction, 2)
             self.assertIsNotNone(auction)
             session.delete(auction)
 
-        with self.Session() as session:
+        with self.session_factory() as session:
             auction = session.get(TAuction, 2)
             self.assertIsNone(auction)
 

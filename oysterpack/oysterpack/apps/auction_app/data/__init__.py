@@ -14,7 +14,11 @@ from sqlalchemy import Integer, String, event, Engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 
 from oysterpack.algorand.client.model import AppId, Address, AssetId
+from oysterpack.apps.auction_app.commands.auction_algorand_search.search_auction_manager_events import (
+    AuctionManagerEvent,
+)
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
+from oysterpack.apps.auction_app.domain.auction import AuctionManagerAppId, AuctionAppId
 
 
 class Base(MappedAsDataclass, DeclarativeBase):
@@ -28,9 +32,12 @@ class Base(MappedAsDataclass, DeclarativeBase):
 
     type_annotation_map = {
         AppId: Integer,
+        AuctionManagerAppId: Integer,
+        AuctionAppId: Integer,
         Address: String(58),
         AssetId: Integer,
         AuctionStatus: Integer,
+        AuctionManagerEvent: Integer,
     }
 
 

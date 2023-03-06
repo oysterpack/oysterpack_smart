@@ -43,6 +43,7 @@ class SearchAuctionEventsRequest:
     auction_app_id: AppId
     event: AuctionEvent
 
+    min_round: int | None = None
     limit: int = 100
     next_token: str | None = None
 
@@ -88,6 +89,7 @@ class SearchAuctionEvents:
         return self._indexer.search_transactions(
             application_id=request.auction_app_id,
             note_prefix=self.__txn_note_prefix(request.event).encode(),
+            min_round=request.min_round,
             limit=request.limit,
             next_page=request.next_token,
         )

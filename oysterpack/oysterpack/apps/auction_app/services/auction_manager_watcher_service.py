@@ -66,16 +66,18 @@ class AuctionManagerWatcherService(Service):
     # pylint: disable=too-many-instance-attributes
 
     def __init__(
-            self,
-            session_factory: sessionmaker,
-            get_registered_auction_managers: GetRegisteredAuctionManagers,
-            search_auction_manager_events: SearchAuctionManagerEvents,
-            refresh_auctions: RefreshAuctions,
-            poll_interval: timedelta = timedelta(seconds=3),
-            events_watched: Iterable[AuctionManagerEvent] = (
-            AuctionManagerEvent.AUCTION_DELETED, AuctionManagerEvent.AUCTION_CREATED),
-            batch_size: int = 100,
-            commands: Observable[ServiceCommand] | None = None,
+        self,
+        session_factory: sessionmaker,
+        get_registered_auction_managers: GetRegisteredAuctionManagers,
+        search_auction_manager_events: SearchAuctionManagerEvents,
+        refresh_auctions: RefreshAuctions,
+        poll_interval: timedelta = timedelta(seconds=3),
+        events_watched: Iterable[AuctionManagerEvent] = (
+            AuctionManagerEvent.AUCTION_DELETED,
+            AuctionManagerEvent.AUCTION_CREATED,
+        ),
+        batch_size: int = 100,
+        commands: Observable[ServiceCommand] | None = None,
     ):
         super().__init__(commands)
 
@@ -123,8 +125,8 @@ class AuctionManagerWatcherService(Service):
         logger = get_logger(self)
 
         def get_request_params(
-                auction_manager_app_id: AuctionManagerAppId,
-                event: AuctionManagerEvent,
+            auction_manager_app_id: AuctionManagerAppId,
+            event: AuctionManagerEvent,
         ) -> Tuple[MinRound, NextToken]:
             state = self.get_state(auction_manager_app_id)
             return (
@@ -134,10 +136,10 @@ class AuctionManagerWatcherService(Service):
             )
 
         def search_auction_manager_events(
-                auction_manager_app_id: AuctionManagerAppId,
-                event: AuctionManagerEvent,
-                min_round: MinRound,
-                next_token: NextToken,
+            auction_manager_app_id: AuctionManagerAppId,
+            event: AuctionManagerEvent,
+            min_round: MinRound,
+            next_token: NextToken,
         ) -> SearchAuctionManagerEventsResult:
             return self._search_auction_manager_events(
                 SearchAuctionManagerEventsRequest(
@@ -150,9 +152,9 @@ class AuctionManagerWatcherService(Service):
             )
 
         def publish_event(
-                auction_manager_app_id: AuctionManagerAppId,
-                event: AuctionManagerEvent,
-                auction_txns: dict[AuctionAppId, Transaction],
+            auction_manager_app_id: AuctionManagerAppId,
+            event: AuctionManagerEvent,
+            auction_txns: dict[AuctionAppId, Transaction],
         ):
             self._subject.on_next(
                 AuctionManagerWatcherServiceEvent(
@@ -163,10 +165,10 @@ class AuctionManagerWatcherService(Service):
             )
 
         def save_search_params(
-                auction_manager_app_id: AuctionManagerAppId,
-                event: AuctionManagerEvent,
-                txns: Iterable[Transaction],
-                next_token: NextToken,
+            auction_manager_app_id: AuctionManagerAppId,
+            event: AuctionManagerEvent,
+            txns: Iterable[Transaction],
+            next_token: NextToken,
         ):
             max_confirmed_round = max((txn.confirmed_round for txn in txns))
             self._save_state(
@@ -184,7 +186,7 @@ class AuctionManagerWatcherService(Service):
             while not self._stopped_event.is_set():
                 has_more_results = False
                 for (
-                        registered_auction_manager
+                    registered_auction_manager
                 ) in self._get_registered_auction_managers():
                     for event in self._events_watched:
                         if self._stopped_event.is_set():
@@ -234,8 +236,8 @@ class AuctionManagerWatcherService(Service):
         Thread(target=run, name=self.name, daemon=True).start()
 
     def get_state(
-            self,
-            auction_manager_app_id: AuctionManagerAppId,
+        self,
+        auction_manager_app_id: AuctionManagerAppId,
     ) -> dict[AuctionManagerEvent, SearchAuctionManagerEventsServiceState]:
         """
         Looks up service state in the database

@@ -201,14 +201,14 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
             for _ in range(5):
                 app_clients.append(self.seller_auction_manager_client.create_auction())
 
-            sleep(2) # give indexer time to index
+            sleep(2)  # give indexer time to index
             self.assertEqual(len(app_clients), get_auction_event_count())
 
         with self.subTest("when more auctions have been created on Algorand"):
             for _ in range(5):
                 app_clients.append(self.seller_auction_manager_client.create_auction())
 
-            sleep(2) # give indexer time to index
+            sleep(2)  # give indexer time to index
             self.assertEqual(len(app_clients), get_auction_event_count())
 
         with self.subTest("when auctions have been deleted on Algorand"):
@@ -219,7 +219,7 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
                     app_client.app_id
                 )
 
-            sleep(2) # give indexer time to index
+            sleep(2)  # give indexer time to index
             self.assertEqual(len(app_clients) + 5, get_auction_event_count())
             self.assertEqual(
                 len(app_clients),
@@ -241,7 +241,9 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
             events_watched=[AuctionManagerEvent.AUCTION_DELETED],
         )
 
-        self.assertEqual([AuctionManagerEvent.AUCTION_DELETED], self.service.events_watched)
+        self.assertEqual(
+            [AuctionManagerEvent.AUCTION_DELETED], self.service.events_watched
+        )
 
         events: list[AuctionManagerWatcherServiceEvent] = []
 
@@ -260,7 +262,9 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
         self.service.observable.subscribe(on_event)
         self.service.start()
 
-        with self.subTest("AuctionManagerEvent.AUCTION_CREATED events should be ignored"):
+        with self.subTest(
+            "AuctionManagerEvent.AUCTION_CREATED events should be ignored"
+        ):
             app_clients = []
             for _ in range(5):
                 app_clients.append(self.seller_auction_manager_client.create_auction())
@@ -288,7 +292,9 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
                     get_registered_auction_managers=GetRegisteredAuctionManagers(
                         self.session_factory
                     ),
-                    search_auction_manager_events=SearchAuctionManagerEvents(self.indexer),
+                    search_auction_manager_events=SearchAuctionManagerEvents(
+                        self.indexer
+                    ),
                     refresh_auctions=RefreshAuctions(self.import_auction),
                     poll_interval=timedelta(seconds=1),
                     events_watched=[],
@@ -306,12 +312,12 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
                 events_watched=[
                     AuctionManagerEvent.AUCTION_CREATED,
                     AuctionManagerEvent.AUCTION_DELETED,
-
                     AuctionManagerEvent.AUCTION_CREATED,
                     AuctionManagerEvent.AUCTION_DELETED,
                 ],
             )
             self.assertEqual(2, len(service.events_watched))
+
 
 if __name__ == "__main__":
     unittest.main()

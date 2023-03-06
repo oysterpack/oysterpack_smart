@@ -38,6 +38,16 @@ class AppId(int):
 
 
 @dataclass(slots=True)
+class Transaction:
+    """
+    Transaction info
+    """
+
+    id: TxnId  # pylint: disable=invalid-name
+    confirmed_round: int
+
+
+@dataclass(slots=True)
 class AssetHolding:
     """
     Account asset holding.

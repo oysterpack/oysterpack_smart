@@ -74,7 +74,7 @@ class SearchAuctionEventsTestCase(AlgorandTestCase):
             result = search_auction_events(request)
             logger.info(result)
             self.assertEqual(AuctionEvent.COMMITTED, result.event)
-            self.assertEqual(1, len(result.txn_ids))
+            self.assertEqual(1, len(result.txns))
 
 
 if __name__ == "__main__":

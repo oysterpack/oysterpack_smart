@@ -9,7 +9,7 @@ from typing import Any
 from algosdk.abi.uint_type import UintType
 from algosdk.v2client.indexer import IndexerClient
 
-from oysterpack.algorand.client.model import AppId, TxnId
+from oysterpack.algorand.client.model import AppId, Transaction
 from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.apps.auction_app.client.auction_manager_client import (
     AuctionManagerClient,
@@ -38,15 +38,6 @@ class SearchAuctionManagerEventsRequest:
     min_round: int | None = None
     limit: int = 100
     next_token: str | None = None
-
-
-@dataclass(slots=True)
-class Transaction:
-    """
-    Transaction info
-    """
-    id: TxnId   # pylint: disable=invalid-name
-    confirmed_round: int
 
 
 @dataclass(slots=True)

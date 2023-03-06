@@ -7,7 +7,7 @@ from typing import Any
 
 from algosdk.v2client.indexer import IndexerClient
 
-from oysterpack.algorand.client.model import TxnId, AppId
+from oysterpack.algorand.client.model import AppId, Transaction
 from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.apps.auction_app.client.auction_client import (
     AuctionClient,
@@ -54,7 +54,7 @@ class SearchAuctionEventsResult:
     """
 
     event: AuctionEvent
-    txn_ids: list[TxnId]
+    txns: list[Transaction]
 
     # used for paging
     next_token: str | None
@@ -75,7 +75,10 @@ class SearchAuctionEvents:
         result = self.__search_transactions(request)
         return SearchAuctionEventsResult(
             event=request.event,
-            txn_ids=[txn["id"] for txn in result["transactions"]],
+            txns=[
+                Transaction(txn["id"], txn["confirmed-round"])
+                for txn in result["transactions"]
+            ],
             next_token=result["next-token"],
         )
 

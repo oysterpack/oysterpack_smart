@@ -57,7 +57,7 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
         self.setup_database()
         self.setup_contracts()
 
-        import_auction = ImportAuction(
+        self.import_auction = ImportAuction(
             lookup=LookupAuction(
                 self.algod_client,
                 LookupAuctionManager(self.session_factory),
@@ -72,7 +72,7 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
                 self.session_factory
             ),
             search_auction_manager_events=SearchAuctionManagerEvents(self.indexer),
-            refresh_auctions=RefreshAuctions(import_auction),
+            refresh_auctions=RefreshAuctions(self.import_auction),
             poll_interval=timedelta(seconds=1),
         )
 
@@ -200,17 +200,15 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
             app_clients = []
             for _ in range(5):
                 app_clients.append(self.seller_auction_manager_client.create_auction())
-            sleep(0.5)  # give indexer time to index
 
-            sleep(3)
+            sleep(2) # give indexer time to index
             self.assertEqual(len(app_clients), get_auction_event_count())
 
         with self.subTest("when more auctions have been created on Algorand"):
             for _ in range(5):
                 app_clients.append(self.seller_auction_manager_client.create_auction())
-            sleep(0.5)  # give indexer time to index
 
-            sleep(3)
+            sleep(2) # give indexer time to index
             self.assertEqual(len(app_clients), get_auction_event_count())
 
         with self.subTest("when auctions have been deleted on Algorand"):
@@ -221,9 +219,7 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
                     app_client.app_id
                 )
 
-            sleep(0.5)  # give indexer time to index
-
-            sleep(3)
+            sleep(2) # give indexer time to index
             self.assertEqual(len(app_clients) + 5, get_auction_event_count())
             self.assertEqual(
                 len(app_clients),
@@ -233,6 +229,89 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
                 5, get_auction_event_count(AuctionManagerEvent.AUCTION_DELETED)
             )
 
+    def test_service_watch_deletes_only(self) -> None:
+        self.service = AuctionManagerWatcherService(
+            session_factory=self.session_factory,
+            get_registered_auction_managers=GetRegisteredAuctionManagers(
+                self.session_factory
+            ),
+            search_auction_manager_events=SearchAuctionManagerEvents(self.indexer),
+            refresh_auctions=RefreshAuctions(self.import_auction),
+            poll_interval=timedelta(seconds=1),
+            events_watched=[AuctionManagerEvent.AUCTION_DELETED],
+        )
+
+        self.assertEqual([AuctionManagerEvent.AUCTION_DELETED], self.service.events_watched)
+
+        events: list[AuctionManagerWatcherServiceEvent] = []
+
+        def on_event(event: AuctionManagerWatcherServiceEvent):
+            nonlocal events
+            pprint.pp(event)
+            events.append(event)
+
+        def get_auction_event_count(evt: AuctionManagerEvent | None = None) -> int:
+            if evt is None:
+                return sum([len(event.auction_txns) for event in events])
+            return sum(
+                [len(event.auction_txns) for event in events if event.event == evt]
+            )
+
+        self.service.observable.subscribe(on_event)
+        self.service.start()
+
+        with self.subTest("AuctionManagerEvent.AUCTION_CREATED events should be ignored"):
+            app_clients = []
+            for _ in range(5):
+                app_clients.append(self.seller_auction_manager_client.create_auction())
+            sleep(1)
+            self.assertEqual(0, get_auction_event_count())
+
+        with self.subTest("when auctions have been deleted on Algorand"):
+            for app_client in app_clients[0:2]:
+                app_client.cancel()
+                app_client.finalize()
+                self.creator_auction_manager_client.delete_finalized_auction(
+                    app_client.app_id
+                )
+            sleep(1)
+            self.assertEqual(2, get_auction_event_count())
+            self.assertEqual(
+                2, get_auction_event_count(AuctionManagerEvent.AUCTION_DELETED)
+            )
+
+    def test_create_service_watched_events(self):
+        with self.subTest("when no events are specified"):
+            with self.assertRaises(ValueError):
+                AuctionManagerWatcherService(
+                    session_factory=self.session_factory,
+                    get_registered_auction_managers=GetRegisteredAuctionManagers(
+                        self.session_factory
+                    ),
+                    search_auction_manager_events=SearchAuctionManagerEvents(self.indexer),
+                    refresh_auctions=RefreshAuctions(self.import_auction),
+                    poll_interval=timedelta(seconds=1),
+                    events_watched=[],
+                )
+
+        with self.subTest("when dup events are specified"):
+            service = AuctionManagerWatcherService(
+                session_factory=self.session_factory,
+                get_registered_auction_managers=GetRegisteredAuctionManagers(
+                    self.session_factory
+                ),
+                search_auction_manager_events=SearchAuctionManagerEvents(self.indexer),
+                refresh_auctions=RefreshAuctions(self.import_auction),
+                poll_interval=timedelta(seconds=1),
+                events_watched=[
+                    AuctionManagerEvent.AUCTION_CREATED,
+                    AuctionManagerEvent.AUCTION_DELETED,
+
+                    AuctionManagerEvent.AUCTION_CREATED,
+                    AuctionManagerEvent.AUCTION_DELETED,
+                ],
+            )
+            self.assertEqual(2, len(service.events_watched))
 
 if __name__ == "__main__":
     unittest.main()

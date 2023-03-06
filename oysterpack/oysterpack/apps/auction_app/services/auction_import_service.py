@@ -1,5 +1,5 @@
 """
-Provides service that polls Algorand for new Auctions to import into the database
+Provides service that polls Algorand to discover new Auctions to import into the database
 """
 from datetime import timedelta
 from threading import Thread

@@ -37,6 +37,9 @@ class TSearchAuctionManagerEvents(Base):
     next_token: Mapped[str | None] = mapped_column()
 
     def to_domain_object(self) -> SearchAuctionManagerEventsServiceState:
+        """
+        :return: SearchAuctionManagerEventsServiceState
+        """
         return SearchAuctionManagerEventsServiceState(
             self.service_name,
             self.auction_manager_app_id,
@@ -50,6 +53,9 @@ class TSearchAuctionManagerEvents(Base):
         cls,
         state: SearchAuctionManagerEventsServiceState,
     ) -> "TSearchAuctionManagerEvents":
+        """
+        Constructs a TSearchAuctionManagerEvents from a SearchAuctionManagerEventsServiceState
+        """
         return cls(
             service_name=cast(Mapped[str], state.service_name),
             auction_manager_app_id=cast(

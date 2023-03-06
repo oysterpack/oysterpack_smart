@@ -41,12 +41,27 @@ NextToken = str | None
 
 @dataclass(slots=True)
 class AuctionManagerWatcherServiceEvent:
+    """
+    AuctionManagerWatcherServiceEvent
+    """
     auction_manager_app_id: AuctionManagerAppId
     event: AuctionManagerEvent
     auction_txns: dict[AuctionAppId, Transaction]
 
 
 class AuctionManagerWatcherService(Service):
+    """
+    Monitors Algorand for auctions that are created or deleted for registered auction managers, and then :
+    1. updates the database accordingly
+    2. publishes events (AuctionManagerWatcherServiceEvent) to an Observable stream
+
+    Notes
+    -----
+    - service runs in a background thread
+    """
+
+    # pylint: disable=too-many-instance-attributes
+
     def __init__(
         self,
         session_factory: sessionmaker,
@@ -74,22 +89,19 @@ class AuctionManagerWatcherService(Service):
 
     @property
     def observable(self) -> Observable[AuctionManagerWatcherServiceEvent]:
+        """
+        :return: Observable[AuctionManagerWatcherServiceEvent]
+        """
         return self._observable
 
     def _start(self):
         """
-        For each registered AuctionManager, search for Auctions that have been created and deleted since the last search.
-        Retrieve SearchAuctionManagerEvents request params from the database to continue from the last search.
-        Process each Auction create/delete event by importing/deleting the auctions in the database.
-        Save the search result next-token and the confirmed round for the event transaction.
-        If the search result next-token is None, then sleep.
-
-        Steps
-        -----
-        1. for each registered auction manager
-        3. Handle each event accordingly
-        4. Publish the events to an Observable stream
-        5.
+        For each registered AuctionManager:
+        1. Search for Auctions that have been created and deleted since the last search.
+        2. Retrieve SearchAuctionManagerEvents request params from the database to continue from the last search.
+        3. Process each Auction create/delete event by importing/deleting the auctions in the database.
+        4. Save the search result next-token and the confirmed round for the event transaction.
+        5. Publish events (AuctionManagerWatcherServiceEvent) on the Observable stream
         """
 
         logger = get_logger(self)
@@ -140,7 +152,7 @@ class AuctionManagerWatcherService(Service):
             txns: Iterable[Transaction],
             next_token: NextToken,
         ):
-            max_confirmed_round = max([txn.confirmed_round for txn in txns])
+            max_confirmed_round = max((txn.confirmed_round for txn in txns))
             self._save_state(
                 SearchAuctionManagerEventsServiceState(
                     service_name=self.name,
@@ -219,8 +231,8 @@ class AuctionManagerWatcherService(Service):
             TSearchAuctionManagerEvents.auction_manager_app_id == auction_manager_app_id
         )
         with self._session_factory() as session:
-            rs = session.scalars(query)
-            return {state.event: state.to_domain_object() for state in rs}
+            query_results = session.scalars(query)
+            return {state.event: state.to_domain_object() for state in query_results}
 
     def _save_state(self, state: SearchAuctionManagerEventsServiceState):
         """

@@ -42,7 +42,10 @@ class SearchAuctionManagerEventsRequest:
 
 @dataclass(slots=True)
 class Transaction:
-    id: TxnId
+    """
+    Transaction info
+    """
+    id: TxnId   # pylint: disable=invalid-name
     confirmed_round: int
 
 

@@ -193,7 +193,7 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
         self.service.start()
 
         with self.subTest("initial startup with no Auctions on Algorand"):
-            sleep(2)
+            sleep(1)
             self.assertEqual(0, len(events))
 
         with self.subTest("when auctions have been created on Algorand"):
@@ -201,14 +201,14 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
             for _ in range(5):
                 app_clients.append(self.seller_auction_manager_client.create_auction())
 
-            sleep(2)  # give indexer time to index
+            sleep(1)  # give indexer time to index
             self.assertEqual(len(app_clients), get_auction_event_count())
 
         with self.subTest("when more auctions have been created on Algorand"):
             for _ in range(5):
                 app_clients.append(self.seller_auction_manager_client.create_auction())
 
-            sleep(2)  # give indexer time to index
+            sleep(1)  # give indexer time to index
             self.assertEqual(len(app_clients), get_auction_event_count())
 
         with self.subTest("when auctions have been deleted on Algorand"):
@@ -219,7 +219,7 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
                     app_client.app_id
                 )
 
-            sleep(2)  # give indexer time to index
+            sleep(1.5)  # give indexer time to index
             self.assertEqual(len(app_clients) + 5, get_auction_event_count())
             self.assertEqual(
                 len(app_clients),
@@ -227,6 +227,25 @@ class AuctionManagerWatcherServiceTestCase(AlgorandTestCase):
             )
             self.assertEqual(
                 5, get_auction_event_count(AuctionManagerEvent.AUCTION_DELETED)
+            )
+
+        with self.subTest("when more auctions have been deleted on Algorand"):
+            for app_client in app_clients[5:]:
+                app_client.cancel()
+                app_client.finalize()
+                self.creator_auction_manager_client.delete_finalized_auction(
+                    app_client.app_id
+                )
+
+            sleep(1)  # give indexer time to index
+            self.assertEqual(len(app_clients) * 2, get_auction_event_count())
+            self.assertEqual(
+                len(app_clients),
+                get_auction_event_count(AuctionManagerEvent.AUCTION_CREATED),
+            )
+            self.assertEqual(
+                len(app_clients),
+                get_auction_event_count(AuctionManagerEvent.AUCTION_DELETED),
             )
 
     def test_service_watch_deletes_only(self) -> None:

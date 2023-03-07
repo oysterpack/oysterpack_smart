@@ -22,12 +22,12 @@ class SearchAuctionManagerEventsTestCase(AlgorandTestCase):
 
         def search_events(
             event: AuctionManagerEvent,
-            auction_app_ids: list[AppId] | None,
+            expected_auction_app_ids: list[AppId] | None,
         ):
             """
             :param event: event to search for
-            :param auction_app_ids: the expected auctions that should result for the event search
-            :return:
+            :param expected_auction_app_ids: the expected auction app IDs that should match auction app IDs in
+                                             the search result
             """
             request = SearchAuctionManagerEventsRequest(
                 auction_manager_app_id=creator_app_client.app_id,
@@ -36,11 +36,13 @@ class SearchAuctionManagerEventsTestCase(AlgorandTestCase):
             result = search_auction_events(request)
             logger.info(result)
             self.assertEqual(event, result.event)
-            if auction_app_ids is None:
+            if expected_auction_app_ids is None:
                 self.assertIsNone(result.auction_txns)
             else:
-                self.assertEqual(len(auction_app_ids), len(result.auction_txns))
-                for app_id in auction_app_ids:
+                self.assertEqual(
+                    len(expected_auction_app_ids), len(result.auction_txns)
+                )
+                for app_id in expected_auction_app_ids:
                     self.assertIn(app_id, result.auction_txns)
 
                 # check the confirmed round
@@ -85,29 +87,33 @@ class SearchAuctionManagerEventsTestCase(AlgorandTestCase):
             sender=Address(seller.address), signer=seller.signer
         )
 
-        search_events(AuctionManagerEvent.AUCTION_CREATED, None)
-        search_events(AuctionManagerEvent.AUCTION_DELETED, None)
+        with self.subTest("when no auctions have yet been created"):
+            search_events(AuctionManagerEvent.AUCTION_CREATED, None)
+            search_events(AuctionManagerEvent.AUCTION_DELETED, None)
 
-        auction_clients = []
-        for _ in range(2):
-            auction_client = seller_auction_manager_client.create_auction()
-            auction_client.cancel()
-            auction_client.finalize()
-            auction_clients.append(auction_client)
-        sleep(1)
-        auction_client_app_ids = [
-            auction_client.app_id for auction_client in auction_clients
-        ]
+        with self.subTest("when auctions have been created"):
+            # create auctions
+            auction_clients = []
+            for _ in range(2):
+                auction_client = seller_auction_manager_client.create_auction()
+                auction_client.cancel()
+                auction_client.finalize()
+                auction_clients.append(auction_client)
+            sleep(0.5)
+            auction_client_app_ids = [
+                auction_client.app_id for auction_client in auction_clients
+            ]
 
-        search_events(AuctionManagerEvent.AUCTION_CREATED, auction_client_app_ids)
-        search_events(AuctionManagerEvent.AUCTION_DELETED, None)
+            search_events(AuctionManagerEvent.AUCTION_CREATED, auction_client_app_ids)
+            search_events(AuctionManagerEvent.AUCTION_DELETED, None)
 
-        for auction_client in auction_clients:
-            creator_app_client.delete_finalized_auction(auction_client.app_id)
-        sleep(1)
+        with self.subTest("when auctions have been deleted"):
+            for auction_client in auction_clients:
+                creator_app_client.delete_finalized_auction(auction_client.app_id)
+            sleep(0.5)
 
-        search_events(AuctionManagerEvent.AUCTION_CREATED, auction_client_app_ids)
-        search_events(AuctionManagerEvent.AUCTION_DELETED, auction_client_app_ids)
+            search_events(AuctionManagerEvent.AUCTION_CREATED, auction_client_app_ids)
+            search_events(AuctionManagerEvent.AUCTION_DELETED, auction_client_app_ids)
 
 
 if __name__ == "__main__":

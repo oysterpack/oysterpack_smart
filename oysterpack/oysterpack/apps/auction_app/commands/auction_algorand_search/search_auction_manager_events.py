@@ -53,6 +53,17 @@ class SearchAuctionManagerEventsResult:
     # used for paging
     next_token: str | None = None
 
+    @property
+    def max_confirmed_round(self) -> int | None:
+        """
+        :return: max confirmed round for the list of txns or None if the search resulted in no matching transactions
+        """
+
+        if self.auction_txns is None or len(self.auction_txns) == 0:
+            return None
+
+        return max((txn.confirmed_round for txn in self.auction_txns.values()))
+
 
 class SearchAuctionManagerEvents:
     """
@@ -77,7 +88,7 @@ class SearchAuctionManagerEvents:
                 )
                 for txn in result["transactions"]
             },
-            next_token=result["next-token"],
+            next_token=result["next-token"] if "next-token" in result else None,
         )
 
     def __search_transactions(

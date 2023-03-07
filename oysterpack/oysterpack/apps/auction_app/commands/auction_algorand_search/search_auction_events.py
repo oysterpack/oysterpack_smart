@@ -1,6 +1,7 @@
 """
 Searches for Auction Algorand transactions
 """
+from base64 import b64decode
 from dataclasses import dataclass
 from enum import IntEnum, auto
 from typing import Any
@@ -8,11 +9,13 @@ from typing import Any
 from algosdk.v2client.indexer import IndexerClient
 
 from oysterpack.algorand.client.model import AppId, Transaction
-from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.apps.auction_app.client.auction_client import (
     AuctionClient,
     AuctionBidder,
+    AuctionPhase,
 )
+from oysterpack.apps.auction_app.contracts.auction import Auction
+from oysterpack.apps.auction_app.domain.auction import AuctionAppId
 
 
 class AuctionEvent(IntEnum):
@@ -41,7 +44,8 @@ class SearchAuctionEventsRequest:
     """
 
     auction_app_id: AppId
-    event: AuctionEvent
+    # either a specific event or set of events that are part of the specified phase
+    filter: AuctionEvent | AuctionPhase
 
     min_round: int | None = None
     limit: int = 100
@@ -54,11 +58,30 @@ class SearchAuctionEventsResult:
     SearchAuctionTransactionsResult
     """
 
-    event: AuctionEvent
-    txns: list[Transaction]
+    filter: AuctionEvent | AuctionPhase
+
+    # multiple transactions may ahve occured per Auction
+    # the transaction note can be inspected to determine which contract method was invoked
+    txns: dict[AuctionAppId, list[Transaction]] | None = None
 
     # used for paging
-    next_token: str | None
+    next_token: str | None = None
+
+    @property
+    def max_confirmed_round(self) -> int | None:
+        """
+        :return: max confirmed round for the list of txns or None if the search resulted in no matching transactions
+        """
+        if self.txns is None or len(self.txns) == 0:
+            return None
+
+        max_round = 0
+        for txns in self.txns.values():
+            txns_max_round = max(txn.confirmed_round for txn in txns)
+            if txns_max_round > max_round:
+                max_round = txns_max_round
+
+        return max_round
 
 
 class SearchAuctionEvents:
@@ -74,13 +97,24 @@ class SearchAuctionEvents:
         request: SearchAuctionEventsRequest,
     ) -> SearchAuctionEventsResult:
         result = self.__search_transactions(request)
+
+        if len(result["transactions"]) == 0:
+            return SearchAuctionEventsResult(filter=request.filter)
+
+        txns: dict[AuctionAppId, list[Transaction]] = {}
+        for txn in result["transactions"]:
+            app_id = AuctionAppId(txn["application-transaction"]["application-id"])
+            transaction = Transaction(
+                txn["id"], txn["confirmed-round"], b64decode(txn["note"]).decode()
+            )
+            if app_id in txns:
+                txns[app_id].append(transaction)
+            else:
+                txns[app_id] = [transaction]
         return SearchAuctionEventsResult(
-            event=request.event,
-            txns=[
-                Transaction(txn["id"], txn["confirmed-round"])
-                for txn in result["transactions"]
-            ],
-            next_token=result["next-token"],
+            filter=request.filter,
+            txns=txns,
+            next_token=result["next-token"] if "next-token" in result else None,
         )
 
     def __search_transactions(
@@ -88,23 +122,26 @@ class SearchAuctionEvents:
     ) -> dict[str, Any]:
         return self._indexer.search_transactions(
             application_id=request.auction_app_id,
-            note_prefix=self.__txn_note_prefix(request.event).encode(),
+            note_prefix=self.__txn_note_prefix(request.filter),
             min_round=request.min_round,
             limit=request.limit,
             next_page=request.next_token,
         )
 
-    def __txn_note_prefix(self, event: AuctionEvent) -> AppTxnNote:
-        match event:
-            case AuctionEvent.COMMITTED:
-                return AuctionClient.COMMIT_NOTE
-            case AuctionEvent.BID:
-                return AuctionBidder.BID_NOTE
-            case AuctionEvent.BID_ACCEPTED:
-                return AuctionClient.ACCEPT_BID_NOTE
-            case AuctionEvent.FINALIZED:
-                return AuctionClient.FINALIZE_NOTE
-            case AuctionEvent.CANCELLED:
-                return AuctionClient.CANCEL_NOTE
-            case _:
-                raise AssertionError(f"event not supported: {event}")
+    def __txn_note_prefix(self, filter: AuctionEvent | AuctionPhase) -> bytes:
+        if isinstance(filter, AuctionEvent):
+            match filter:
+                case AuctionEvent.COMMITTED:
+                    return AuctionClient.COMMIT_NOTE.encode()
+                case AuctionEvent.BID:
+                    return AuctionBidder.BID_NOTE.encode()
+                case AuctionEvent.BID_ACCEPTED:
+                    return AuctionClient.ACCEPT_BID_NOTE.encode()
+                case AuctionEvent.FINALIZED:
+                    return AuctionClient.FINALIZE_NOTE.encode()
+                case AuctionEvent.CANCELLED:
+                    return AuctionClient.CANCEL_NOTE.encode()
+                case _:
+                    raise AssertionError(f"event not supported: {filter}")
+        elif isinstance(filter, AuctionPhase):
+            return f"{Auction.APP_NAME}/{filter}".encode()

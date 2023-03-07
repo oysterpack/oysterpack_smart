@@ -3,6 +3,7 @@ Auction application client
 """
 from dataclasses import dataclass
 from datetime import datetime, UTC
+from enum import StrEnum
 from typing import cast, Final
 
 from algosdk.atomic_transaction_composer import (
@@ -209,6 +210,31 @@ class _AuctionClientSupport(AppClient):
             raise
 
 
+class AuctionPhase(StrEnum):
+    """
+    Defines Auction contract method phases.
+
+    Used to augment Auction contract transaction notes
+    """
+
+    # tags transactions that in the auction setup phase
+    # ----------------------------------------------------
+    # AuctionClient.SET_BID_ASSET_NOTE
+    # AuctionClient.SET_BID_ASSET_NOTE
+    # AuctionClient.OPTIN_ASSET_NOTE
+    # AuctionClient.OPTOUT_ASSET_NOTE
+    # AuctionClient.DEPOSIT_ASSET_NOTE
+    # AuctionClient.WITHDRAW_ASSET_NOTE
+    SETUP = "setup"
+
+    # tags transactions that are in the auction bidding phase
+    # -------------------------------------------------------
+    # COMMIT_NOTE
+    # ACCEPT_BID_NOTE
+    # AuctionBidder.BID_NOTE
+    BIDDING = "bidding"
+
+
 # TODO: logging
 class AuctionBidder(_AuctionClientSupport):
     """
@@ -216,7 +242,9 @@ class AuctionBidder(_AuctionClientSupport):
     """
 
     BID_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME, method=get_method_signature(Auction.bid)
+        app=Auction.APP_NAME,
+        method=get_method_signature(Auction.bid),
+        group=AuctionPhase.BIDDING,
     )
 
     OPTIN_AUCTION_ASSETS_NOTE: Final[AppTxnNote] = AppTxnNote(
@@ -326,36 +354,37 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
     SET_BID_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
         app=Auction.APP_NAME,
         method=get_method_signature(Auction.set_bid_asset),
+        group=AuctionPhase.SETUP,
     )
 
     OPTIN_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
-        method="optin_asset",
+        app=Auction.APP_NAME, method="optin_asset", group=AuctionPhase.SETUP
     )
 
     OPTOUT_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
-        method="optout_asset",
+        app=Auction.APP_NAME, method="optout_asset", group=AuctionPhase.SETUP
     )
 
     DEPOSIT_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
-        method="deposit_asset",
+        app=Auction.APP_NAME, method="deposit_asset", group=AuctionPhase.SETUP
     )
 
     WITHDRAW_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
         app=Auction.APP_NAME,
         method=get_method_signature(Auction.withdraw_asset),
+        group=AuctionPhase.SETUP,
     )
 
     COMMIT_NOTE: Final[AppTxnNote] = AppTxnNote(
         app=Auction.APP_NAME,
         method=get_method_signature(Auction.commit),
+        group=AuctionPhase.BIDDING,
     )
 
     ACCEPT_BID_NOTE: Final[AppTxnNote] = AppTxnNote(
         app=Auction.APP_NAME,
         method=get_method_signature(Auction.accept_bid),
+        group=AuctionPhase.BIDDING,
     )
 
     CANCEL_NOTE: Final[AppTxnNote] = AppTxnNote(

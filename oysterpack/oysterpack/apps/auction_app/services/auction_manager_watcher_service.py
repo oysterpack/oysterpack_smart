@@ -166,18 +166,15 @@ class AuctionManagerWatcherService(Service):
 
         def save_search_params(
             auction_manager_app_id: AuctionManagerAppId,
-            event: AuctionManagerEvent,
-            txns: Iterable[Transaction],
-            next_token: NextToken,
+            search_result: SearchAuctionManagerEventsResult,
         ):
-            max_confirmed_round = max((txn.confirmed_round for txn in txns))
             self._save_state(
                 SearchAuctionManagerEventsServiceState(
                     service_name=self.name,
                     auction_manager_app_id=auction_manager_app_id,
-                    event=event,
-                    min_round=max_confirmed_round,
-                    next_token=next_token,
+                    event=search_result.event,
+                    min_round=search_result.max_confirmed_round,
+                    next_token=search_result.next_token,
                 )
             )
 
@@ -207,10 +204,14 @@ class AuctionManagerWatcherService(Service):
                             has_more_results = result.next_token is not None
 
                         logger.debug(
-                            "has_more_results=%s, next_token=%s, min_round=%s",
+                            "has_more_results=%s, request(event=%s, min_round=%s, next_token=%s), "
+                            "result(next_token=%s, max_confirmed_round=%s)",
                             has_more_results,
-                            result.next_token,
+                            event.name,
                             min_round,
+                            next_token,
+                            result.next_token,
+                            result.max_confirmed_round,
                         )
 
                         if result.auction_txns and len(result.auction_txns) > 0:
@@ -222,9 +223,7 @@ class AuctionManagerWatcherService(Service):
                             )
                             save_search_params(
                                 auction_manager_app_id=registered_auction_manager.app_id,
-                                event=event,
-                                txns=result.auction_txns.values(),
-                                next_token=result.next_token,
+                                search_result=result,
                             )
 
                     if not has_more_results:

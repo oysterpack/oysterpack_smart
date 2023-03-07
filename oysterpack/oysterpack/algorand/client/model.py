@@ -45,6 +45,7 @@ class Transaction:
 
     id: TxnId  # pylint: disable=invalid-name
     confirmed_round: int
+    note: str | None = None
 
 
 @dataclass(slots=True)

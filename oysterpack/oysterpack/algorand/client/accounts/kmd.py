@@ -3,7 +3,6 @@ This module is used to manage KMD wallet-derived Algorand accounts
 
 https://developer.algorand.org/docs/get-details/accounts/create/#wallet-derived-kmd
 """
-
 from dataclasses import dataclass
 from typing import NewType, Any, Callable
 

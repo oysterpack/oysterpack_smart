@@ -1,8 +1,7 @@
 """
 Unit tests depend on a local sandbox running.
 """
-import functools
-from typing import Callable, Final, Any
+from typing import Final, Any
 
 from algosdk import kmd, wallet
 from algosdk.atomic_transaction_composer import TransactionSigner
@@ -14,7 +13,7 @@ from beaker.client import ApplicationClient
 from beaker.sandbox.kmd import get_sandbox_default_wallet
 from ulid import ULID
 
-from oysterpack.algorand.client.accounts import get_auth_address
+from oysterpack.algorand.client.accounts import get_auth_address_callable
 from oysterpack.algorand.client.accounts.kmd import (
     WalletTransactionSigner,
     WalletSession,
@@ -32,12 +31,12 @@ class AlgorandTestCase(OysterPackTestCase):
     indexer: Final[IndexerClient] = sandbox.get_indexer_client()
     sandbox_default_wallet: Final[wallet.Wallet] = get_sandbox_default_wallet()
 
-    def get_auth_addr(self) -> Callable[[Address], Address]:
-        return functools.partial(get_auth_address, algod_client=self.algod_client)
-
     def sandbox_default_wallet_transaction_signer(self) -> WalletTransactionSigner:
         return WalletTransactionSigner(
-            WalletSession.from_wallet(self.sandbox_default_wallet, self.get_auth_addr())
+            WalletSession.from_wallet(
+                self.sandbox_default_wallet,
+                get_auth_address_callable(self.algod_client),
+            )
         )
 
     def create_test_wallet(self) -> wallet.Wallet:

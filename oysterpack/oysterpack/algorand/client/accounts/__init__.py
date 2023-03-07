@@ -1,6 +1,7 @@
 """
 Algorand account related utility functions
 """
+import functools
 
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
@@ -26,10 +27,16 @@ def get_auth_address(address: Address, algod_client: AlgodClient) -> Address:
         if err.code == 404:
             raise AccountDoesNotExist from err
         raise
-    auth_addr = "auth-addr"
-    if auth_addr in account_info:
-        return Address(account_info[auth_addr])
+    if "auth-addr" in account_info:
+        return Address(account_info["auth-addr"])
     return address
+
+
+def get_auth_address_callable(algod_client: AlgodClient):
+    """
+    Constructs a partial function for `get_auth_address` that
+    """
+    return functools.partial(get_auth_address, algod_client=algod_client)
 
 
 def get_asset_holdings(

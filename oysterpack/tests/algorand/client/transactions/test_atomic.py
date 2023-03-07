@@ -6,6 +6,7 @@ from algosdk.atomic_transaction_composer import (
 )
 from algosdk.transaction import SignedTransaction
 
+from oysterpack.algorand.client.accounts import get_auth_address_callable
 from oysterpack.algorand.client.accounts.kmd import (
     WalletSession,
     WalletName,
@@ -42,7 +43,7 @@ class WalletTransactionSignerTestCase(AlgorandTestCase):
                 kmd_client=self.kmd_client,
                 name=WalletName(self.sandbox_default_wallet.name),
                 password=WalletPassword(self.sandbox_default_wallet.pswd),
-                get_auth_addr=self.get_auth_addr(),
+                get_auth_addr=get_auth_address_callable(self.algod_client),
             )
         )
 
@@ -76,7 +77,7 @@ class WalletTransactionSignerTestCase(AlgorandTestCase):
                 kmd_client=self.kmd_client,
                 name=WalletName(self.sandbox_default_wallet.name),
                 password=WalletPassword(self.sandbox_default_wallet.pswd),
-                get_auth_addr=self.get_auth_addr(),
+                get_auth_addr=get_auth_address_callable(self.algod_client),
             )
         )
 

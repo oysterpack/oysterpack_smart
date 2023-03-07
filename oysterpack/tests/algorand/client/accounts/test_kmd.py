@@ -4,6 +4,7 @@ from algosdk import mnemonic
 from algosdk.wallet import Wallet
 from ulid import ULID
 
+from oysterpack.algorand.client.accounts import get_auth_address_callable
 from oysterpack.algorand.client.accounts.error import (
     InvalidWalletPasswordError,
     WalletAlreadyExistsError,
@@ -157,7 +158,7 @@ class WalletSessionTests(AlgorandTestCase):
             kmd_client=wallet.kcl,
             name=WalletName(wallet.name),
             password=WalletPassword(wallet.pswd),
-            get_auth_addr=self.get_auth_addr(),
+            get_auth_addr=get_auth_address_callable(self.algod_client),
         )
 
     def test_create_wallet_session(self):
@@ -182,7 +183,7 @@ class WalletSessionTests(AlgorandTestCase):
                     kmd_client=_wallet.kcl,
                     name=WalletName(str(ULID())),
                     password=WalletPassword(_wallet.pswd),
-                    get_auth_addr=self.get_auth_addr(),
+                    get_auth_addr=get_auth_address_callable(self.algod_client),
                 )
 
         with self.subTest("with invalid password"):
@@ -191,7 +192,7 @@ class WalletSessionTests(AlgorandTestCase):
                     kmd_client=_wallet.kcl,
                     name=WalletName(_wallet.name),
                     password=WalletPassword(str(ULID())),
-                    get_auth_addr=self.get_auth_addr(),
+                    get_auth_addr=get_auth_address_callable(self.algod_client),
                 )
 
         with self.subTest("KmdClient raises exception"):
@@ -200,7 +201,7 @@ class WalletSessionTests(AlgorandTestCase):
                     kmd_client=create_kmd_client(url="http://badurl", token=""),
                     name=WalletName(_wallet.name),
                     password=WalletPassword(_wallet.pswd),
-                    get_auth_addr=self.get_auth_addr(),
+                    get_auth_addr=get_auth_address_callable(self.algod_client),
                 )
 
     def test__del__(self):
@@ -226,7 +227,7 @@ class WalletSessionTests(AlgorandTestCase):
             kmd_client=_wallet.kcl,
             name=WalletName(new_name),
             password=WalletPassword(_wallet.pswd),
-            get_auth_addr=self.get_auth_addr(),
+            get_auth_addr=get_auth_address_callable(self.algod_client),
         )
         session.list_keys()
 
@@ -325,7 +326,7 @@ class WalletSessionTests(AlgorandTestCase):
             kmd_client=sandbox_default_wallet.kcl,
             name=WalletName(sandbox_default_wallet.name),
             password=WalletPassword(sandbox_default_wallet.pswd),
-            get_auth_addr=self.get_auth_addr(),
+            get_auth_addr=get_auth_address_callable(self.algod_client),
         )
 
         # generate an account and rekey it to the first account in the sandbox default wallet
@@ -342,7 +343,7 @@ class WalletSessionTests(AlgorandTestCase):
 
         signed_txn = sandbox_default_wallet.sign_transaction(txn)
         txn_id = self.algod_client.send_transaction(signed_txn)
-        wait_for_confirmation(self.algod_client, txn_id, 4)
+        wait_for_confirmation(self.algod_client, txn_id)
 
         # rekey the account
         txn = rekey(
@@ -352,7 +353,7 @@ class WalletSessionTests(AlgorandTestCase):
         )
         signed_txn = txn.sign(private_key)
         txn_id = self.algod_client.send_transaction(signed_txn)
-        wait_for_confirmation(self.algod_client, txn_id, 4)
+        wait_for_confirmation(self.algod_client, txn_id)
 
         # send payment from account, but sign the transaction with the authorized account
         # this checks that the WalletSession can sign transactions for rekeyed accounts

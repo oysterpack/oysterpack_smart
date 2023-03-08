@@ -1,0 +1,8 @@
+[algod]
+token=""
+url="http://localhost:8080"
+
+[kmd]
+token=""
+url="http://localhost:7833"
+

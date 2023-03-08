@@ -7,6 +7,7 @@ ignore =
     E501,
     W503,
     E741,
+    E402,
 
 # for consistency with black
 max-line-length = 88

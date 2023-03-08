@@ -14,7 +14,9 @@ from algosdk.transaction import (
     SignedTransaction,
     LogicSigTransaction,
     MultisigTransaction,
+    wait_for_confirmation,
 )
+from algosdk.v2client.algod import AlgodClient
 from algosdk.wallet import Wallet as KmdWallet
 
 from oysterpack.algorand.client.accounts.error import (
@@ -25,6 +27,8 @@ from oysterpack.algorand.client.accounts.error import (
     WalletDoesNotExistError,
 )
 from oysterpack.algorand.client.model import Mnemonic, Address
+from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
+from oysterpack.algorand.client.transactions.rekey import rekey
 
 WalletId = NewType("WalletId", str)
 WalletName = NewType("WalletName", str)
@@ -214,7 +218,10 @@ class WalletSession:
         # If the wallet session creation failed, then the _wallet attributed will not exist.
         # Thus, check that the _wallet attribute exists before releasing the wallet handle.
         if hasattr(self, "_wallet") and self._wallet.handle:
-            self._wallet.release_handle()
+            try:
+                self._wallet.release_handle()
+            except Exception:  # ignore any exceptions
+                pass
 
     @property
     def name(self) -> WalletName:
@@ -327,6 +334,42 @@ class WalletSession:
                 # the workaround for the above issue is to export the key and sign the transaction on the client side
                 return txn.sign(self._wallet.export_key(signing_address))
             raise
+
+    def rekey(self, account: Address, to: Address, algod_client: AlgodClient):
+        """
+        Rekey the account to the specified account.
+
+        Notes
+        -----
+        Both accounts must exist in this wallet.
+
+        :param account: rekey from this account
+        :param to: rekey to this account
+        :param algod_client: AlgodClient
+        """
+
+        for acct in (account, to):
+            if not self.contains_key(acct):
+                raise AssertionError(f"Wallet does not contain account: {acct}")
+
+        txn = rekey(
+            account=account,
+            rekey_to=to,
+            suggested_params=suggested_params_with_flat_flee(algod_client),
+        )
+        signed_txn = self.sign_transaction(txn)
+        txid = algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(algod_client, txid)
+
+    def rekey_back(self, account: Address, algod_client: AlgodClient):
+        """
+        Rekeys the account back to itself.
+
+        Wallet
+        ------
+        - The account that it rekeyed to must exist in the same wallet
+        """
+        self.rekey(account, account, algod_client)
 
 
 class WalletTransactionSigner(TransactionSigner):

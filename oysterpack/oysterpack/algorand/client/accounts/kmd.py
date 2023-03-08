@@ -26,7 +26,7 @@ from oysterpack.algorand.client.accounts.error import (
     WalletAlreadyExistsError,
     WalletDoesNotExistError,
 )
-from oysterpack.algorand.client.model import Mnemonic, Address
+from oysterpack.algorand.client.model import Mnemonic, Address, TxnId
 from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
 from oysterpack.algorand.client.transactions.rekey import rekey
 
@@ -335,7 +335,7 @@ class WalletSession:
                 return txn.sign(self._wallet.export_key(signing_address))
             raise
 
-    def rekey(self, account: Address, to: Address, algod_client: AlgodClient):
+    def rekey(self, account: Address, to: Address, algod_client: AlgodClient) -> TxnId:
         """
         Rekey the account to the specified account.
 
@@ -360,8 +360,9 @@ class WalletSession:
         signed_txn = self.sign_transaction(txn)
         txid = algod_client.send_transaction(signed_txn)
         wait_for_confirmation(algod_client, txid)
+        return txid
 
-    def rekey_back(self, account: Address, algod_client: AlgodClient):
+    def rekey_back(self, account: Address, algod_client: AlgodClient) -> TxnId:
         """
         Rekeys the account back to itself.
 
@@ -369,7 +370,7 @@ class WalletSession:
         ------
         - The account that it rekeyed to must exist in the same wallet
         """
-        self.rekey(account, account, algod_client)
+        return self.rekey(account, account, algod_client)
 
 
 class WalletTransactionSigner(TransactionSigner):

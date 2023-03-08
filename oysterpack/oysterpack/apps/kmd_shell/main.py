@@ -2,12 +2,14 @@
 Algorand KMD shell
 """
 import json
+from builtins import enumerate
 from pathlib import Path
 
 import click
 from click_shell import shell  # type: ignore
 
-from oysterpack.algorand.client.model import Address
+from oysterpack.algorand.client.accounts.kmd import WalletName, WalletPassword
+from oysterpack.algorand.client.model import Address, MicroAlgos
 from oysterpack.apps.kmd_shell.app import App, WalletNotConnected
 
 __app: App | None = None
@@ -66,8 +68,8 @@ def list_wallets():
 
 
 @app.command
-@click.option("--name", required=True, prompt="wallet name", help="Wallet name")
-@click.password_option(prompt="wallet password", help="Wallet password")
+@click.option("--name", required=True, prompt="Wallet Name", help="Wallet name")
+@click.password_option(prompt="Wallet Password", help="Wallet password")
 def connect_wallet(name: str, password: str):
     """
     Connects to a KMD wallet.
@@ -76,7 +78,33 @@ def connect_wallet(name: str, password: str):
     if __app is None:
         raise AppNotInitialized
 
-    __app.connect_wallet(name.strip(), password.strip())
+    __app.connect_wallet(
+        WalletName(name.strip()),
+        WalletPassword(password.strip()),
+    )
+
+
+@app.command
+@click.option("--name", required=True, prompt="Wallet Name", help="Wallet name")
+@click.password_option(prompt="Wallet Password", help="Wallet password")
+@click.option(
+    "--account", required=True, prompt="Account", help="Algorand account address"
+)
+def export_key(name: WalletName, password: WalletPassword, account: Address):
+    """
+    Exports wallet account key mnemonic
+    """
+
+    if __app is None:
+        raise AppNotInitialized
+
+    mnemonic = __app.export_key(
+        WalletName(name.strip()), WalletPassword(password.strip()), account
+    )
+    click.echo(mnemonic)
+    click.echo("-" * len(str(mnemonic)))
+    for i, word in enumerate(mnemonic.word_list, start=1):
+        click.echo(f"{i} : {word}")
 
 
 @app.command
@@ -132,9 +160,13 @@ def rekey(account: Address, to: Address):
         raise AppNotInitialized
 
     if click.confirm("Please confirm to rekey the account"):
-        __app.rekey(account, to)
+        txid = __app.rekey(
+            Address(str(account.strip())),
+            Address(str(to).strip()),
+        )
         click.echo("Account has been successfully rekeyed:")
         click.echo(f"{account} -> {to}")
+        click.echo(f"Transaction ID: {txid}")
     else:
         click.echo("Rekeying has been cancelled")
 
@@ -150,8 +182,9 @@ def rekey_back(account: Address):
     if __app is None:
         raise AppNotInitialized
 
-    __app.rekey_back(account)
+    txid = __app.rekey_back(Address(str(account.strip())))
     click.echo("Account has been successfully rekeyed back.")
+    click.echo(f"Transaction ID: {txid}")
 
 
 @app.command
@@ -211,6 +244,54 @@ def generate_account():
         click.echo(address)
     else:
         click.echo("Account generation has been cancelled")
+
+
+@app.command
+@click.option("--wallet-name", required=True, prompt="Wallet Name", help="Wallet name")
+@click.password_option(
+    "--wallet-password", prompt="Wallet Password", help="Wallet password"
+)
+@click.option(
+    "--sender", required=True, prompt="Sender Account", help="Sender Algorand account"
+)
+@click.option(
+    "--receiver",
+    required=True,
+    prompt="Receiver Account",
+    help="Receiver Algorand account",
+)
+@click.option(
+    "--amount",
+    required=True,
+    prompt="Amount (microalgos)",
+    help="ALGO amount in microalgos",
+    type=click.INT,
+)
+@click.option("--note", help="Transaction note")
+def transfer_algo(
+    wallet_name: WalletName,
+    wallet_password: WalletPassword,
+    sender: Address,
+    receiver: Address,
+    amount: MicroAlgos,
+    note: str | None,
+):
+    if __app is None:
+        raise AppNotInitialized
+
+    if click.confirm("Please confirm the above ALGO transfer"):
+        txid = __app.transfer_algo(
+            wallet_name=WalletName(str(wallet_name).strip()),
+            wallet_password=WalletPassword(str(wallet_password).strip()),
+            sender=sender,
+            receiver=receiver,
+            amount=amount,
+            note=note,
+        )
+        click.echo("ALGO transfer was successful.")
+        click.echo(f"Transaction ID: {txid}")
+    else:
+        click.echo("ALGO transfer has been cancelled.")
 
 
 if __name__ == "__main__":

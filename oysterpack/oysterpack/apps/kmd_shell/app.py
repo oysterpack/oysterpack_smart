@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from algosdk.kmd import KMDClient
+from algosdk.transaction import wait_for_confirmation
 from algosdk.v2client.algod import AlgodClient
 
 from oysterpack.algorand.client.accounts import (
@@ -19,7 +20,9 @@ from oysterpack.algorand.client.accounts.kmd import (
     Wallet,
     list_wallets,
 )
-from oysterpack.algorand.client.model import Address
+from oysterpack.algorand.client.model import Address, Mnemonic, MicroAlgos, TxnId
+from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
+from oysterpack.algorand.client.transactions.payment import transfer_algo
 
 
 class WalletNotConnected(Exception):
@@ -70,11 +73,11 @@ class App:
             config = tomllib.load(f)
         return cls(config)
 
-    def connect_wallet(self, name: str, password: str):
+    def connect_wallet(self, name: WalletName, password: WalletPassword):
         self.wallet_session = WalletSession(
             kmd_client=self.kmd_client,
-            name=WalletName(name),
-            password=WalletPassword(password),
+            name=name,
+            password=password,
             get_auth_addr=get_auth_address_callable(self.algod_client),
         )
 
@@ -100,17 +103,17 @@ class App:
 
         return self.wallet_session.generate_key()
 
-    def rekey(self, account: Address, to: Address):
+    def rekey(self, account: Address, to: Address) -> TxnId:
         if self.wallet_session is None:
             raise WalletNotConnected
 
-        self.wallet_session.rekey(account, to, self.algod_client)
+        return self.wallet_session.rekey(account, to, self.algod_client)
 
-    def rekey_back(self, account: Address):
+    def rekey_back(self, account: Address) -> TxnId:
         if self.wallet_session is None:
             raise WalletNotConnected
 
-        self.wallet_session.rekey_back(account, self.algod_client)
+        return self.wallet_session.rekey_back(account, self.algod_client)
 
     def get_auth_address(self, account: Address) -> Address:
         return get_auth_address(address=account, algod_client=self.algod_client)
@@ -126,3 +129,54 @@ class App:
                 rekeyed_accounts[account] = auth_account
 
         return rekeyed_accounts
+
+    def export_key(
+        self, wallet_name: WalletName, wallet_password: WalletPassword, account: Address
+    ) -> Mnemonic:
+        wallet_session = WalletSession(
+            kmd_client=self.kmd_client,
+            name=wallet_name,
+            password=wallet_password,
+            get_auth_addr=get_auth_address_callable(self.algod_client),
+        )
+
+        return wallet_session.export_key(account)
+
+    def transfer_algo(
+        self,
+        wallet_name: WalletName,
+        wallet_password: WalletPassword,
+        sender: Address,
+        receiver: Address,
+        amount: MicroAlgos,
+        note: str | None = None,
+    ) -> TxnId:
+        """
+        Transfers ALGO between 2 accounts in the same wallet
+        """
+
+        wallet_session = WalletSession(
+            kmd_client=self.kmd_client,
+            name=wallet_name,
+            password=wallet_password,
+            get_auth_addr=get_auth_address_callable(self.algod_client),
+        )
+
+        if not wallet_session.contains_key(sender):
+            raise AssertionError("sender account does exist in wallet")
+
+        if not wallet_session.contains_key(receiver):
+            raise AssertionError("sender account does exist in wallet")
+
+        txn = transfer_algo(
+            sender=sender,
+            receiver=receiver,
+            amount=amount,
+            suggested_params=suggested_params_with_flat_flee(self.algod_client),
+            note=note,
+        )
+        signed_txn = wallet_session.sign_transaction(txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        return TxnId(txid)

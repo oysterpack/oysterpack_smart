@@ -8,12 +8,22 @@ from typing import Any
 from algosdk.kmd import KMDClient
 from algosdk.v2client.algod import AlgodClient
 
-from oysterpack.algorand.client.accounts import get_auth_address_callable
+from oysterpack.algorand.client.accounts import (
+    get_auth_address_callable,
+    get_auth_address,
+)
 from oysterpack.algorand.client.accounts.kmd import (
     WalletSession,
     WalletName,
     WalletPassword,
+    Wallet,
+    list_wallets,
 )
+from oysterpack.algorand.client.model import Address
+
+
+class WalletNotConnected(Exception):
+    pass
 
 
 class App:
@@ -68,5 +78,51 @@ class App:
             get_auth_addr=get_auth_address_callable(self.algod_client),
         )
 
+    def disconnect_wallet(self):
+        self.wallet_session = None
+
+    @property
     def connected_wallet(self) -> WalletName | None:
         return self.wallet_session.name if self.wallet_session else None
+
+    def list_wallets(self) -> list[Wallet]:
+        return list_wallets(self.kmd_client)
+
+    def list_wallet_accounts(self) -> list[Address]:
+        if self.wallet_session is None:
+            raise WalletNotConnected
+
+        return self.wallet_session.list_keys()
+
+    def generate_wallet_account(self) -> Address:
+        if self.wallet_session is None:
+            raise WalletNotConnected
+
+        return self.wallet_session.generate_key()
+
+    def rekey(self, account: Address, to: Address):
+        if self.wallet_session is None:
+            raise WalletNotConnected
+
+        self.wallet_session.rekey(account, to, self.algod_client)
+
+    def rekey_back(self, account: Address):
+        if self.wallet_session is None:
+            raise WalletNotConnected
+
+        self.wallet_session.rekey_back(account, self.algod_client)
+
+    def get_auth_address(self, account: Address) -> Address:
+        return get_auth_address(address=account, algod_client=self.algod_client)
+
+    def get_rekeyed_accounts(self) -> dict[Address, Address]:
+        if self.wallet_session is None:
+            raise WalletNotConnected
+
+        rekeyed_accounts: dict[Address, Address] = {}
+        for account in self.wallet_session.list_keys():
+            auth_account = self.get_auth_address(account)
+            if account != auth_account:
+                rekeyed_accounts[account] = auth_account
+
+        return rekeyed_accounts

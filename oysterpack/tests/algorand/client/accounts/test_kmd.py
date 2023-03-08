@@ -394,20 +394,35 @@ class WalletSessionTests(AlgorandTestCase):
         accounts = sandbox.get_accounts()
         account_1 = Address(accounts.pop().address)
         account_2 = Address(accounts.pop().address)
+        account_3 = Address(accounts.pop().address)
 
-        sandbox_default_wallet_session.rekey(account_1, account_2, self.algod_client)
-        # confirm that the account has been rekeyed
-        self.assertEqual(
-            get_auth_address(address=account_1, algod_client=self.algod_client),
-            account_2,
-        )
+        with self.subTest("rekey the account"):
+            sandbox_default_wallet_session.rekey(
+                account_1, account_2, self.algod_client
+            )
+            # confirm that the account has been rekeyed
+            self.assertEqual(
+                get_auth_address(address=account_1, algod_client=self.algod_client),
+                account_2,
+            )
 
-        sandbox_default_wallet_session.rekey_back(account_1, self.algod_client)
-        # confirm that the account has been rekeyed
-        self.assertEqual(
-            get_auth_address(address=account_1, algod_client=self.algod_client),
-            account_1,
-        )
+        with self.subTest("rotate the auth account by rekeying again"):
+            sandbox_default_wallet_session.rekey(
+                account_1, account_3, self.algod_client
+            )
+            # confirm that the account has been rekeyed
+            self.assertEqual(
+                get_auth_address(address=account_1, algod_client=self.algod_client),
+                account_3,
+            )
+
+        with self.subTest("rekey back"):
+            sandbox_default_wallet_session.rekey_back(account_1, self.algod_client)
+            # confirm that the account has been rekeyed
+            self.assertEqual(
+                get_auth_address(address=account_1, algod_client=self.algod_client),
+                account_1,
+            )
 
         with self.subTest(
             "when trying to rekey an account to an account that does not exist in the same wallet"

@@ -1,3 +1,4 @@
+import pprint
 import unittest
 from pathlib import Path
 from tempfile import NamedTemporaryFile, gettempdir
@@ -57,14 +58,26 @@ url="{sandbox.kmd.DEFAULT_KMD_ADDRESS}"
             self.assertEqual(0, len(app.get_rekeyed_accounts()))
 
             self.assertEqual(account_1, app.get_auth_address(account_1))
-            app.rekey(account_1, account_2)
+            txid = app.rekey(account_1, account_2)
             self.assertEqual(account_2, app.get_auth_address(account_1))
+            pending_transaction_info = self.algod_client.pending_transaction_info(txid)
+            self.assertEqual("pay", pending_transaction_info["txn"]["txn"]["type"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["snd"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["rcv"])
+            self.assertEqual(account_2, pending_transaction_info["txn"]["txn"]["rekey"])
+            pprint.pp(pending_transaction_info)
 
             rekeyed_accounts = app.get_rekeyed_accounts()
             self.assertEqual(1, len(rekeyed_accounts))
             self.assertEqual(rekeyed_accounts[account_1], account_2)
 
-            app.rekey_back(account_1)
+            txid = app.rekey_back(account_1)
+            pending_transaction_info = self.algod_client.pending_transaction_info(txid)
+            self.assertEqual("pay", pending_transaction_info["txn"]["txn"]["type"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["snd"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["rcv"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["rekey"])
+
             self.assertEqual(account_1, app.get_auth_address(account_1))
             self.assertEqual(0, len(app.get_rekeyed_accounts()))
 

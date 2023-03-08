@@ -1,3 +1,4 @@
+import pprint
 import unittest
 from pathlib import Path
 from tempfile import NamedTemporaryFile, gettempdir
@@ -35,6 +36,31 @@ url="{sandbox.kmd.DEFAULT_KMD_ADDRESS}"
 
                 self.assertGreater(len(app.list_wallets()), 0)
                 self.assertIsNone(app.connected_wallet)
+
+        with self.subTest("rekeying"):
+            app.connect_wallet(sandbox.kmd.DEFAULT_KMD_WALLET_NAME, sandbox.kmd.DEFAULT_KMD_WALLET_PASSWORD)
+            self.assertIsNotNone(app.connected_wallet)
+
+            pprint.pp(("rekeyed_accounts",app.get_rekeyed_accounts()))
+
+            accounts = app.list_wallet_accounts()
+            account_1 = accounts.pop()
+            account_2 = accounts.pop()
+
+            self.assertEqual(0, len(app.get_rekeyed_accounts()))
+
+            self.assertEqual(account_1, app.get_auth_address(account_1))
+            app.rekey(account_1, account_2)
+            self.assertEqual(account_2, app.get_auth_address(account_1))
+
+            rekeyed_accounts = app.get_rekeyed_accounts()
+            self.assertEqual(1, len(rekeyed_accounts))
+            self.assertEqual(rekeyed_accounts[account_1], account_2)
+
+            app.rekey_back(account_1)
+            self.assertEqual(account_1, app.get_auth_address(account_1))
+            self.assertEqual(0, len(app.get_rekeyed_accounts()))
+
 
 
 if __name__ == "__main__":

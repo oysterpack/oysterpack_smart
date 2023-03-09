@@ -15,6 +15,7 @@ from algosdk.transaction import (
     LogicSigTransaction,
     MultisigTransaction,
     wait_for_confirmation,
+    Multisig,
 )
 from algosdk.v2client.algod import AlgodClient
 from algosdk.wallet import Wallet as KmdWallet
@@ -25,6 +26,8 @@ from oysterpack.algorand.client.accounts.error import (
     DuplicateWalletNameError,
     WalletAlreadyExistsError,
     WalletDoesNotExistError,
+    NoMultisigKeysFoundError,
+    MutlisigNotFoundError,
 )
 from oysterpack.algorand.client.model import Mnemonic, Address, TxnId
 from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
@@ -322,6 +325,15 @@ class WalletSession:
         # The below code should work and is the preferred method, but currently fails
         # see - https://github.com/algorand/py-algorand-sdk/issues/436
         try:
+            # TODO: remove this hacky work around when the issue is fixed
+            import base64
+
+            signing_address_bytes = base64.b32decode(
+                signing_address.encode("utf-8") + b"=" * 6
+            )
+            signing_address = Address(base64.b64encode(signing_address_bytes).decode())
+            #
+
             self._wallet.automate_handle()
             return self._wallet.kcl.sign_transaction(
                 handle=self._wallet.handle,
@@ -330,6 +342,7 @@ class WalletSession:
                 signing_address=signing_address,
             )  # type: ignore
         except KMDHTTPError as err:
+            print("*** falling back")
             if str(err).index("could not decode request body") != -1:
                 # the workaround for the above issue is to export the key and sign the transaction on the client side
                 return txn.sign(self._wallet.export_key(signing_address))
@@ -360,17 +373,93 @@ class WalletSession:
         signed_txn = self.sign_transaction(txn)
         txid = algod_client.send_transaction(signed_txn)
         wait_for_confirmation(algod_client, txid)
-        return txid
+        return TxnId(txid)
 
     def rekey_back(self, account: Address, algod_client: AlgodClient) -> TxnId:
         """
         Rekeys the account back to itself.
 
-        Wallet
+        Notes
         ------
         - The account that it rekeyed to must exist in the same wallet
         """
         return self.rekey(account, account, algod_client)
+
+    def import_multisig(self, multisig: Multisig) -> Address:
+        """
+        If the multisig does not exist in the wallet then import the multisig account into the wallet.
+
+        Asserts
+        -------
+        - validates the multisig
+        - at least one of the accounts must exist in this wallet.
+
+        Notes
+        -----
+        - The purpose of importing multisigs into the wallet is to be able to sign multisig transaction.
+          Thus, in order to be able to import a multisig, at least one of the accounts composing the multisig
+          must exist in the wallet.
+        """
+        multisig.validate()
+
+        if self.contains_multisig(multisig.address()):
+            return multisig.address()
+
+        for address in multisig.get_public_keys():
+            if self.contains_key(address):
+                return Address(self._wallet.import_multisig(multisig))
+
+        raise NoMultisigKeysFoundError
+
+    def contains_multisig(self, address: Address) -> bool:
+        """
+        :param address: multisig address
+        :return: True if the wallet contains the multisig
+        """
+        return address in self._wallet.list_multisig()
+
+    def delete_multisig(self, address: Address) -> bool:
+        """
+        :param address: multisig address
+        :return: True if the multisig was deleted
+        """
+        return self._wallet.delete_multisig(address)
+
+    def list_multisigs(self) -> dict[Address, Multisig]:
+        """
+        Returns list of multisig accounts that have been imported into this wallet.
+        """
+        return {
+            address: self._wallet.export_multisig(address)
+            for address in self._wallet.list_multisig()
+        }
+
+    def export_multisig(self, address: Address) -> Multisig | None:
+        """
+        :param address: multisig address
+        :return: None if this wallet does not contain the multisig
+        """
+        if not self.contains_multisig(address):
+            return None
+        return self._wallet.export_multisig(address)
+
+    def sign_multisig_transaction(
+        self, txn: MultisigTransaction
+    ) -> MultisigTransaction:
+        """
+        :param txn:
+        :return: multisig txn with added signatures
+        """
+        multisig = self.export_multisig(txn.multisig.address())
+        if multisig is None:
+            raise MutlisigNotFoundError
+
+        for account in multisig.get_public_keys():
+            signing_account = self._get_auth_addr(account)
+            if self.contains_key(signing_account):
+                txn = self._wallet.sign_multisig_transaction(signing_account, txn)
+
+        return txn
 
 
 class WalletTransactionSigner(TransactionSigner):

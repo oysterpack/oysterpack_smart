@@ -1,8 +1,10 @@
+import pprint
 import unittest
 
 from algosdk import mnemonic
 from algosdk.account import generate_account
-from algosdk.transaction import wait_for_confirmation
+from algosdk.error import InvalidThresholdError
+from algosdk.transaction import wait_for_confirmation, Multisig, MultisigTransaction
 from algosdk.wallet import Wallet
 from beaker import sandbox
 from beaker.consts import algo
@@ -32,6 +34,7 @@ from oysterpack.algorand.client.accounts.kmd import (
 )
 from oysterpack.algorand.client.model import Mnemonic, Address, MicroAlgos
 from oysterpack.algorand.client.transactions import payment
+from oysterpack.algorand.client.transactions.payment import transfer_algo
 from oysterpack.algorand.client.transactions.rekey import rekey
 from tests.algorand.test_support import AlgorandTestCase
 
@@ -500,6 +503,137 @@ class WalletSessionTests(AlgorandTestCase):
 
             for account in [account_1, account_2]:
                 self.assertEqual(account, get_auth_address(account, self.algod_client))
+
+    def test_multisig(self):
+        sandbox_default_wallet = self.sandbox_default_wallet
+        sandbox_default_wallet_session = WalletSession(
+            kmd_client=sandbox_default_wallet.kcl,
+            name=WalletName(sandbox_default_wallet.name),
+            password=WalletPassword(sandbox_default_wallet.pswd),
+            get_auth_addr=get_auth_address_callable(self.algod_client),
+        )
+
+        accounts = sandbox.get_accounts()
+        account_1 = Address(accounts.pop().address)
+        account_2 = Address(accounts.pop().address)
+        account_3 = Address(accounts.pop().address)
+
+        with self.subTest("import multisig"):
+            multisig_1 = Multisig(
+                version=1,
+                threshold=2,
+                addresses=[
+                    account_1,
+                    account_2,
+                    account_3,
+                ],
+            )
+
+            multisig_1_address = sandbox_default_wallet_session.import_multisig(
+                multisig_1
+            )
+            multisigs = sandbox_default_wallet_session.list_multisigs()
+            pprint.pp(multisigs)
+            self.assertIn(multisig_1_address, multisigs)
+            self.assertTrue(
+                sandbox_default_wallet_session.contains_multisig(multisig_1.address())
+            )
+            self.assertEqual(
+                multisig_1,
+                sandbox_default_wallet_session.export_multisig(multisig_1.address()),
+            )
+
+        with self.subTest("delete multisig"):
+            deleted = sandbox_default_wallet_session.delete_multisig(
+                multisig_1.address()
+            )
+            self.assertTrue(deleted)
+            self.assertFalse(
+                sandbox_default_wallet_session.contains_multisig(multisig_1.address())
+            )
+            self.assertIsNone(
+                sandbox_default_wallet_session.export_multisig(multisig_1.address())
+            )
+
+        with self.subTest("import invalid multisig"):
+            multisig_1 = Multisig(
+                version=1,
+                threshold=4,
+                addresses=[
+                    account_1,
+                    account_2,
+                    account_3,
+                ],
+            )
+
+            with self.assertRaises(InvalidThresholdError):
+                sandbox_default_wallet_session.import_multisig(multisig_1)
+
+    def test_multisig_txn_signing(self):
+        sandbox_default_wallet = self.sandbox_default_wallet
+        sandbox_default_wallet_session = WalletSession(
+            kmd_client=sandbox_default_wallet.kcl,
+            name=WalletName(sandbox_default_wallet.name),
+            password=WalletPassword(sandbox_default_wallet.pswd),
+            get_auth_addr=get_auth_address_callable(self.algod_client),
+        )
+
+        accounts = sandbox.get_accounts()
+        account_1 = Address(accounts.pop().address)
+        account_2 = Address(accounts.pop().address)
+        account_3 = Address(accounts.pop().address)
+
+        multisig_1 = Multisig(
+            version=1,
+            threshold=2,
+            addresses=[
+                account_1,
+                account_2,
+                account_3,
+            ],
+        )
+
+        sandbox_default_wallet_session.import_multisig(multisig_1)
+
+        # fund multisig account
+        txn = transfer_algo(
+            sender=account_1,
+            receiver=multisig_1.address(),
+            amount=MicroAlgos(1 * algo),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        signed_txn = sandbox_default_wallet_session.sign_transaction(txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        # transfer ALGO from multisig_1 to account_1
+        txn = transfer_algo(
+            sender=multisig_1.address(),
+            receiver=account_1,
+            amount=MicroAlgos(100_000),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+
+        multisig_1_starting_balance = self.algod_client.account_info(
+            multisig_1.address()
+        )["amount"]
+
+        signed_txn = sandbox_default_wallet_session.sign_multisig_transaction(
+            MultisigTransaction(txn, multisig_1)
+        )
+        self.assertEqual(3, len(signed_txn.multisig.subsigs))
+        pprint.pp(signed_txn.dictify())
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        multisig_1_ending_balance = self.algod_client.account_info(
+            multisig_1.address()
+        )["amount"]
+        self.assertEqual(
+            101_000,
+            multisig_1_starting_balance - multisig_1_ending_balance,
+            "difference should be 0.1 ALGO + 0.001 ALGO txn fee",
+        )
 
 
 if __name__ == "__main__":

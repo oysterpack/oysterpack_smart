@@ -63,6 +63,18 @@ class KeyNotFoundError(WalletSessionError):
     """
 
 
+class MutlisigNotFoundError(WalletSessionError):
+    """
+    Multisig does not exist in this wallet
+    """
+
+
+class NoMultisigKeysFoundError(WalletSessionError):
+    """
+    None of the accounts that compose the multisig exist in the wallet.
+    """
+
+
 def handle_kmd_client_errors(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator function that is used to handle the below exceptions by trying to map them to KmdClientError exceptions.

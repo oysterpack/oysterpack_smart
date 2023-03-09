@@ -447,7 +447,13 @@ class WalletSession:
         self, txn: MultisigTransaction
     ) -> MultisigTransaction:
         """
-        :param txn:
+        Notes
+        -----
+        - Rekeyed accounts are not taken into consideration when signing multisig transaction. For example,
+          if a multisig contains an account that has been rekeyed, the account is still required to sign the
+          multisig txn, i.e., not the account that it has been rekeyed to.
+
+
         :return: multisig txn with added signatures
         """
         multisig = self.export_multisig(txn.multisig.address())
@@ -455,9 +461,8 @@ class WalletSession:
             raise MutlisigNotFoundError
 
         for account in multisig.get_public_keys():
-            signing_account = self._get_auth_addr(account)
-            if self.contains_key(signing_account):
-                txn = self._wallet.sign_multisig_transaction(signing_account, txn)
+            if self.contains_key(account):
+                txn = self._wallet.sign_multisig_transaction(account, txn)
 
         return txn
 

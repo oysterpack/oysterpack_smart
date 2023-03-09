@@ -622,7 +622,93 @@ class WalletSessionTests(AlgorandTestCase):
             MultisigTransaction(txn, multisig_1)
         )
         self.assertEqual(3, len(signed_txn.multisig.subsigs))
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        multisig_1_ending_balance = self.algod_client.account_info(
+            multisig_1.address()
+        )["amount"]
+        self.assertEqual(
+            101_000,
+            multisig_1_starting_balance - multisig_1_ending_balance,
+            "difference should be 0.1 ALGO + 0.001 ALGO txn fee",
+        )
+
+    def test_multisig_txn_signing_with_rekeyed_account(self):
+        """
+        Rekeying has no effect on signing multisig txns.
+
+        The multisig txn can only be signed using the accounts that are defined by the multisig.
+        """
+
+        sandbox_default_wallet = self.sandbox_default_wallet
+        sandbox_default_wallet_session = WalletSession(
+            kmd_client=sandbox_default_wallet.kcl,
+            name=WalletName(sandbox_default_wallet.name),
+            password=WalletPassword(sandbox_default_wallet.pswd),
+            get_auth_addr=get_auth_address_callable(self.algod_client),
+        )
+
+        accounts = sandbox.get_accounts()
+        account_1 = Address(accounts.pop().address)
+        account_2 = Address(accounts.pop().address)
+        account_3 = Address(accounts.pop().address)
+
+        account_4 = sandbox_default_wallet_session.generate_key()
+
+        txn = transfer_algo(
+            sender=account_1,
+            receiver=account_4,
+            amount=MicroAlgos(1 * algo),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        signed_txn = sandbox_default_wallet_session.sign_transaction(txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        sandbox_default_wallet_session.rekey(account_4, account_3, self.algod_client)
+        self.assertEqual(account_3, get_auth_address(account_4, self.algod_client))
+
+        multisig_1 = Multisig(
+            version=1,
+            threshold=3,
+            addresses=[
+                account_1,
+                account_2,
+                account_4,  # rekeyed to account_3
+            ],
+        )
+
+        sandbox_default_wallet_session.import_multisig(multisig_1)
+
+        # fund multisig account
+        txn = transfer_algo(
+            sender=account_1,
+            receiver=multisig_1.address(),
+            amount=MicroAlgos(1 * algo),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        signed_txn = sandbox_default_wallet_session.sign_transaction(txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        # transfer ALGO from multisig_1 to account_1
+        txn = transfer_algo(
+            sender=multisig_1.address(),
+            receiver=account_1,
+            amount=MicroAlgos(100_000),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+
+        multisig_1_starting_balance = self.algod_client.account_info(
+            multisig_1.address()
+        )["amount"]
+
+        signed_txn = sandbox_default_wallet_session.sign_multisig_transaction(
+            MultisigTransaction(txn, multisig_1)
+        )
         pprint.pp(signed_txn.dictify())
+        self.assertEqual(3, len(signed_txn.multisig.subsigs))
         txid = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txid)
 

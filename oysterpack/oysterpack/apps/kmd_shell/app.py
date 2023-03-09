@@ -180,3 +180,18 @@ class App:
         wait_for_confirmation(self.algod_client, txid)
 
         return TxnId(txid)
+
+    def get_account_info(
+        self, account: Address, summary: bool = True
+    ) -> dict[str, Any]:
+        """
+        Returns Algorand account info.
+
+        https://developer.algorand.org/docs/rest-apis/algod/v2/#get-v2accountsaddress
+
+        :param summary: When set to True will exclude asset holdings, application local state, created asset parameters,
+                        any created application parameters
+        """
+        return self.algod_client.account_info(
+            account, exclude="all" if summary else None
+        )

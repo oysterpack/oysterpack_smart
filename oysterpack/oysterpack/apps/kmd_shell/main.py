@@ -228,6 +228,25 @@ def get_auth_account(account: Address):
 
 
 @app.command
+@click.option("--account", required=True, prompt="Account", help="Algorand account")
+@click.option(
+    "--summary",
+    default=True,
+    prompt="Summary",
+    help="Summary excludes app and asset details",
+)
+def get_account_info(account: Address, summary: bool):
+    """
+    Returns the Algorand account information.
+    """
+    if __app is None:
+        raise AppNotInitialized
+
+    account_info = __app.get_account_info(account, summary=summary)
+    click.echo(json.dumps(account_info, indent=3))
+
+
+@app.command
 def generate_account():
     """
     Generates a new account in the current connected wallet session.

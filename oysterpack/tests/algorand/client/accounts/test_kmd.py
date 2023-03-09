@@ -2,8 +2,10 @@ import unittest
 
 from algosdk import mnemonic
 from algosdk.account import generate_account
+from algosdk.transaction import wait_for_confirmation
 from algosdk.wallet import Wallet
 from beaker import sandbox
+from beaker.consts import algo
 from ulid import ULID
 
 from oysterpack.algorand.client.accounts import (
@@ -28,7 +30,7 @@ from oysterpack.algorand.client.accounts.kmd import (
     WalletSession,
     create_kmd_client,
 )
-from oysterpack.algorand.client.model import Mnemonic, Address
+from oysterpack.algorand.client.model import Mnemonic, Address, MicroAlgos
 from oysterpack.algorand.client.transactions import payment
 from oysterpack.algorand.client.transactions.rekey import rekey
 from tests.algorand.test_support import AlgorandTestCase
@@ -137,7 +139,7 @@ class AlgorandTest(AlgorandTestCase):
                 )
 
         with self.subTest(
-            "recover wallet again using a different name will create a new wallet"
+                "recover wallet again using a different name will create a new wallet"
         ):
             wallet_name = WalletName(str(ULID()))  # different name
             recovered_wallet = recover_wallet(
@@ -155,7 +157,7 @@ class AlgorandTest(AlgorandTestCase):
 
 class WalletSessionTests(AlgorandTestCase):
     def _create_test_wallet_session(
-        self, wallet: Wallet | None = None
+            self, wallet: Wallet | None = None
     ) -> WalletSession:
         if wallet is None:
             wallet = super().create_test_wallet()
@@ -397,9 +399,15 @@ class WalletSessionTests(AlgorandTestCase):
         account_3 = Address(accounts.pop().address)
 
         with self.subTest("rekey the account"):
-            sandbox_default_wallet_session.rekey(
+            txid = sandbox_default_wallet_session.rekey(
                 account_1, account_2, self.algod_client
             )
+            pending_transaction_info = self.algod_client.pending_transaction_info(txid)
+            self.assertEqual("pay", pending_transaction_info["txn"]["txn"]["type"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["snd"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["rcv"])
+            self.assertEqual(account_2, pending_transaction_info["txn"]["txn"]["rekey"])
+
             # confirm that the account has been rekeyed
             self.assertEqual(
                 get_auth_address(address=account_1, algod_client=self.algod_client),
@@ -407,9 +415,15 @@ class WalletSessionTests(AlgorandTestCase):
             )
 
         with self.subTest("rotate the auth account by rekeying again"):
-            sandbox_default_wallet_session.rekey(
+            txid = sandbox_default_wallet_session.rekey(
                 account_1, account_3, self.algod_client
             )
+            pending_transaction_info = self.algod_client.pending_transaction_info(txid)
+            self.assertEqual("pay", pending_transaction_info["txn"]["txn"]["type"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["snd"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["rcv"])
+            self.assertEqual(account_3, pending_transaction_info["txn"]["txn"]["rekey"])
+
             # confirm that the account has been rekeyed
             self.assertEqual(
                 get_auth_address(address=account_1, algod_client=self.algod_client),
@@ -417,7 +431,13 @@ class WalletSessionTests(AlgorandTestCase):
             )
 
         with self.subTest("rekey back"):
-            sandbox_default_wallet_session.rekey_back(account_1, self.algod_client)
+            txid = sandbox_default_wallet_session.rekey_back(account_1, self.algod_client)
+            pending_transaction_info = self.algod_client.pending_transaction_info(txid)
+            self.assertEqual("pay", pending_transaction_info["txn"]["txn"]["type"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["snd"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["rcv"])
+            self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["rekey"])
+
             # confirm that the account has been rekeyed
             self.assertEqual(
                 get_auth_address(address=account_1, algod_client=self.algod_client),
@@ -425,7 +445,7 @@ class WalletSessionTests(AlgorandTestCase):
             )
 
         with self.subTest(
-            "when trying to rekey an account to an account that does not exist in the same wallet"
+                "when trying to rekey an account to an account that does not exist in the same wallet"
         ):
             _private_key, address = generate_account()
             with self.assertRaises(AssertionError):
@@ -438,6 +458,41 @@ class WalletSessionTests(AlgorandTestCase):
                 sandbox_default_wallet_session.rekey(
                     Address(address), account_2, self.algod_client
                 )
+
+        with self.subTest(
+                "rekeying to an account that is rekeyed should work"
+        ):
+            # rekey account_1 -> account_2
+            sandbox_default_wallet_session.rekey(
+                account_1, account_2, self.algod_client
+            )
+            # rekey account_2 -> account_1
+            sandbox_default_wallet_session.rekey(
+                account_2, account_1, self.algod_client
+            )
+
+            self.assertEqual(
+                get_auth_address(address=account_1, algod_client=self.algod_client),
+                account_2,
+            )
+            self.assertEqual(
+                get_auth_address(address=account_2, algod_client=self.algod_client),
+                account_1,
+            )
+
+            # send a payment from account_1 -> account_3
+            # txn should be signed by account_2
+            txn = payment.transfer_algo(
+                sender=account_1,
+                receiver=account_3,
+                amount=MicroAlgos(1 * algo),
+                suggested_params=self.algod_client.suggested_params(),
+            )
+            signed_txn = sandbox_default_wallet_session.sign_transaction(txn)
+            txid = self.algod_client.send_transaction(signed_txn)
+            wait_for_confirmation(self.algod_client, txid)
+            txn = self.algod_client.pending_transaction_info(txid)
+            self.assertEqual(account_2, txn["txn"]["sgnr"])
 
 
 if __name__ == "__main__":

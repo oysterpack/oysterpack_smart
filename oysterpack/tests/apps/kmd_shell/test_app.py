@@ -1,4 +1,3 @@
-import pprint
 import unittest
 from pathlib import Path
 from tempfile import NamedTemporaryFile, gettempdir
@@ -65,7 +64,6 @@ url="{sandbox.kmd.DEFAULT_KMD_ADDRESS}"
             self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["snd"])
             self.assertEqual(account_1, pending_transaction_info["txn"]["txn"]["rcv"])
             self.assertEqual(account_2, pending_transaction_info["txn"]["txn"]["rekey"])
-            pprint.pp(pending_transaction_info)
 
             rekeyed_accounts = app.get_rekeyed_accounts()
             self.assertEqual(1, len(rekeyed_accounts))

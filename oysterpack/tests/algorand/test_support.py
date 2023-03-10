@@ -1,35 +1,55 @@
 """
 Unit tests depend on a local sandbox running.
 """
+from dataclasses import dataclass
 from typing import Final, Any
 
-from algosdk import kmd, wallet
+from algosdk import kmd
 from algosdk.atomic_transaction_composer import TransactionSigner
 from algosdk.transaction import wait_for_confirmation
 from algosdk.v2client.algod import AlgodClient
 from algosdk.v2client.indexer import IndexerClient
+from algosdk.wallet import Wallet
 from beaker import sandbox, Application
 from beaker.client import ApplicationClient
+from beaker.consts import algo
+from beaker.sandbox import SandboxAccount
 from beaker.sandbox.kmd import get_sandbox_default_wallet
 from ulid import ULID
 
-from oysterpack.algorand.client.accounts import get_auth_address_callable
+from oysterpack.algorand.client.accounts import get_auth_address_callable, get_algo_balance
 from oysterpack.algorand.client.accounts.kmd import (
     WalletTransactionSigner,
     WalletSession,
 )
-from oysterpack.algorand.client.model import Address, AssetId, TxnId
+from oysterpack.algorand.client.model import Address, AssetId, TxnId, MicroAlgos
 from oysterpack.algorand.client.transactions import asset as client_assets, asset
 from oysterpack.algorand.client.transactions.note import AppTxnNote
+from oysterpack.algorand.client.transactions.payment import transfer_algo
 from oysterpack.algorand.client.transactions.smart_contract import base64_decode_str
 from tests.test_support import OysterPackTestCase
+
+
+@dataclass
+class WalletAccount:
+    wallet: Wallet
+    account: Address
 
 
 class AlgorandTestCase(OysterPackTestCase):
     kmd_client: Final[kmd.KMDClient] = sandbox.kmd.get_client()
     algod_client: Final[AlgodClient] = sandbox.get_algod_client()
     indexer: Final[IndexerClient] = sandbox.get_indexer_client()
-    sandbox_default_wallet: Final[wallet.Wallet] = get_sandbox_default_wallet()
+    sandbox_default_wallet: Final[Wallet] = get_sandbox_default_wallet()
+
+    def get_sandbox_accounts(self) -> list[SandboxAccount]:
+        def key(account: SandboxAccount) -> int:
+            return get_algo_balance(Address(account.address), self.algod_client)
+
+        return sorted(
+            sandbox.get_accounts(),
+            key=key,
+        )
 
     def sandbox_default_wallet_transaction_signer(self) -> WalletTransactionSigner:
         return WalletTransactionSigner(
@@ -39,11 +59,19 @@ class AlgorandTestCase(OysterPackTestCase):
             )
         )
 
-    def create_test_wallet(self) -> wallet.Wallet:
+    def wallet_transaction_signer(self, wallet: Wallet) -> WalletTransactionSigner:
+        return WalletTransactionSigner(
+            WalletSession.from_wallet(
+                wallet,
+                get_auth_address_callable(self.algod_client),
+            )
+        )
+
+    def create_test_wallet(self) -> Wallet:
         """Creates a new emptu wallet and returns a Wallet for testing purposes"""
         wallet_name = wallet_password = str(ULID())
         self.kmd_client.create_wallet(name=wallet_name, pswd=wallet_password)
-        return wallet.Wallet(
+        return Wallet(
             wallet_name=wallet_name,
             wallet_pswd=wallet_password,
             kmd_client=self.kmd_client,
@@ -51,9 +79,9 @@ class AlgorandTestCase(OysterPackTestCase):
 
     @staticmethod
     def sandbox_application_client(
-        app: Application,
-        sender: Address | None = None,
-        signer: TransactionSigner | None = None,
+            app: Application,
+            sender: Address | None = None,
+            signer: TransactionSigner | None = None,
     ) -> ApplicationClient:
         """
         :param app: Application instance
@@ -70,19 +98,36 @@ class AlgorandTestCase(OysterPackTestCase):
             signer=signer,
         )
 
+    def generate_funded_account(self) -> WalletAccount:
+        wallet = self.create_test_wallet()
+        account = Address(wallet.generate_key())
+
+        funder = self.get_sandbox_accounts().pop()
+        txn = transfer_algo(
+            sender=Address(funder.address),
+            receiver=account,
+            amount=MicroAlgos(1 * algo),
+            suggested_params=self.algod_client.suggested_params()
+        )
+        signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        return WalletAccount(wallet,account)
+
     def create_test_asset(
-        self,
-        asset_name: str,
-        total_base_units: int = 1_000_000_000_000_000,
-        decimals: int = 6,
-        manager: Address | None = None,
-        reserve: Address | None = None,
-        freeze: Address | None = None,
-        clawback: Address | None = None,
-        unit_name: str | None = None,
-        url: str = "",
-        metadata_hash: bytes | None = None,
-    ) -> tuple[AssetId, Address]:
+            self,
+            asset_name: str,
+            total_base_units: int = 1_000_000_000_000_000,
+            decimals: int = 6,
+            manager: Address | None = None,
+            reserve: Address | None = None,
+            freeze: Address | None = None,
+            clawback: Address | None = None,
+            unit_name: str | None = None,
+            url: str = "",
+            metadata_hash: bytes | None = None,
+    ) -> tuple[AssetId, WalletAccount]:
         """
         Creates a new asset using the first account in the sandbox default wallet as the administrative accounts.
 
@@ -96,9 +141,9 @@ class AlgorandTestCase(OysterPackTestCase):
             m.update(b"asset metadata")
             return m.digest()
 
-        sender = Address(sandbox.get_accounts().pop().address)
+        sender = self.generate_funded_account()
         txn = client_assets.create(
-            sender=sender,
+            sender=sender.account,
             manager=manager,
             reserve=reserve,
             freeze=freeze,
@@ -111,7 +156,7 @@ class AlgorandTestCase(OysterPackTestCase):
             decimals=decimals,
             suggested_params=sandbox.get_algod_client().suggested_params(),
         )
-        signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
+        signed_txn = sender.wallet.sign_transaction(txn)
         txid = sandbox.get_algod_client().send_transaction(signed_txn)
         tx_info = wait_for_confirmation(
             algod_client=sandbox.get_algod_client(), txid=txid, wait_rounds=4
@@ -120,11 +165,11 @@ class AlgorandTestCase(OysterPackTestCase):
         return AssetId(tx_info["asset-index"]), sender
 
     def _optin_asset_and_seed_balance(
-        self,
-        receiver: Address,
-        asset_id: AssetId,
-        amount: int,
-        asset_reserve_address: Address,
+            self,
+            receiver: Address,
+            asset_id: AssetId,
+            amount: int,
+            asset_reserve: WalletAccount,
     ):
         txn = asset.opt_in(
             account=receiver,
@@ -137,13 +182,13 @@ class AlgorandTestCase(OysterPackTestCase):
 
         # transfer assets to the seller account
         asset_transfer_txn = asset.transfer(
-            sender=asset_reserve_address,
+            sender=asset_reserve.account,
             receiver=receiver,
             asset_id=asset_id,
             amount=amount,
             suggested_params=self.algod_client.suggested_params(),
         )
-        signed_txn = self.sandbox_default_wallet.sign_transaction(asset_transfer_txn)
+        signed_txn = asset_reserve.wallet.sign_transaction(asset_transfer_txn)
         txid = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txid)
 

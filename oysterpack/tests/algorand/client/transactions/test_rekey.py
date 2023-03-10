@@ -86,7 +86,7 @@ class RekeyTestCase(AlgorandTestCase):
             get_auth_addr=get_auth_address_callable(self.algod_client),
         )
 
-        addresses: list[Address] = wallet_session.list_keys()
+        addresses: list[Address] = wallet_session.list_accounts()
         account_1 = addresses.pop()
         account_2 = addresses.pop()
 

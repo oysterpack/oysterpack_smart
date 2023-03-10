@@ -6,7 +6,7 @@ import functools
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
 
-from oysterpack.algorand.client.model import Address, AssetId, AssetHolding
+from oysterpack.algorand.client.model import Address, AssetId, AssetHolding, MicroAlgos
 
 
 class AccountDoesNotExist(Exception):
@@ -22,7 +22,7 @@ def get_auth_address(address: Address, algod_client: AlgodClient) -> Address:
     """
 
     try:
-        account_info = algod_client.account_info(address)
+        account_info = algod_client.account_info(address, exclude="all")
     except AlgodHTTPError as err:
         if err.code == 404:
             raise AccountDoesNotExist from err
@@ -30,6 +30,22 @@ def get_auth_address(address: Address, algod_client: AlgodClient) -> Address:
     if "auth-addr" in account_info:
         return Address(account_info["auth-addr"])
     return address
+
+
+def get_algo_balance(address: Address, algod_client: AlgodClient) -> MicroAlgos:
+    """
+    Returns the authorized signing account for the specified address. This only applies to rekeyed acccounts.
+    If the account is not rekeyed, then the account is the authorized account, i.e., the account signs for itself.
+    """
+
+    try:
+        account_info = algod_client.account_info(address, exclude="all")
+    except AlgodHTTPError as err:
+        if err.code == 404:
+            raise AccountDoesNotExist from err
+        raise
+
+    return MicroAlgos(account_info["amount"])
 
 
 def get_auth_address_callable(algod_client: AlgodClient):
@@ -40,7 +56,8 @@ def get_auth_address_callable(algod_client: AlgodClient):
 
 
 def get_asset_holdings(
-    address: Address, algod_client: AlgodClient
+        address: Address,
+        algod_client: AlgodClient,
 ) -> list[AssetHolding]:
     """
     Returns asset holdings for the specified Algorand address
@@ -59,9 +76,9 @@ def get_asset_holdings(
 
 
 def get_asset_holding(
-    address: Address,
-    asset_id: AssetId,
-    algod_client: AlgodClient,
+        address: Address,
+        asset_id: AssetId,
+        algod_client: AlgodClient,
 ) -> AssetHolding | None:
     """
     Returns asset-holding for the specified Algorand address.

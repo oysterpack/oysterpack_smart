@@ -1,7 +1,6 @@
 import unittest
 
 from algosdk.error import AlgodHTTPError
-from beaker import sandbox
 from beaker.client import LogicException
 
 from oysterpack.algorand.client.model import Address
@@ -9,8 +8,8 @@ from oysterpack.apps.auction_app.client.auction_manager_client import (
     AuctionManagerClient,
     create_auction_manager,
 )
+from oysterpack.apps.auction_app.contracts import auction_manager
 from oysterpack.apps.auction_app.contracts.auction import auction_storage_fees
-from oysterpack.apps.auction_app.contracts.auction_manager import AuctionManager
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from tests.algorand.test_support import AlgorandTestCase
 
@@ -19,7 +18,7 @@ class AuctionManagerTestCase(AlgorandTestCase):
     def test_create(self):
         logger = super().get_logger("test_create")
         # SETUP
-        app_client = self.sandbox_application_client(AuctionManager())
+        app_client = self.sandbox_application_client(auction_manager.app)
 
         # ACT
         app_client.create()
@@ -29,8 +28,8 @@ class AuctionManagerTestCase(AlgorandTestCase):
         )
 
         self.assertEqual(
-            app_client.call(AuctionManager.app_name).return_value,
-            AuctionManager.APP_NAME,
+            app_client.call(auction_manager.app_name).return_value,
+            auction_manager.APP_NAME,
         )
 
         with self.subTest("AuctionManager cannot be updated"):
@@ -43,7 +42,7 @@ class AuctionManagerTestCase(AlgorandTestCase):
 
     def test_create_auction(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
@@ -65,7 +64,7 @@ class AuctionManagerTestCase(AlgorandTestCase):
 
     def test_delete_finalized_auction(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
@@ -104,7 +103,7 @@ class AuctionManagerTestCase(AlgorandTestCase):
                 receiver=Address(seller.address),
                 asset_id=gold_asset_id,
                 amount=starting_asset_balance,
-                asset_reserve_address=gold_asset_manager_address,
+                asset_reserve=gold_asset_manager_address,
             )
             seller_auction_client.set_bid_asset(gold_asset_id, 10_000)
 
@@ -157,7 +156,7 @@ class AuctionManagerTestCase(AlgorandTestCase):
 
     def test_withdraw(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 

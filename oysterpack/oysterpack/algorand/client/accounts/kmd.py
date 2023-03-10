@@ -266,7 +266,7 @@ class WalletSession:
         self._wallet.rename(new_name)
 
     @handle_kmd_client_errors
-    def list_keys(self) -> list[Address]:
+    def list_accounts(self) -> list[Address]:
         """
         :return: list of addresses that are registerd in this wallet
         """
@@ -277,7 +277,7 @@ class WalletSession:
         """
         :return: True if the wallet contains the specified address
         """
-        return address in self.list_keys()
+        return address in self.list_accounts()
 
     @handle_kmd_client_errors
     def generate_key(self) -> Address:

@@ -2,15 +2,18 @@
 Provides client side support to interact with Algorand smart contracts, i.e., applications.
 """
 from base64 import b64decode
-from typing import Any
+from typing import Any, Callable
 
+from algosdk.abi import Method
 from algosdk.error import AlgodHTTPError
 from algosdk.logic import get_application_address
 from algosdk.transaction import SuggestedParams
 from algosdk.v2client.algod import AlgodClient
+from beaker import Application
+from beaker.application_specification import ApplicationSpecification
 from beaker.client.application_client import ApplicationClient
-from beaker.precompile import AppPrecompile
-from pyteal import Bytes
+from beaker.precompile import PrecompiledApplication
+from pyteal import Expr
 
 from oysterpack.algorand.client.model import AppId, Address, MicroAlgos
 from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
@@ -27,16 +30,14 @@ def verify_app(app_client: ApplicationClient):
     """
 
     try:
-        app_client.build()
-
         app = app_client.client.application_info(app_client.app_id)
-        approval_program = b64decode(app["params"]["approval-program"])
-        clear_state_program = b64decode(app["params"]["clear-state-program"])
+        approval_program = b64decode(app["params"]["approval-program"]).decode()
+        clear_state_program = b64decode(app["params"]["clear-state-program"]).decode()
 
-        if approval_program != app_client.approval_binary:
+        if approval_program != app_client.app.approval_program:
             raise AssertionError("Invalid app ID - approval program does not match")
 
-        if clear_state_program != app_client.clear_binary:
+        if clear_state_program != app_client.app.clear_program:
             raise AssertionError("Invalid app ID - clear program does not match")
     except AlgodHTTPError as err:
         if err.code == 404:
@@ -46,7 +47,7 @@ def verify_app(app_client: ApplicationClient):
 
 def verify_app_id(
     app_id: AppId,
-    app_precompile: AppPrecompile,
+    app: Application,
     algod_client: AlgodClient,
 ):
     """
@@ -56,21 +57,33 @@ def verify_app_id(
     """
 
     try:
-        app_precompile.compile(algod_client)
+        precompiled_app = PrecompiledApplication(app, algod_client)
 
         app_info = algod_client.application_info(app_id)
         approval_program = b64decode(app_info["params"]["approval-program"])
         clear_state_program = b64decode(app_info["params"]["clear-state-program"])
 
-        if app_precompile.approval.binary.byte_str != Bytes(approval_program).byte_str:
+        if precompiled_app.approval_program.raw_binary != approval_program:
             raise AssertionError("Invalid app ID - approval program does not match")
 
-        if app_precompile.clear.binary.byte_str != Bytes(clear_state_program).byte_str:
+        if precompiled_app.clear_program.raw_binary != clear_state_program:
             raise AssertionError("Invalid app ID - clear program does not match")
     except AlgodHTTPError as err:
         if err.code == 404:
             raise AssertionError("Invalid app ID") from err
         raise err
+
+
+def get_contract_method(
+    app_spec: ApplicationSpecification,
+    method: Callable[..., Expr],
+) -> Method:
+    """
+    :param app_spec: ApplicationSpecification
+    :param method: function that implements contract method
+    :return: ABI Method
+    """
+    return app_spec.contract.get_method_by_name(method.__name__)
 
 
 class AppClient:
@@ -87,10 +100,6 @@ class AppClient:
             sender=app_client.sender,
             client=app_client.client,
         )
-        # building the app compiles the app to generate source maps
-        # this enables AlgodHttpError to be mapped to LogicException, which contains more error information
-        # that traces back to the TEAL source code
-        self._app_client.build()
 
         # TODO: waiting on a beaker fix for this to work
         # verify_app(self._app_client)
@@ -131,7 +140,7 @@ class AppClient:
 
         :return: app's global state
         """
-        return self._app_client.get_application_state()
+        return self._app_client.get_global_state()
 
     def get_application_info(self) -> dict[str, Any]:
         """

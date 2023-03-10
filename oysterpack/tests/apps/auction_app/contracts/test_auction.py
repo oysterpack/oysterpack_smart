@@ -2,13 +2,13 @@ import unittest
 from datetime import datetime, UTC, timedelta
 from typing import cast
 
+from algosdk.error import AlgodHTTPError
 from algosdk.transaction import wait_for_confirmation
-from beaker import sandbox
-from beaker.client import LogicException
+from beaker.client import LogicException, ApplicationClient
 
 from oysterpack.algorand.client.accounts import get_asset_holding
 from oysterpack.algorand.client.model import Address, AssetHolding
-from oysterpack.algorand.client.transactions import asset
+from oysterpack.algorand.client.transactions import asset, suggested_params_with_flat_flee
 from oysterpack.apps.auction_app.client.auction_client import (
     AuctionClient,
     AuthError,
@@ -17,10 +17,11 @@ from oysterpack.apps.auction_app.client.auction_client import (
 from oysterpack.apps.auction_app.commands.auction_algorand_search.app_exists import (
     AppExists,
 )
+from oysterpack.apps.auction_app.contracts import auction
 from oysterpack.apps.auction_app.contracts.auction import (
-    Auction,
     AuctionStatus,
     auction_storage_fees,
+    AuctionState
 )
 from tests.algorand.test_support import AlgorandTestCase
 
@@ -30,12 +31,12 @@ class AuctionTestCase(AlgorandTestCase):
         # SETUP
         logger = super().get_logger("test_create")
 
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
         creator_app_client = self.sandbox_application_client(
-            Auction(), signer=creator.signer
+            auction.app, signer=creator.signer
         )
 
         # ACT
@@ -44,13 +45,13 @@ class AuctionTestCase(AlgorandTestCase):
         self.assertTrue(AppExists(self.algod_client)(auction_client.app_id))
 
         # ASSERT
-        app_state = creator_app_client.get_application_state()
+        app_state = creator_app_client.get_global_state()
         logger.info(f"app_state: {app_state}")
         self.assertEqual(seller.address, auction_client.get_seller_address())
-        self.assertEqual(app_state[Auction.status.str_key()], AuctionStatus.NEW.value)
+        self.assertEqual(app_state[AuctionState.status.str_key()], AuctionStatus.NEW.value)
 
         self.assertEqual(
-            creator_app_client.call(Auction.app_name).return_value, Auction.APP_NAME
+            creator_app_client.call(auction.app_name).return_value, auction.APP_NAME
         )
 
         with self.subTest("Auction cannot be updated"):
@@ -61,12 +62,12 @@ class AuctionTestCase(AlgorandTestCase):
         # SETUP
         logger = super().get_logger("test_set_bid_asset")
 
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
         creator_app_client = self.sandbox_application_client(
-            Auction(), signer=creator.signer
+            auction.app, signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
         seller_app_client = AuctionClient(
@@ -147,12 +148,12 @@ class AuctionTestCase(AlgorandTestCase):
 
     def test_optout_asset(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
         creator_app_client = self.sandbox_application_client(
-            Auction(), signer=creator.signer
+            auction.app, signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
         seller_app_client = AuctionClient(
@@ -175,7 +176,7 @@ class AuctionTestCase(AlgorandTestCase):
             self.assertIsNone(seller_app_client.optout_asset(bid_asset_id))
 
         with self.subTest(
-            "after opting out the bid asset, the bid asset can be set again"
+                "after opting out the bid asset, the bid asset can be set again"
         ):
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
             app_account_info = seller_app_client.get_application_account_info()
@@ -188,12 +189,12 @@ class AuctionTestCase(AlgorandTestCase):
 
     def test_optin_asset(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
         creator_app_client = self.sandbox_application_client(
-            Auction(), signer=creator.signer
+            auction.app, signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
         seller_app_client = AuctionClient(
@@ -260,12 +261,12 @@ class AuctionTestCase(AlgorandTestCase):
 
     def test_deposit_asset(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
         creator_app_client = self.sandbox_application_client(
-            Auction(), signer=creator.signer
+            auction.app, signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
         seller_app_client = AuctionClient(
@@ -273,7 +274,7 @@ class AuctionTestCase(AlgorandTestCase):
         )
         creator_app_client = AuctionClient(creator_app_client)
 
-        gold_asset_id, asset_manager_address = self.create_test_asset("GOLD$")
+        gold_asset_id, asset_manager = self.create_test_asset("GOLD$")
 
         # opt in GOLD$ for the seller account
         txn = asset.opt_in(
@@ -287,13 +288,13 @@ class AuctionTestCase(AlgorandTestCase):
 
         # transfer assets to the seller account
         txn = asset.transfer(
-            sender=asset_manager_address,
+            sender=asset_manager.account,
             receiver=Address(seller.address),
             asset_id=gold_asset_id,
             amount=1_000_000,
             suggested_params=self.algod_client.suggested_params(),
         )
-        signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
+        signed_txn = asset_manager.wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txid)
 
@@ -309,12 +310,12 @@ class AuctionTestCase(AlgorandTestCase):
 
     def test_withdraw_asset(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
         creator_app_client = self.sandbox_application_client(
-            Auction(), signer=creator.signer
+            auction.app, signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
         seller_app_client = AuctionClient(
@@ -330,7 +331,7 @@ class AuctionTestCase(AlgorandTestCase):
             receiver=Address(seller.address),
             asset_id=gold_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=asset_manager_address,
+            asset_reserve=asset_manager_address,
         )
         with self.assertRaises(AssertionError) as err:
             seller_app_client.withdraw_asset(gold_asset_id, 1000)
@@ -368,12 +369,12 @@ class AuctionTestCase(AlgorandTestCase):
 
     def test_commit(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
         creator_app_client = self.sandbox_application_client(
-            Auction(), signer=creator.signer
+            auction.app, signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
         seller_app_client = AuctionClient(
@@ -390,14 +391,14 @@ class AuctionTestCase(AlgorandTestCase):
             receiver=Address(seller.address),
             asset_id=gold_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=gold_asset_manager_address,
+            asset_reserve=gold_asset_manager_address,
         )
 
         self._optin_asset_and_seed_balance(
             receiver=Address(seller.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=bid_asset_manager_address,
+            asset_reserve=bid_asset_manager_address,
         )
 
         start_time = datetime.now(UTC) + timedelta(days=1)
@@ -451,13 +452,13 @@ class AuctionTestCase(AlgorandTestCase):
 
     def test_bid(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
         bidder = accounts.pop()
 
         creator_app_client = self.sandbox_application_client(
-            Auction(), signer=creator.signer
+            auction.app, signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
         seller_app_client = AuctionClient(
@@ -466,7 +467,7 @@ class AuctionTestCase(AlgorandTestCase):
         auction_bidder = AuctionBidder(creator_app_client.prepare(signer=bidder.signer))
 
         gold_asset_id, gold_asset_manager_address = self.create_test_asset("GOLD$")
-        bid_asset_id, bid_asset_manager_address = self.create_test_asset("USD$")
+        bid_asset_id, bid_asset_manager = self.create_test_asset("USD$")
 
         # opt in GOLD$ for the seller account
         starting_asset_balance = 1_000_000
@@ -474,19 +475,19 @@ class AuctionTestCase(AlgorandTestCase):
             receiver=Address(seller.address),
             asset_id=gold_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=gold_asset_manager_address,
+            asset_reserve=gold_asset_manager_address,
         )
         self._optin_asset_and_seed_balance(
             receiver=Address(seller.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=bid_asset_manager_address,
+            asset_reserve=bid_asset_manager,
         )
         self._optin_asset_and_seed_balance(
             receiver=Address(bidder.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=bid_asset_manager_address,
+            asset_reserve=bid_asset_manager,
         )
 
         min_bid = 10_000
@@ -535,7 +536,7 @@ class AuctionTestCase(AlgorandTestCase):
             txn = close_out(
                 account=Address(bidder.address),
                 asset_id=bid_asset_id,
-                close_to=bid_asset_manager_address,
+                close_to=bid_asset_manager.account,
                 suggested_params=self.algod_client.suggested_params(),
             )
             signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
@@ -548,11 +549,11 @@ class AuctionTestCase(AlgorandTestCase):
             )
 
             # submit a new high bid using the bid asset manager account
-            assert bid_asset_manager_address != bidder.address
+            assert bid_asset_manager.account != bidder.address
             auction_bidder_2 = AuctionBidder(
                 creator_app_client.prepare(
-                    signer=self.sandbox_default_wallet_transaction_signer(),
-                    sender=bid_asset_manager_address,
+                    signer=self.wallet_transaction_signer(bid_asset_manager.wallet),
+                    sender=bid_asset_manager.account,
                 )
             )
             # ACT - submit higher bid
@@ -561,10 +562,12 @@ class AuctionTestCase(AlgorandTestCase):
             # ASSERT
             # auction retained previous highest bid amount
             auction_bid_asset_holding = get_asset_holding(
-                seller_app_client.contract_address, bid_asset_id, self.algod_client
+                seller_app_client.contract_address,
+                bid_asset_id,
+                self.algod_client,
             )
             expected_auction_bid_asset_holding = (
-                auction_bidder_2.get_auction_state().highest_bid + previous_highest_bid
+                    auction_bidder_2.get_auction_state().highest_bid + previous_highest_bid
             )
             self.assertEqual(
                 expected_auction_bid_asset_holding, auction_bid_asset_holding.amount
@@ -576,13 +579,13 @@ class AuctionTestCase(AlgorandTestCase):
 
     def test_accept_bid(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
         bidder = accounts.pop()
 
         creator_app_client = self.sandbox_application_client(
-            Auction(), signer=creator.signer
+            auction.app, signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
         seller_app_client = AuctionClient(
@@ -599,19 +602,19 @@ class AuctionTestCase(AlgorandTestCase):
             receiver=Address(seller.address),
             asset_id=gold_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=gold_asset_manager_address,
+            asset_reserve=gold_asset_manager_address,
         )
         self._optin_asset_and_seed_balance(
             receiver=Address(seller.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=bid_asset_manager_address,
+            asset_reserve=bid_asset_manager_address,
         )
         self._optin_asset_and_seed_balance(
             receiver=Address(bidder.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=bid_asset_manager_address,
+            asset_reserve=bid_asset_manager_address,
         )
 
         min_bid = 10_000
@@ -643,12 +646,12 @@ class AuctionTestCase(AlgorandTestCase):
 
     def test_cancel(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
         creator_app_client = self.sandbox_application_client(
-            Auction(), signer=creator.signer
+            auction.app, signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
         seller_app_client = AuctionClient(
@@ -661,7 +664,7 @@ class AuctionTestCase(AlgorandTestCase):
                 creator_app_client.cancel()
 
         with self.subTest(
-            "cancelling the auction when it has no asset holdings sets its status to Finalized"
+                "cancelling the auction when it has no asset holdings sets its status to Finalized"
         ):
             result = seller_app_client.cancel()
             self.assert_app_txn_note(AuctionClient.CANCEL_NOTE, result.tx_info)
@@ -669,10 +672,10 @@ class AuctionTestCase(AlgorandTestCase):
             self.assertEqual(AuctionStatus.FINALIZED, auction_state.status)
 
         with self.subTest(
-            "if the Auction has asset-holdings, then the status will be set to Cancelled"
+                "if the Auction has asset-holdings, then the status will be set to Cancelled"
         ):
             creator_app_client = self.sandbox_application_client(
-                Auction(), signer=creator.signer
+                auction.app, signer=creator.signer
             )
             creator_app_client.create(seller=seller.address)
             seller_app_client = AuctionClient(
@@ -685,7 +688,7 @@ class AuctionTestCase(AlgorandTestCase):
                 receiver=Address(seller.address),
                 asset_id=gold_asset_id,
                 amount=starting_asset_balance,
-                asset_reserve_address=gold_asset_manager_address,
+                asset_reserve=gold_asset_manager_address,
             )
             seller_app_client.set_bid_asset(gold_asset_id, 10_000)
 
@@ -698,14 +701,14 @@ class AuctionTestCase(AlgorandTestCase):
 
     def test_finalize(self):
         # SETUP
-        def create_auction() -> (AuctionClient, AuctionBidder):
-            accounts = sandbox.get_accounts()
+        def create_auction() -> (AuctionClient, AuctionBidder, ApplicationClient):
+            accounts = self.get_sandbox_accounts()
             creator = accounts.pop()
             seller = accounts.pop()
             bidder = accounts.pop()
 
             creator_app_client = self.sandbox_application_client(
-                Auction(), signer=creator.signer
+                auction.app, signer=creator.signer
             )
             creator_app_client.create(seller=seller.address)
             seller_app_client = AuctionClient(
@@ -715,8 +718,8 @@ class AuctionTestCase(AlgorandTestCase):
                 creator_app_client.prepare(signer=bidder.signer)
             )
 
-            gold_asset_id, gold_asset_manager_address = self.create_test_asset("GOLD$")
-            bid_asset_id, bid_asset_manager_address = self.create_test_asset("USD$")
+            gold_asset_id, gold_asset_manager = self.create_test_asset("GOLD$")
+            bid_asset_id, bid_asset_manager = self.create_test_asset("USD$")
 
             # opt in GOLD$ for the seller account
             starting_asset_balance = 1_000_000
@@ -724,19 +727,19 @@ class AuctionTestCase(AlgorandTestCase):
                 receiver=Address(seller.address),
                 asset_id=gold_asset_id,
                 amount=starting_asset_balance,
-                asset_reserve_address=gold_asset_manager_address,
+                asset_reserve=gold_asset_manager,
             )
             self._optin_asset_and_seed_balance(
                 receiver=Address(seller.address),
                 asset_id=bid_asset_id,
                 amount=starting_asset_balance,
-                asset_reserve_address=bid_asset_manager_address,
+                asset_reserve=bid_asset_manager,
             )
             self._optin_asset_and_seed_balance(
                 receiver=Address(bidder.address),
                 asset_id=bid_asset_id,
                 amount=starting_asset_balance,
-                asset_reserve_address=bid_asset_manager_address,
+                asset_reserve=bid_asset_manager,
             )
 
             min_bid = 10_000
@@ -752,10 +755,10 @@ class AuctionTestCase(AlgorandTestCase):
                     str(err.exception),
                 )
 
-            return seller_app_client, auction_bidder
+            return seller_app_client, auction_bidder, creator_app_client
 
         with self.subTest("auction bid has been accepted"):
-            seller_app_client, auction_bidder = create_auction()
+            seller_app_client, auction_bidder, creator_app_client = create_auction()
             # commit the auction
             start_time = seller_app_client.latest_timestamp()
             end_time = start_time + timedelta(days=3)
@@ -792,13 +795,14 @@ class AuctionTestCase(AlgorandTestCase):
                 [
                     (asset["asset-id"], asset["amount"])
                     for asset in self.algod_client.account_info(
-                        auction_bidder._app_client.sender
-                    )["assets"]
+                    auction_bidder._app_client.sender
+                )["assets"]
                 ]
             )
             for asset_holding in auction_asset_holdings:
                 self.assertEqual(
-                    asset_holding.amount, auction_bidder_assets[asset_holding.asset_id]
+                    asset_holding.amount,
+                    auction_bidder_assets[asset_holding.asset_id],
                 )
             # check that the bid asset was transferred to the seller
             seller_bid_asset_holding_2 = self.algod_client.account_asset_info(
@@ -812,8 +816,20 @@ class AuctionTestCase(AlgorandTestCase):
                 seller_bid_asset_holding_2["asset-holding"]["amount"],
             )
 
+            # delete the finalized auction
+            creator_app_client.delete(
+                suggested_params=suggested_params_with_flat_flee(
+                    algod_client=self.algod_client,
+                    txn_count=3
+                )
+            )
+            # confirm that the auction app was deleted
+            with self.assertRaises(AlgodHTTPError) as err:
+                self.algod_client.application_info(creator_app_client.app_id)
+            self.assertEqual(err.exception.code, 404)
+
         with self.subTest("auction was cancelled"):
-            seller_app_client, auction_bidder = create_auction()
+            seller_app_client, auction_bidder, creator_app_client = create_auction()
             seller_app_client.cancel()
 
             # ACT
@@ -831,19 +847,31 @@ class AuctionTestCase(AlgorandTestCase):
                 AuctionStatus.FINALIZED, seller_app_client.get_auction_state().status
             )
 
+            # delete the finalized auction
+            creator_app_client.delete(
+                suggested_params=suggested_params_with_flat_flee(
+                    algod_client=self.algod_client,
+                    txn_count=3
+                )
+            )
+            # confirm that the auction app was deleted
+            with self.assertRaises(AlgodHTTPError) as err:
+                self.algod_client.application_info(creator_app_client.app_id)
+            self.assertEqual(err.exception.code, 404)
+
     def test_auction_creation_storage_fees(self):
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
         account_info_1 = self.algod_client.account_info(creator.address)
         creator_app_client = self.sandbox_application_client(
-            Auction(), signer=creator.signer
+            auction.app, signer=creator.signer
         )
         creator_app_client.create(seller=seller.address)
         account_info_2 = self.algod_client.account_info(creator.address)
         expected_auction_storage_fees = (
-            account_info_2["min-balance"] - account_info_1["min-balance"]
+                account_info_2["min-balance"] - account_info_1["min-balance"]
         )
         self.assertEqual(expected_auction_storage_fees, auction_storage_fees())
 

@@ -40,6 +40,7 @@ from tests.algorand.test_support import AlgorandTestCase
 
 
 class AlgorandTest(AlgorandTestCase):
+
     def test_create_kmd_client(self):
         # create a wallet using valid connection params
         kmd_client = create_kmd_client(
@@ -159,6 +160,18 @@ class AlgorandTest(AlgorandTestCase):
 
 
 class WalletSessionTests(AlgorandTestCase):
+    def tearDown(self) -> None:
+        sandbox_default_wallet = self.sandbox_default_wallet
+        sandbox_default_wallet_session = WalletSession(
+            kmd_client=sandbox_default_wallet.kcl,
+            name=WalletName(sandbox_default_wallet.name),
+            password=WalletPassword(sandbox_default_wallet.pswd),
+            get_auth_addr=get_auth_address_callable(self.algod_client),
+        )
+        for account in sandbox_default_wallet_session.list_accounts():
+            sandbox_default_wallet_session.rekey_back(account, self.algod_client)
+            print(f"account has been rekeyed back: {account}")
+
     def _create_test_wallet_session(
         self, wallet: Wallet | None = None
     ) -> WalletSession:
@@ -239,7 +252,7 @@ class WalletSessionTests(AlgorandTestCase):
             password=WalletPassword(_wallet.pswd),
             get_auth_addr=get_auth_address_callable(self.algod_client),
         )
-        session.list_keys()
+        session.list_accounts()
 
         with self.subTest("using the name of another existing wallet should fail"):
             _wallet2 = super().create_test_wallet()
@@ -260,17 +273,17 @@ class WalletSessionTests(AlgorandTestCase):
 
     def test_generate_key(self):
         session = self._create_test_wallet_session()
-        self.assertEqual(len(session.list_keys()), 0)
+        self.assertEqual(len(session.list_accounts()), 0)
 
         for i in range(1, 6):
             address = session.generate_key()
-            self.assertEqual(len(session.list_keys()), i)
-            self.assertTrue(address in session.list_keys())
+            self.assertEqual(len(session.list_accounts()), i)
+            self.assertTrue(address in session.list_accounts())
             self.assertTrue(session.contains_key(address))
 
     def test_delete_key(self):
         session = self._create_test_wallet_session()
-        self.assertEqual(len(session.list_keys()), 0)
+        self.assertEqual(len(session.list_accounts()), 0)
         address = session.generate_key()
         self.assertTrue(session.contains_key(address))
         session.delete_key(address)
@@ -296,7 +309,7 @@ class WalletSessionTests(AlgorandTestCase):
 
         from algosdk.transaction import PaymentTxn
 
-        for address in session.list_keys():
+        for address in session.list_accounts():
             txn = PaymentTxn(
                 sender=address,
                 receiver=address,
@@ -681,7 +694,7 @@ class WalletSessionTests(AlgorandTestCase):
 
         sandbox_default_wallet_session.import_multisig(multisig_1)
 
-        # fund multisig account
+        # fund multisig account with 1 ALGO
         txn = transfer_algo(
             sender=account_1,
             receiver=multisig_1.address(),
@@ -720,6 +733,8 @@ class WalletSessionTests(AlgorandTestCase):
             multisig_1_starting_balance - multisig_1_ending_balance,
             "difference should be 0.1 ALGO + 0.001 ALGO txn fee",
         )
+
+        self.tearDown()
 
 
 if __name__ == "__main__":

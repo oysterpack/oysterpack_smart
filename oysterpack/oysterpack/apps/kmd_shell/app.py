@@ -95,7 +95,7 @@ class App:
         if self.wallet_session is None:
             raise WalletNotConnected
 
-        return self.wallet_session.list_keys()
+        return self.wallet_session.list_accounts()
 
     def generate_wallet_account(self) -> Address:
         if self.wallet_session is None:
@@ -123,7 +123,7 @@ class App:
             raise WalletNotConnected
 
         rekeyed_accounts: dict[Address, Address] = {}
-        for account in self.wallet_session.list_keys():
+        for account in self.wallet_session.list_accounts():
             auth_account = self.get_auth_address(account)
             if account != auth_account:
                 rekeyed_accounts[account] = auth_account

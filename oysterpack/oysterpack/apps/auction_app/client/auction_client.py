@@ -15,7 +15,6 @@ from algosdk.atomic_transaction_composer import (
 from algosdk.constants import ZERO_ADDRESS
 from algosdk.encoding import encode_address
 from algosdk.error import AlgodHTTPError
-from beaker.application import get_method_signature
 from beaker.client.application_client import ApplicationClient
 
 from oysterpack.algorand.client.assets.asset_config import AssetConfig
@@ -31,7 +30,10 @@ from oysterpack.algorand.client.transactions.asset import opt_in
 from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.algorand.params import MinimumBalance
 from oysterpack.apps.auction_app.client.errors import AuthError
-from oysterpack.apps.auction_app.contracts.auction import Auction
+from oysterpack.apps.auction_app.contracts import auction
+from oysterpack.apps.auction_app.contracts.auction import (
+    AuctionState as ContractAuctionState,
+)
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.auction_app.domain.auction_state import AuctionState
 from oysterpack.apps.client import AppClient
@@ -64,7 +66,7 @@ def to_auction_state(state: dict[bytes | str, bytes | str | int]) -> AuctionStat
         return Address(encode_address(bytes.fromhex(hex_encoded_address_bytes)))
 
     def status() -> AuctionStatus:
-        match state[Auction.status.str_key()]:
+        match state[ContractAuctionState.status.str_key()]:
             case AuctionStatus.NEW.value:
                 return AuctionStatus.NEW
             case AuctionStatus.CANCELLED.value:
@@ -76,41 +78,47 @@ def to_auction_state(state: dict[bytes | str, bytes | str | int]) -> AuctionStat
             case AuctionStatus.FINALIZED.value:
                 return AuctionStatus.FINALIZED
             case _:
-                raise ValueError(state[Auction.status.str_key()])
+                raise ValueError(state[ContractAuctionState.status.str_key()])
 
     def seller_address() -> Address:
-        return to_address(cast(str, state[Auction.seller_address.str_key()]))
+        return to_address(
+            cast(str, state[ContractAuctionState.seller_address.str_key()])
+        )
 
     def bid_asset_id() -> AssetId | None:
-        if Auction.bid_asset_id.str_key() in state.keys():
-            return AssetId(cast(int, state[Auction.bid_asset_id.str_key()]))
+        if ContractAuctionState.bid_asset_id.str_key() in state.keys():
+            return AssetId(
+                cast(int, state[ContractAuctionState.bid_asset_id.str_key()])
+            )
         return None
 
     def min_bid() -> int | None:
-        if Auction.min_bid.str_key() in state.keys():
-            return cast(int, state[Auction.min_bid.str_key()])
+        if ContractAuctionState.min_bid.str_key() in state.keys():
+            return cast(int, state[ContractAuctionState.min_bid.str_key()])
         return None
 
     def highest_bidder_address() -> Address | None:
-        if Auction.highest_bidder_address.str_key() in state.keys():
-            value = cast(str, state[Auction.highest_bidder_address.str_key()])
+        if ContractAuctionState.highest_bidder_address.str_key() in state.keys():
+            value = cast(
+                str, state[ContractAuctionState.highest_bidder_address.str_key()]
+            )
             return to_address(value) if value else None
         return None
 
     def highest_bid() -> int:
-        if Auction.highest_bid.str_key() in state.keys():
-            return cast(int, state[Auction.highest_bid.str_key()])
+        if ContractAuctionState.highest_bid.str_key() in state.keys():
+            return cast(int, state[ContractAuctionState.highest_bid.str_key()])
         return 0
 
     def start_time() -> datetime | None:
-        if Auction.start_time.str_key() in state.keys():
-            value = cast(int, state[Auction.start_time.str_key()])
+        if ContractAuctionState.start_time.str_key() in state.keys():
+            value = cast(int, state[ContractAuctionState.start_time.str_key()])
             return datetime.fromtimestamp(value, UTC) if value else None
         return None
 
     def end_time() -> datetime | None:
-        if Auction.end_time.str_key() in state.keys():
-            value = cast(int, state[Auction.end_time.str_key()])
+        if ContractAuctionState.end_time.str_key() in state.keys():
+            value = cast(int, state[ContractAuctionState.end_time.str_key()])
             return datetime.fromtimestamp(value, UTC) if value else None
         return None
 
@@ -131,8 +139,11 @@ class _AuctionClient(AppClient):
         if app_client.app_id == 0:
             raise AssertionError("ApplicationClient.app_id must not be 0")
 
-        if not isinstance(app_client.app, Auction):
-            raise AssertionError("ApplicationClient.app must be an instance of Auction")
+        # TODO: is there a more robust way
+        if app_client.app.contract.name != auction.app.name:
+            raise AssertionError(
+                f"contract name does not match: {app_client.app.contract.name} != {auction.app.name}"
+            )
 
         super().__init__(app_client)
 
@@ -242,13 +253,13 @@ class AuctionBidder(_AuctionClientSupport):
     """
 
     BID_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
-        method=get_method_signature(Auction.bid),
+        app=auction.APP_NAME,
+        method=auction.bid.method_signature(),
         group=AuctionPhase.BIDDING,
     )
 
     OPTIN_AUCTION_ASSETS_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
+        app=auction.APP_NAME,
         method="optin_auction_assets",
     )
 
@@ -256,8 +267,11 @@ class AuctionBidder(_AuctionClientSupport):
         if app_client.app_id == 0:
             raise AssertionError("ApplicationClient.app_id must not be 0")
 
-        if not isinstance(app_client.app, Auction):
-            raise AssertionError("ApplicationClient.app must be an instance of Auction")
+        # TODO: is there a more robust way
+        if app_client.app.contract.name != auction.APP_NAME:
+            raise AssertionError(
+                f"contract name does not match: {app_client.app.contract.name} != {auction.app.name}"
+            )
 
         super().__init__(app_client)
 
@@ -297,7 +311,7 @@ class AuctionBidder(_AuctionClientSupport):
             highest_bidder = Address(ZERO_ADDRESS)
 
         return self._app_client.call(
-            Auction.bid,
+            auction.bid,
             bid=TransactionWithSigner(
                 asset_transfer_txn,
                 cast(TransactionSigner, self._app_client.signer),
@@ -352,54 +366,60 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
     """
 
     SET_BID_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
-        method=get_method_signature(Auction.set_bid_asset),
+        app=auction.APP_NAME,
+        method=auction.set_bid_asset.method_signature(),
         group=AuctionPhase.SETUP,
     )
 
     OPTIN_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME, method="optin_asset", group=AuctionPhase.SETUP
+        app=auction.APP_NAME,
+        method=auction.optin_asset.method_signature(),
+        group=AuctionPhase.SETUP,
     )
 
     OPTOUT_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME, method="optout_asset", group=AuctionPhase.SETUP
+        app=auction.APP_NAME,
+        method=auction.optout_asset.method_signature(),
+        group=AuctionPhase.SETUP,
     )
 
     DEPOSIT_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME, method="deposit_asset", group=AuctionPhase.SETUP
+        app=auction.APP_NAME,
+        method="deposit_asset",
+        group=AuctionPhase.SETUP,
     )
 
     WITHDRAW_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
-        method=get_method_signature(Auction.withdraw_asset),
+        app=auction.APP_NAME,
+        method=auction.withdraw_asset.method_signature(),
         group=AuctionPhase.SETUP,
     )
 
     COMMIT_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
-        method=get_method_signature(Auction.commit),
+        app=auction.APP_NAME,
+        method=auction.commit.method_signature(),
         group=AuctionPhase.BIDDING,
     )
 
     ACCEPT_BID_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
-        method=get_method_signature(Auction.accept_bid),
+        app=auction.APP_NAME,
+        method=auction.accept_bid.method_signature(),
         group=AuctionPhase.BIDDING,
     )
 
     CANCEL_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
-        method=get_method_signature(Auction.cancel),
+        app=auction.APP_NAME,
+        method=auction.cancel.method_signature(),
     )
 
     FINALIZE_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
-        method=get_method_signature(Auction.finalize),
+        app=auction.APP_NAME,
+        method=auction.finalize.method_signature(),
     )
 
     LATEST_TIMESTAMP_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=Auction.APP_NAME,
-        method=get_method_signature(Auction.latest_timestamp),
+        app=auction.APP_NAME,
+        method=auction.latest_timestamp.method_signature(),
     )
 
     def get_seller_address(self) -> Address:
@@ -442,7 +462,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             self._fund_asset_optin()
 
         return self._app_client.call(
-            Auction.set_bid_asset,
+            auction.set_bid_asset,
             bid_asset=asset_id,
             min_bid=min_bid,
             suggested_params=suggested_params,
@@ -466,7 +486,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             raise AuthError
 
         return self._app_client.call(
-            Auction.optout_asset,
+            auction.optout_asset,
             asset=asset_id,
             suggested_params=self.suggested_params(txn_count=2),
             lease=create_lease(),
@@ -491,7 +511,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
 
         self._fund_asset_optin()
         return self._app_client.call(
-            Auction.optin_asset,
+            auction.optin_asset,
             asset=asset_id,
             suggested_params=self.suggested_params(txn_count=2),
             lease=create_lease(),
@@ -580,7 +600,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             raise AssertionError("Auction does not hold the asset") from err
 
         self._app_client.call(
-            Auction.withdraw_asset,
+            auction.withdraw_asset,
             asset=asset_id,
             amount=amount,
             suggested_params=self.suggested_params(txn_count=2),
@@ -639,7 +659,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             raise AssertionError("bid asset balance must be 0")
 
         return self._app_client.call(
-            Auction.commit,
+            auction.commit,
             start_time=int(start_time.timestamp()),
             end_time=int(end_time.timestamp()),
             note=self.COMMIT_NOTE.encode(),
@@ -657,7 +677,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             raise AssertionError("auction has no bid")
 
         return self._app_client.call(
-            Auction.accept_bid,
+            auction.accept_bid,
             note=self.ACCEPT_BID_NOTE.encode(),
         )
 
@@ -680,7 +700,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             raise AuthError
 
         return self._app_client.call(
-            Auction.cancel,
+            auction.cancel,
             note=AuctionClient.CANCEL_NOTE.encode(),
         )
 
@@ -707,7 +727,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             for auction_asset in self.get_auction_assets():
                 results.append(
                     self._app_client.call(
-                        Auction.finalize,
+                        auction.finalize,
                         asset=auction_asset.asset_id,
                         close_to=app_state.highest_bidder,
                         suggested_params=suggested_params,
@@ -718,7 +738,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             # close out the bid asset to the seller
             results.append(
                 self._app_client.call(
-                    Auction.finalize,
+                    auction.finalize,
                     asset=app_state.bid_asset_id,
                     close_to=app_state.seller,
                     suggested_params=suggested_params,
@@ -731,7 +751,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
             for auction_asset in self.get_auction_assets():
                 results.append(
                     self._app_client.call(
-                        Auction.finalize,
+                        auction.finalize,
                         asset=auction_asset.asset_id,
                         close_to=app_state.seller,
                         suggested_params=suggested_params,
@@ -744,7 +764,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
                     self.get_bid_asset_holding()
                     results.append(
                         self._app_client.call(
-                            Auction.finalize,
+                            auction.finalize,
                             asset=app_state.bid_asset_id,
                             close_to=app_state.seller,
                             suggested_params=suggested_params,
@@ -762,6 +782,6 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         The timestamp for the latest confirmed block that is used to determine the bidding session window.
         """
         result = self._app_client.call(
-            Auction.latest_timestamp, note=self.LATEST_TIMESTAMP_NOTE.encode()
+            auction.latest_timestamp, note=self.LATEST_TIMESTAMP_NOTE.encode()
         )
         return datetime.fromtimestamp(result.return_value, UTC)

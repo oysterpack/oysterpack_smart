@@ -9,7 +9,6 @@ from algosdk.atomic_transaction_composer import (
     ABIResult,
 )
 from algosdk.v2client.algod import AlgodClient
-from beaker.application import get_method_signature
 from beaker.client.application_client import ApplicationClient
 from beaker.consts import algo
 
@@ -18,8 +17,8 @@ from oysterpack.algorand.client.transactions import create_lease
 from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.algorand.client.transactions.payment import transfer_algo, MicroAlgos
 from oysterpack.apps.auction_app.client.auction_client import AuctionClient
-from oysterpack.apps.auction_app.contracts.auction import auction_storage_fees, Auction
-from oysterpack.apps.auction_app.contracts.auction_manager import AuctionManager
+from oysterpack.apps.auction_app.contracts import auction_manager, auction
+from oysterpack.apps.auction_app.contracts.auction import auction_storage_fees
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
 from oysterpack.apps.client import AppClient
 
@@ -31,32 +30,32 @@ class AuctionManagerClient(AppClient):
     """
 
     GET_AUCTION_CREATION_FEES_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=AuctionManager.APP_NAME,
-        method=get_method_signature(AuctionManager.get_auction_creation_fees),
+        app=auction_manager.APP_NAME,
+        method=auction_manager.get_auction_creation_fees.method_signature(),
     )
 
     CREATE_AUCTION_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=AuctionManager.APP_NAME,
-        method=get_method_signature(AuctionManager.create_auction),
+        app=auction_manager.APP_NAME,
+        method=auction_manager.create_auction.name(),
     )
 
     DELETE_FINALIZED_AUCTION_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=AuctionManager.APP_NAME,
-        method=get_method_signature(AuctionManager.delete_finalized_auction),
+        app=auction_manager.APP_NAME,
+        method=auction_manager.delete_finalized_auction.method_signature(),
     )
 
     WITHDRAW_NOTE: Final[AppTxnNote] = AppTxnNote(
-        app=AuctionManager.APP_NAME,
-        method=get_method_signature(AuctionManager.withdraw_algo),
+        app=auction_manager.APP_NAME,
+        method=auction_manager.withdraw_algo.method_signature(),
     )
 
     def __init__(self, app_client: ApplicationClient):
         if app_client.app_id == 0:
             raise AssertionError("ApplicationClient.app_id must not be 0")
 
-        if not isinstance(app_client.app, AuctionManager):
+        if app_client.app.contract.name != auction_manager.app.name:
             raise AssertionError(
-                "ApplicationClient.app must be an instance of AuctionManager"
+                 f"contract name does not match: {app_client.app.contract.name} != {auction_manager.app.name}"
             )
 
         super().__init__(app_client)
@@ -79,7 +78,7 @@ class AuctionManagerClient(AppClient):
         """
         return MicroAlgos(
             self._app_client.call(
-                AuctionManager.get_auction_creation_fees,
+                auction_manager.get_auction_creation_fees,
                 note=self.GET_AUCTION_CREATION_FEES_NOTE.encode(),
             ).return_value
         )
@@ -97,7 +96,7 @@ class AuctionManagerClient(AppClient):
         )
 
         auction_app_id = self._app_client.call(
-            AuctionManager.create_auction,
+            auction_manager.create_auction,
             storage_fees=TransactionWithSigner(
                 payment_txn,
                 cast(TransactionSigner, self._app_client.signer),
@@ -108,7 +107,7 @@ class AuctionManagerClient(AppClient):
         ).return_value
 
         return AuctionClient(
-            self._app_client.prepare(app=Auction(), app_id=auction_app_id)
+            self._app_client.prepare(app=auction.app_spec, app_id=auction_app_id)
         )
 
     def delete_finalized_auction(self, app_id: AppId) -> ABIResult:
@@ -122,14 +121,14 @@ class AuctionManagerClient(AppClient):
         """
 
         auction_client = AuctionClient(
-            self._app_client.prepare(app=Auction(), app_id=app_id)
+            self._app_client.prepare(app=auction.app_spec, app_id=app_id)
         )
         auction_state = auction_client.get_auction_state()
         if auction_state.status != AuctionStatus.FINALIZED:
             raise AssertionError("auction is not finalized")
 
         return self._app_client.call(
-            AuctionManager.delete_finalized_auction,
+            auction_manager.delete_finalized_auction,
             auction=app_id,
             suggested_params=self.suggested_params(txn_count=3),
             note=self.DELETE_FINALIZED_AUCTION_NOTE.encode(),
@@ -165,7 +164,7 @@ class AuctionManagerClient(AppClient):
             )
 
         return self._app_client.call(
-            AuctionManager.withdraw_algo,
+            auction_manager.withdraw_algo,
             amount=amount,
             suggested_params=self.suggested_params(txn_count=2),
             note=self.WITHDRAW_NOTE.encode(),
@@ -189,7 +188,7 @@ def create_auction_manager(
     """
     app_client = ApplicationClient(
         client=algod_client,
-        app=AuctionManager(),
+        app=auction_manager.app,
         sender=creator,
         signer=signer,
     )

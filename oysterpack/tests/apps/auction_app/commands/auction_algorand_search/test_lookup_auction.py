@@ -66,14 +66,14 @@ class LookupTestCase(AlgorandTestCase):
             receiver=Address(seller.address),
             asset_id=gold_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=gold_asset_manager_address,
+            asset_reserve=gold_asset_manager_address,
         )
         # opt in USD$ for the seller account
         self._optin_asset_and_seed_balance(
             receiver=Address(seller.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=bid_asset_manager_address,
+            asset_reserve=bid_asset_manager_address,
         )
 
         min_bid = 10_000

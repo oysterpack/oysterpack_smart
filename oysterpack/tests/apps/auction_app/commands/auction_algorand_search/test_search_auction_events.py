@@ -54,13 +54,13 @@ class SearchAuctionEventsTestCase(AlgorandTestCase):
             receiver=Address(seller.address),
             asset_id=gold_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=gold_asset_manager_address,
+            asset_reserve=gold_asset_manager_address,
         )
         self._optin_asset_and_seed_balance(
             receiver=Address(seller.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=bid_asset_manager_address,
+            asset_reserve=bid_asset_manager_address,
         )
 
         # commit the auction
@@ -145,19 +145,19 @@ class SearchAuctionEventsTestCase(AlgorandTestCase):
             receiver=Address(seller.address),
             asset_id=gold_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=gold_asset_manager_address,
+            asset_reserve=gold_asset_manager_address,
         )
         self._optin_asset_and_seed_balance(
             receiver=Address(seller.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=bid_asset_manager_address,
+            asset_reserve=bid_asset_manager_address,
         )
         self._optin_asset_and_seed_balance(
             receiver=Address(bidder.address),
             asset_id=bid_asset_id,
             amount=starting_asset_balance,
-            asset_reserve_address=bid_asset_manager_address,
+            asset_reserve=bid_asset_manager_address,
         )
 
         # setup the auction

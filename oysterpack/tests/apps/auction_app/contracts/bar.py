@@ -10,8 +10,8 @@ app = Application("bar")
 
 @app.external
 def create_foo(
-        *,
-        output: abi.Uint64,
+    *,
+    output: abi.Uint64,
 ) -> Expr:
     return Seq(
         InnerTxnBuilder.ExecuteMethodCall(

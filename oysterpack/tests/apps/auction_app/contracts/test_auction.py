@@ -8,7 +8,10 @@ from beaker.client import LogicException, ApplicationClient
 
 from oysterpack.algorand.client.accounts import get_asset_holding
 from oysterpack.algorand.client.model import Address, AssetHolding
-from oysterpack.algorand.client.transactions import asset, suggested_params_with_flat_flee
+from oysterpack.algorand.client.transactions import (
+    asset,
+    suggested_params_with_flat_flee,
+)
 from oysterpack.apps.auction_app.client.auction_client import (
     AuctionClient,
     AuthError,
@@ -21,7 +24,7 @@ from oysterpack.apps.auction_app.contracts import auction
 from oysterpack.apps.auction_app.contracts.auction import (
     AuctionStatus,
     auction_storage_fees,
-    AuctionState
+    AuctionState,
 )
 from tests.algorand.test_support import AlgorandTestCase
 
@@ -48,7 +51,9 @@ class AuctionTestCase(AlgorandTestCase):
         app_state = creator_app_client.get_global_state()
         logger.info(f"app_state: {app_state}")
         self.assertEqual(seller.address, auction_client.get_seller_address())
-        self.assertEqual(app_state[AuctionState.status.str_key()], AuctionStatus.NEW.value)
+        self.assertEqual(
+            app_state[AuctionState.status.str_key()], AuctionStatus.NEW.value
+        )
 
         self.assertEqual(
             creator_app_client.call(auction.app_name).return_value, auction.APP_NAME
@@ -176,7 +181,7 @@ class AuctionTestCase(AlgorandTestCase):
             self.assertIsNone(seller_app_client.optout_asset(bid_asset_id))
 
         with self.subTest(
-                "after opting out the bid asset, the bid asset can be set again"
+            "after opting out the bid asset, the bid asset can be set again"
         ):
             seller_app_client.set_bid_asset(bid_asset_id, min_bid)
             app_account_info = seller_app_client.get_application_account_info()
@@ -567,7 +572,7 @@ class AuctionTestCase(AlgorandTestCase):
                 self.algod_client,
             )
             expected_auction_bid_asset_holding = (
-                    auction_bidder_2.get_auction_state().highest_bid + previous_highest_bid
+                auction_bidder_2.get_auction_state().highest_bid + previous_highest_bid
             )
             self.assertEqual(
                 expected_auction_bid_asset_holding, auction_bid_asset_holding.amount
@@ -664,7 +669,7 @@ class AuctionTestCase(AlgorandTestCase):
                 creator_app_client.cancel()
 
         with self.subTest(
-                "cancelling the auction when it has no asset holdings sets its status to Finalized"
+            "cancelling the auction when it has no asset holdings sets its status to Finalized"
         ):
             result = seller_app_client.cancel()
             self.assert_app_txn_note(AuctionClient.CANCEL_NOTE, result.tx_info)
@@ -672,7 +677,7 @@ class AuctionTestCase(AlgorandTestCase):
             self.assertEqual(AuctionStatus.FINALIZED, auction_state.status)
 
         with self.subTest(
-                "if the Auction has asset-holdings, then the status will be set to Cancelled"
+            "if the Auction has asset-holdings, then the status will be set to Cancelled"
         ):
             creator_app_client = self.sandbox_application_client(
                 auction.app, signer=creator.signer
@@ -795,8 +800,8 @@ class AuctionTestCase(AlgorandTestCase):
                 [
                     (asset["asset-id"], asset["amount"])
                     for asset in self.algod_client.account_info(
-                    auction_bidder._app_client.sender
-                )["assets"]
+                        auction_bidder._app_client.sender
+                    )["assets"]
                 ]
             )
             for asset_holding in auction_asset_holdings:
@@ -819,8 +824,7 @@ class AuctionTestCase(AlgorandTestCase):
             # delete the finalized auction
             creator_app_client.delete(
                 suggested_params=suggested_params_with_flat_flee(
-                    algod_client=self.algod_client,
-                    txn_count=3
+                    algod_client=self.algod_client, txn_count=3
                 )
             )
             # confirm that the auction app was deleted
@@ -850,8 +854,7 @@ class AuctionTestCase(AlgorandTestCase):
             # delete the finalized auction
             creator_app_client.delete(
                 suggested_params=suggested_params_with_flat_flee(
-                    algod_client=self.algod_client,
-                    txn_count=3
+                    algod_client=self.algod_client, txn_count=3
                 )
             )
             # confirm that the auction app was deleted
@@ -871,7 +874,7 @@ class AuctionTestCase(AlgorandTestCase):
         creator_app_client.create(seller=seller.address)
         account_info_2 = self.algod_client.account_info(creator.address)
         expected_auction_storage_fees = (
-                account_info_2["min-balance"] - account_info_1["min-balance"]
+            account_info_2["min-balance"] - account_info_1["min-balance"]
         )
         self.assertEqual(expected_auction_storage_fees, auction_storage_fees())
 

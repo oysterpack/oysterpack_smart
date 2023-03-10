@@ -56,8 +56,8 @@ def get_auth_address_callable(algod_client: AlgodClient):
 
 
 def get_asset_holdings(
-        address: Address,
-        algod_client: AlgodClient,
+    address: Address,
+    algod_client: AlgodClient,
 ) -> list[AssetHolding]:
     """
     Returns asset holdings for the specified Algorand address
@@ -76,9 +76,9 @@ def get_asset_holdings(
 
 
 def get_asset_holding(
-        address: Address,
-        asset_id: AssetId,
-        algod_client: AlgodClient,
+    address: Address,
+    asset_id: AssetId,
+    algod_client: AlgodClient,
 ) -> AssetHolding | None:
     """
     Returns asset-holding for the specified Algorand address.

@@ -23,21 +23,20 @@ def delete_app_txn_fields(app_id: Expr) -> dict[TxnField, Expr | list[Expr]]:
         TxnField.fee: Int(0),
     }
 
+
 def execute_delete_app(app_id: Expr) -> Expr:
     """
     Constructs expression to execute a transaction to delete app for the specified app ID.
     """
     return InnerTxnBuilder.Execute(delete_app_txn_fields(app_id))
 
+
 foo = Application("foo")
 
 
 @foo.create
 def create(seller: abi.Account) -> Expr:  # pylint: disable=arguments-differ
-    return Seq(
-        Log(seller.address()),
-        Approve()
-    )
+    return Seq(Log(seller.address()), Approve())
 
 
 @foo.delete(authorize=Authorize.only_creator())
@@ -50,8 +49,8 @@ bar = Application("bar")
 
 @bar.external
 def create_foo(
-        *,
-        output: abi.Uint64,
+    *,
+    output: abi.Uint64,
 ) -> Expr:
     return Seq(
         InnerTxnBuilder.ExecuteMethodCall(
@@ -82,6 +81,7 @@ def delete_foo(app: abi.Application) -> Expr:
     """
     return execute_delete_app(app.application_id())
 
+
 def suggested_params_with_flat_flee(
     algod_client: AlgodClient,
     txn_count: int = 1,
@@ -101,7 +101,9 @@ class MyTestCase(unittest.TestCase):
     def test_create_delete(self):
         account = sandbox.get_accounts().pop()
 
-        app_client = ApplicationClient(sandbox.get_algod_client(), bar, signer=account.signer)
+        app_client = ApplicationClient(
+            sandbox.get_algod_client(), bar, signer=account.signer
+        )
         app_client.create()
         app_client.fund(1 * algo)
 
@@ -111,9 +113,9 @@ class MyTestCase(unittest.TestCase):
             app=foo_app_id,
             suggested_params=suggested_params_with_flat_flee(
                 algod_client=sandbox.get_algod_client(), txn_count=3
-            )
+            ),
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

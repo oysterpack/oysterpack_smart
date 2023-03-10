@@ -55,7 +55,7 @@ class AuctionManagerClient(AppClient):
 
         if app_client.app.contract.name != auction_manager.app.name:
             raise AssertionError(
-                 f"contract name does not match: {app_client.app.contract.name} != {auction_manager.app.name}"
+                f"contract name does not match: {app_client.app.contract.name} != {auction_manager.app.name}"
             )
 
         super().__init__(app_client)

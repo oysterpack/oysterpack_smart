@@ -40,7 +40,6 @@ from tests.algorand.test_support import AlgorandTestCase
 
 
 class AlgorandTest(AlgorandTestCase):
-
     def test_create_kmd_client(self):
         # create a wallet using valid connection params
         kmd_client = create_kmd_client(

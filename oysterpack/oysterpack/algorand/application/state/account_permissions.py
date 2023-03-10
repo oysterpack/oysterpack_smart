@@ -41,5 +41,5 @@ class AccountPermissions(AccountBitSet):
 
     def __getitem__(self, acct: Expr) -> "AccountPermissions":
         asv = copy(self)
-        asv.acct = acct
+        asv._acct = acct
         return asv

@@ -54,8 +54,6 @@ app = Application(
 )
 
 
-
-
 # pylint: disable=invalid-name
 
 
@@ -85,9 +83,9 @@ def get_auction_creation_fees(*, output: abi.Uint64) -> Expr:
 
 @app.external
 def create_auction(
-        storage_fees: abi.PaymentTransaction,
-        *,
-        output: abi.Uint64,
+    storage_fees: abi.PaymentTransaction,
+    *,
+    output: abi.Uint64,
 ) -> Expr:
     return Seq(
         Assert(

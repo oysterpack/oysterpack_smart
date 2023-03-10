@@ -17,7 +17,10 @@ from beaker.sandbox import SandboxAccount
 from beaker.sandbox.kmd import get_sandbox_default_wallet
 from ulid import ULID
 
-from oysterpack.algorand.client.accounts import get_auth_address_callable, get_algo_balance
+from oysterpack.algorand.client.accounts import (
+    get_auth_address_callable,
+    get_algo_balance,
+)
 from oysterpack.algorand.client.accounts.kmd import (
     WalletTransactionSigner,
     WalletSession,
@@ -35,6 +38,14 @@ class WalletAccount:
     wallet: Wallet
     account: Address
 
+def get_sandbox_accounts() -> list[SandboxAccount]:
+    def key(account: SandboxAccount) -> int:
+        return get_algo_balance(Address(account.address), sandbox.get_algod_client())
+
+    return sorted(
+        sandbox.get_accounts(),
+        key=key,
+    )
 
 class AlgorandTestCase(OysterPackTestCase):
     kmd_client: Final[kmd.KMDClient] = sandbox.kmd.get_client()
@@ -43,13 +54,7 @@ class AlgorandTestCase(OysterPackTestCase):
     sandbox_default_wallet: Final[Wallet] = get_sandbox_default_wallet()
 
     def get_sandbox_accounts(self) -> list[SandboxAccount]:
-        def key(account: SandboxAccount) -> int:
-            return get_algo_balance(Address(account.address), self.algod_client)
-
-        return sorted(
-            sandbox.get_accounts(),
-            key=key,
-        )
+        return get_sandbox_accounts()
 
     def sandbox_default_wallet_transaction_signer(self) -> WalletTransactionSigner:
         return WalletTransactionSigner(
@@ -79,9 +84,9 @@ class AlgorandTestCase(OysterPackTestCase):
 
     @staticmethod
     def sandbox_application_client(
-            app: Application,
-            sender: Address | None = None,
-            signer: TransactionSigner | None = None,
+        app: Application,
+        sender: Address | None = None,
+        signer: TransactionSigner | None = None,
     ) -> ApplicationClient:
         """
         :param app: Application instance
@@ -89,7 +94,7 @@ class AlgorandTestCase(OysterPackTestCase):
         """
 
         if signer is None:
-            account = sandbox.get_accounts().pop()
+            account = get_sandbox_accounts().pop()
             signer = account.signer
         return ApplicationClient(
             client=sandbox.get_algod_client(),
@@ -107,26 +112,26 @@ class AlgorandTestCase(OysterPackTestCase):
             sender=Address(funder.address),
             receiver=account,
             amount=MicroAlgos(1 * algo),
-            suggested_params=self.algod_client.suggested_params()
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txid)
 
-        return WalletAccount(wallet,account)
+        return WalletAccount(wallet, account)
 
     def create_test_asset(
-            self,
-            asset_name: str,
-            total_base_units: int = 1_000_000_000_000_000,
-            decimals: int = 6,
-            manager: Address | None = None,
-            reserve: Address | None = None,
-            freeze: Address | None = None,
-            clawback: Address | None = None,
-            unit_name: str | None = None,
-            url: str = "",
-            metadata_hash: bytes | None = None,
+        self,
+        asset_name: str,
+        total_base_units: int = 1_000_000_000_000_000,
+        decimals: int = 6,
+        manager: Address | None = None,
+        reserve: Address | None = None,
+        freeze: Address | None = None,
+        clawback: Address | None = None,
+        unit_name: str | None = None,
+        url: str = "",
+        metadata_hash: bytes | None = None,
     ) -> tuple[AssetId, WalletAccount]:
         """
         Creates a new asset using the first account in the sandbox default wallet as the administrative accounts.
@@ -165,11 +170,11 @@ class AlgorandTestCase(OysterPackTestCase):
         return AssetId(tx_info["asset-index"]), sender
 
     def _optin_asset_and_seed_balance(
-            self,
-            receiver: Address,
-            asset_id: AssetId,
-            amount: int,
-            asset_reserve: WalletAccount,
+        self,
+        receiver: Address,
+        asset_id: AssetId,
+        amount: int,
+        asset_reserve: WalletAccount,
     ):
         txn = asset.opt_in(
             account=receiver,

@@ -12,7 +12,7 @@ When the auction is finalized, the ALGO paid for storage costs will be closed ou
 
 from typing import Final, Any, Callable
 
-from algosdk.abi import Method
+from algosdk.abi.method import Method
 from beaker.application import Application
 from beaker.application_specification import ApplicationSpecification
 from beaker.consts import algo
@@ -594,6 +594,7 @@ def auction_storage_fees() -> MicroAlgos:
         + (per_state_int_entry_fee * total_int_entries)
         + (per_state_byte_slice_entry_fee * total_byte_slice_entries)
     )
+
 
 def get_auction_method(contract_method: Callable[..., Expr]) -> Method:
     return get_contract_method(app.build(), contract_method)

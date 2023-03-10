@@ -4,7 +4,7 @@ Provides client side support to interact with Algorand smart contracts, i.e., ap
 from base64 import b64decode
 from typing import Any, Callable
 
-from algosdk.abi import Method
+from algosdk.abi.method import Method
 from algosdk.error import AlgodHTTPError
 from algosdk.logic import get_application_address
 from algosdk.transaction import SuggestedParams

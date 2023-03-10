@@ -5,7 +5,7 @@ Bitset data structure that can be used to store application state.
 from abc import ABC, abstractmethod
 from copy import copy
 
-from beaker.state import AccountStateValue, ApplicationStateValue
+from beaker.state import LocalStateValue, GlobalStateValue
 from pyteal import Int, TealType, Expr
 from pyteal.ast import abi
 
@@ -45,7 +45,7 @@ class BitSetState(ABC):
         """
 
 
-class ApplicationBitSet(ApplicationStateValue, BitSetState):
+class ApplicationBitSet(GlobalStateValue, BitSetState):
     """
     Used to store application global state in a bitset data structure.
 
@@ -75,7 +75,7 @@ class ApplicationBitSet(ApplicationStateValue, BitSetState):
         return (self.get() & mask.get()) == mask.get()
 
 
-class AccountBitSet(AccountStateValue, BitSetState):
+class AccountBitSet(LocalStateValue, BitSetState):
     """
     BitSet with 64 bits
     """
@@ -104,7 +104,7 @@ class AccountBitSet(AccountStateValue, BitSetState):
 
     def __getitem__(self, acct: Expr) -> "AccountBitSet":
         asv = copy(self)
-        asv.acct = acct
+        asv._acct = acct
         return asv
 
 

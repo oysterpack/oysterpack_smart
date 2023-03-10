@@ -14,7 +14,7 @@ from oysterpack.apps.auction_app.client.auction_client import (
     AuctionBidder,
     AuctionPhase,
 )
-from oysterpack.apps.auction_app.contracts.auction import Auction
+from oysterpack.apps.auction_app.contracts import auction
 from oysterpack.apps.auction_app.domain.auction import AuctionAppId
 
 
@@ -144,4 +144,4 @@ class SearchAuctionEvents:
                 case _:
                     raise AssertionError(f"event not supported: {filter}")
         elif isinstance(filter, AuctionPhase):
-            return f"{Auction.APP_NAME}/{filter}".encode()
+            return f"{auction.APP_NAME}/{filter}".encode()

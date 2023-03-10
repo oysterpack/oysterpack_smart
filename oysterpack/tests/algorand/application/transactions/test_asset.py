@@ -1,9 +1,7 @@
 import unittest
-from typing import Callable
 
 from algosdk.transaction import wait_for_confirmation
 from beaker import Application, Authorize
-from beaker.decorators import external, delete
 from pyteal import (
     Expr,
     Global,
@@ -14,6 +12,7 @@ from pyteal import (
     Seq,
     Assert,
     AccountParam,
+    ABIReturnSubroutine,
 )
 from pyteal.ast import abi
 
@@ -26,87 +25,88 @@ from oysterpack.algorand.application.transactions.asset import (
     set_optout_txn_fields,
     set_transfer_txn_fields,
 )
-from oysterpack.algorand.client.model import Address
 from oysterpack.algorand.client.transactions import asset as client_assets
 from tests.algorand.test_support import AlgorandTestCase
 
+app = Application("foo")
 
-class Foo(Application):
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def execute_optin_asset(self, asset: abi.Asset) -> Expr:
-        return execute_optin(asset)
 
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def execute_optout_asset(self, asset: abi.Asset) -> Expr:
-        return Seq(
-            maybe_value := AssetHolding.balance(
-                Global.current_application_address(), asset.asset_id()
+@app.external(authorize=Authorize.only(Global.creator_address()))
+def execute_optin_asset(asset: abi.Asset) -> Expr:
+    return execute_optin(asset)
+
+
+@app.external(authorize=Authorize.only(Global.creator_address()))
+def execute_optout_asset(asset: abi.Asset) -> Expr:
+    return Seq(
+        maybe_value := AssetHolding.balance(
+            Global.current_application_address(), asset.asset_id()
+        ),
+        If(maybe_value.hasValue(), execute_optout(asset)),
+    )
+
+
+@app.external
+def execute_asset_transfer(receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64):
+    return execute_transfer(receiver, asset, amount)
+
+
+@app.external(authorize=Authorize.only(Global.creator_address()))
+def submit_optin_asset(asset: abi.Asset) -> Expr:
+    return Seq(
+        InnerTxnBuilder.Begin(),
+        set_optin_txn_fields(asset),
+        InnerTxnBuilder.Submit(),
+    )
+
+
+@app.external(authorize=Authorize.only(Global.creator_address()))
+def submit_optout_asset(asset: abi.Asset) -> Expr:
+    return Seq(
+        maybe_value := AssetHolding.balance(
+            Global.current_application_address(), asset.asset_id()
+        ),
+        If(
+            maybe_value.hasValue(),
+            Seq(
+                InnerTxnBuilder.Begin(),
+                set_optout_txn_fields(asset),
+                InnerTxnBuilder.Submit(),
             ),
-            If(maybe_value.hasValue(), execute_optout(asset)),
-        )
+        ),
+    )
 
-    @external
-    def execute_asset_transfer(
-        self, receiver: abi.Account, asset: abi.Asset, amount: abi.Uint64
-    ):
-        return execute_transfer(receiver, asset, amount)
 
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def submit_optin_asset(self, asset: abi.Asset) -> Expr:
-        return Seq(
-            InnerTxnBuilder.Begin(),
-            set_optin_txn_fields(asset),
-            InnerTxnBuilder.Submit(),
-        )
+@app.external
+def submit_asset_transfer(
+    receiver: abi.Account,
+    asset: abi.Asset,
+    amount: abi.Uint64,
+):
+    return Seq(
+        InnerTxnBuilder.Begin(),
+        set_transfer_txn_fields(receiver=receiver, asset=asset, amount=amount),
+        InnerTxnBuilder.Submit(),
+    )
 
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def submit_optout_asset(self, asset: abi.Asset) -> Expr:
-        return Seq(
-            maybe_value := AssetHolding.balance(
-                Global.current_application_address(), asset.asset_id()
-            ),
-            If(
-                maybe_value.hasValue(),
-                Seq(
-                    InnerTxnBuilder.Begin(),
-                    set_optout_txn_fields(asset),
-                    InnerTxnBuilder.Submit(),
-                ),
-            ),
-        )
 
-    @external
-    def submit_asset_transfer(
-        self,
-        receiver: abi.Account,
-        asset: abi.Asset,
-        amount: abi.Uint64,
-    ):
-        return Seq(
-            InnerTxnBuilder.Begin(),
-            set_transfer_txn_fields(receiver=receiver, asset=asset, amount=amount),
-            InnerTxnBuilder.Submit(),
-        )
-
-    @delete(authorize=Authorize.only(Global.creator_address()))
-    def delete(self) -> Expr:
-        return Seq(
-            # assert that the app has opted out of all assets
-            total_assets := AccountParam.totalAssets(
-                Global.current_application_address()
-            ),
-            Assert(total_assets.value() == Int(0)),
-            # close out the account back to the creator
-            InnerTxnBuilder.Execute(payment.close_out(Global.creator_address())),
-        )
+@app.delete(authorize=Authorize.only(Global.creator_address()))
+def delete() -> Expr:
+    return Seq(
+        # assert that the app has opted out of all assets
+        total_assets := AccountParam.totalAssets(Global.current_application_address()),
+        Assert(total_assets.value() == Int(0)),
+        # close out the account back to the creator
+        InnerTxnBuilder.Execute(payment.close_out(Global.creator_address())),
+    )
 
 
 class AssetOptInOptOutTestCase(AlgorandTestCase):
     def optin_optout_test_template(
         self,
-        optin: Callable[..., Expr],
-        optout: Callable[..., Expr],
-        transfer: Callable[..., Expr],
+        optin: ABIReturnSubroutine,
+        optout: ABIReturnSubroutine,
+        transfer: ABIReturnSubroutine,
     ):
         """
         Test template
@@ -120,9 +120,10 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
         :return:
         """
 
-        app_client = self.sandbox_application_client(Foo())
         # create asset
-        asset_id, asset_manager_address = self.create_test_asset(asset_name="GOLD")
+        asset_id, asset_manager = self.create_test_asset(asset_name="GOLD")
+
+        app_client = self.sandbox_application_client(app)
 
         account_starting_balance = self.algod_client.account_info(app_client.sender)[
             "amount"
@@ -156,21 +157,21 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
 
         # transfer assets to app
         txn = client_assets.transfer(
-            sender=Address(asset_manager_address),
+            sender=asset_manager.account,
             receiver=app_client.get_application_account_info()["address"],
             asset_id=asset_id,
             suggested_params=app_client.client.suggested_params(),
             amount=10000,
         )
-        signed_txn = self.sandbox_default_wallet.sign_transaction(txn)
+        signed_txn = asset_manager.wallet.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txid)
 
         # transfer assets back to manager account
-        print(f"asset_id={asset_id} asset_manager_address={asset_manager_address}")
+        print(f"asset_id={asset_id} asset_manager_address={asset_manager.account}")
         app_client.call(
             transfer,
-            receiver=asset_manager_address,
+            receiver=asset_manager.account,
             asset=asset_id,
             amount=2000,
             suggested_params=sp,
@@ -180,7 +181,7 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
         app_account_info = app_client.get_application_account_info()
         self.assertEqual(app_account_info["assets"][0]["amount"], 8000)
         account_asset_info = app_client.client.account_asset_info(
-            asset_manager_address, asset_id
+            asset_manager.account, asset_id
         )
         self.assertEqual(
             account_asset_info["asset-holding"]["amount"], 1_000_000_000_000_000 - 8000
@@ -214,16 +215,16 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
 
     def test_execute_optin_optout(self):
         self.optin_optout_test_template(
-            Foo.execute_optin_asset,
-            Foo.execute_optout_asset,
-            Foo.execute_asset_transfer,
+            execute_optin_asset,
+            execute_optout_asset,
+            execute_asset_transfer,
         )
 
     def test_submit_optin_optout(self):
         self.optin_optout_test_template(
-            Foo.submit_optin_asset,
-            Foo.submit_optout_asset,
-            Foo.submit_asset_transfer,
+            submit_optin_asset,
+            submit_optout_asset,
+            submit_asset_transfer,
         )
 
 

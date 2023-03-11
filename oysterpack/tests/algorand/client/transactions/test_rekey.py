@@ -1,6 +1,8 @@
+import json
 import unittest
 
-from algosdk.transaction import wait_for_confirmation
+from algosdk.account import generate_account
+from algosdk.transaction import wait_for_confirmation, Multisig, MultisigTransaction
 from beaker import sandbox
 from beaker.consts import algo
 
@@ -17,7 +19,7 @@ from tests.algorand.test_support import AlgorandTestCase
 
 
 class RekeyTestCase(AlgorandTestCase):
-    def test_rekey_account_transaction_and_then_revoke_rekeyed_account(self):
+    def test_rekey_account_transaction_and_then_rekey_back(self):
         """
         Test Steps
         ----------
@@ -144,6 +146,208 @@ class RekeyTestCase(AlgorandTestCase):
             signed_txn = wallet_session.sign_transaction(txn)
             txn_id = self.algod_client.send_transaction(signed_txn)
             wait_for_confirmation(self.algod_client, txn_id)
+
+    def test_rekey_multisig_with_simple_key(self):
+        # SETUP
+        # create multsig
+        accounts = {
+            address: private_key
+            for private_key, address in
+            (generate_account() for i in range(3))
+        }
+        multisig = Multisig(
+            version=1,
+            threshold=len(accounts),
+            addresses=accounts.keys()
+        )
+
+        # fund multisig
+        funder = self.get_sandbox_accounts().pop()
+        txn = transfer_algo(
+            sender=funder.address,
+            receiver=multisig.address(),
+            amount=MicroAlgos(1 * algo),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        signed_txn = txn.sign(funder.private_key)
+        txn_id = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txn_id)
+        multisig_account_info = self.algod_client.account_info(multisig.address())
+        print(json.dumps(multisig_account_info, indent=3))
+
+        multisig_auth_account_private_key, multisig_auth_account = generate_account()
+
+        txn = rekey(
+            account=multisig.address(),
+            rekey_to=multisig_auth_account,
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        multisig_txn = MultisigTransaction(txn, multisig)
+        for private_key in accounts.values():
+            multisig_txn.sign(private_key)
+        txn_id = self.algod_client.send_transaction(multisig_txn)
+        wait_for_confirmation(self.algod_client, txn_id)
+
+        # confirm that the account has been rekeyed
+        multisig_account_info = self.algod_client.account_info(multisig.address())
+        print("after rekeying:", json.dumps(multisig_account_info, indent=3))
+        self.assertEqual(
+            get_auth_address(address=multisig.address(), algod_client=self.algod_client),
+            multisig_auth_account,
+        )
+
+        txn = transfer_algo(
+            sender=multisig.address(),
+            receiver=funder.address,
+            amount=MicroAlgos(10000),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        signed_txn = txn.sign(multisig_auth_account_private_key)
+        txn_id = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txn_id)
+
+    def test_rekey_multisig_with_underlying_keys_rekeyed(self):
+        # SETUP
+        # create multsig
+        accounts = [generate_account() for i in range(3)]
+        multisig = Multisig(
+            version=1,
+            threshold=len(accounts),
+            addresses=[account for (_private_key, account) in accounts]
+        )
+
+        # fund multisig
+        funder = self.get_sandbox_accounts().pop()
+        txn = transfer_algo(
+            sender=funder.address,
+            receiver=multisig.address(),
+            amount=MicroAlgos(1 * algo),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        signed_txn = txn.sign(funder.private_key)
+        txn_id = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txn_id)
+        multisig_account_info = self.algod_client.account_info(multisig.address())
+        print(json.dumps(multisig_account_info, indent=3))
+
+        # fund underlying accounts
+        for (_private_key, account) in accounts:
+            funder = self.get_sandbox_accounts().pop()
+            txn = transfer_algo(
+                sender=funder.address,
+                receiver=account,
+                amount=MicroAlgos(1 * algo),
+                suggested_params=self.algod_client.suggested_params(),
+            )
+            signed_txn = txn.sign(funder.private_key)
+            txn_id = self.algod_client.send_transaction(signed_txn)
+            wait_for_confirmation(self.algod_client, txn_id)
+
+        # rekey the underlying accounts
+        auth_accounts = [generate_account() for i in range(3)]
+
+        for (private_key, account), (_auth_private_key, auth_account) in zip(accounts, auth_accounts):
+            txn = rekey(
+                account=account,
+                rekey_to=auth_account,
+                suggested_params=self.algod_client.suggested_params(),
+            )
+            signed_txn = txn.sign(private_key)
+            txn_id = self.algod_client.send_transaction(signed_txn)
+            wait_for_confirmation(self.algod_client, txn_id)
+
+        for (private_key, account), (_auth_private_key, auth_account) in zip(accounts, auth_accounts):
+            self.assertEqual(
+                get_auth_address(address=account, algod_client=self.algod_client),
+                auth_account,
+            )
+
+
+        # transfer funds from multisig
+        txn = transfer_algo(
+            sender=multisig.address(),
+            receiver=funder.address,
+            amount=MicroAlgos(10000),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        multisig_txn = MultisigTransaction(txn, multisig)
+        for (private_key, _account) in accounts:
+            multisig_txn.sign(private_key)
+        txn_id = self.algod_client.send_transaction(multisig_txn)
+        wait_for_confirmation(self.algod_client, txn_id)
+
+    def test_rekey_multisig_with_multisig(self):
+        # SETUP
+        # create multsig
+        accounts = [generate_account() for i in range(3)]
+        multisig = Multisig(
+            version=1,
+            threshold=len(accounts),
+            addresses=[account for (_private_key, account) in accounts]
+        )
+
+        # fund multisig
+        funder = self.get_sandbox_accounts().pop()
+        txn = transfer_algo(
+            sender=funder.address,
+            receiver=multisig.address(),
+            amount=MicroAlgos(1 * algo),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        signed_txn = txn.sign(funder.private_key)
+        txn_id = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txn_id)
+        multisig_account_info = self.algod_client.account_info(multisig.address())
+        print(json.dumps(multisig_account_info, indent=3))
+
+        # create second multisig, which will be using for rekeying
+        auth_accounts = [generate_account() for i in range(3)]
+        auth_multisig = Multisig(
+            version=1,
+            threshold=len(accounts),
+            addresses=[account for (_private_key, account) in auth_accounts]
+        )
+
+        # fund multisig
+        funder = self.get_sandbox_accounts().pop()
+        txn = transfer_algo(
+            sender=funder.address,
+            receiver=auth_multisig.address(),
+            amount=MicroAlgos(1 * algo),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        signed_txn = txn.sign(funder.private_key)
+        txn_id = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txn_id)
+        multisig_account_info = self.algod_client.account_info(auth_multisig.address())
+        print(json.dumps(multisig_account_info, indent=3))
+
+        # rekey multisig to auth_multisig
+        txn = rekey(
+            account=multisig.address(),
+            rekey_to=auth_multisig.address(),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        multisig_txn = MultisigTransaction(txn, multisig)
+        for (private_key, _account) in accounts:
+            multisig_txn.sign(private_key)
+        txn_id = self.algod_client.send_transaction(multisig_txn)
+        wait_for_confirmation(self.algod_client, txn_id)
+        multisig_account_info = self.algod_client.account_info(auth_multisig.address())
+        print(json.dumps(multisig_account_info, indent=3))
+
+        # transfer funds from multisig
+        txn = transfer_algo(
+            sender=multisig.address(),
+            receiver=funder.address,
+            amount=MicroAlgos(10000),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+        multisig_txn = MultisigTransaction(txn, auth_multisig)
+        for (private_key, _account) in auth_accounts:
+            multisig_txn.sign(private_key)
+        txn_id = self.algod_client.send_transaction(multisig_txn)
+        wait_for_confirmation(self.algod_client, txn_id)
 
 
 if __name__ == "__main__":

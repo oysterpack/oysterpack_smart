@@ -433,7 +433,7 @@ class AuctionTestCase(AlgorandTestCase):
 
         seller_app_client.optin_asset(gold_asset_id)
 
-        with self.subTest("auction asset balancs must be > 0"):
+        with self.subTest("auction asset balances must be > 0"):
             with self.assertRaises(AssertionError):
                 seller_app_client.commit(start_time, end_time)
 

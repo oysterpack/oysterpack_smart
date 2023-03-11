@@ -782,6 +782,7 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
         The timestamp for the latest confirmed block that is used to determine the bidding session window.
         """
         result = self._app_client.call(
-            auction.latest_timestamp, note=self.LATEST_TIMESTAMP_NOTE.encode()
+            auction.latest_timestamp,
+            note=self.LATEST_TIMESTAMP_NOTE.encode(),
         )
         return datetime.fromtimestamp(result.return_value, UTC)

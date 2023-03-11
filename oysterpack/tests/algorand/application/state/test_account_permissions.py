@@ -4,7 +4,6 @@ from typing import Final
 import algosdk.error
 from beaker import Application, Authorize, sandbox
 from beaker.client import ApplicationClient
-from beaker.decorators import external, opt_in, delete
 from beaker.sandbox.kmd import SandboxAccount
 from pyteal import Global, Expr, Seq, Approve, App, If, Int
 from pyteal.ast import abi
@@ -15,52 +14,59 @@ from oysterpack.algorand.application.state.account_permissions import (
 from oysterpack.algorand.application.state.bitset import decode_bit_mask
 
 
-class AccountPermissionsManager(Application):
+class AccountPermissionsManagerState:
     account_permissions: Final[AccountPermissions] = AccountPermissions()
 
-    @opt_in
-    def optin(self) -> Expr:
-        return self.initialize_account_state()
 
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def grant(
-        self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
-    ) -> Expr:
-        account_permissions = self.account_permissions[account.address()]
-        return Seq(
-            account_permissions.grant(permissions),
-            output.set(account_permissions.get()),
+app = Application("AccountPermissionsManager", state=AccountPermissionsManagerState())
+
+
+@app.opt_in
+def optin() -> Expr:
+    return app.initialize_local_state()
+
+
+@app.external(authorize=Authorize.only(Global.creator_address()))
+def grant(account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64) -> Expr:
+    account_permissions = app.state.account_permissions[account.address()]
+    return Seq(
+        account_permissions.grant(permissions),
+        output.set(account_permissions.get()),
+    )
+
+
+@app.external(authorize=Authorize.only(Global.creator_address()))
+def revoke(
+    account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
+) -> Expr:
+    account_permissions = app.state.account_permissions[account.address()]
+    return Seq(
+        account_permissions.revoke(permissions),
+        output.set(account_permissions.get()),
+    )
+
+
+@app.external(authorize=Authorize.only(Global.creator_address()))
+def revoke_all(account: abi.Account) -> Expr:
+    return app.state.account_permissions[account.address()].revoke_all()
+
+
+@app.external(read_only=True)
+def contains(
+    account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
+) -> Expr:
+    return output.set(
+        If(
+            App.optedIn(account.address(), Global.current_application_id()),
+            app.state.account_permissions[account.address()].contains(permissions),
+            Int(0),
         )
+    )
 
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def revoke(
-        self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
-    ) -> Expr:
-        account_permissions = self.account_permissions[account.address()]
-        return Seq(
-            account_permissions.revoke(permissions),
-            output.set(account_permissions.get()),
-        )
 
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def revoke_all(self, account: abi.Account) -> Expr:
-        return self.account_permissions[account.address()].revoke_all()
-
-    @external(read_only=True)
-    def contains(
-        self, account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
-    ) -> Expr:
-        return output.set(
-            If(
-                App.optedIn(account.address(), Global.current_application_id()),
-                self.account_permissions[account.address()].contains(permissions),
-                Int(0),
-            )
-        )
-
-    @delete(authorize=Authorize.only(Global.creator_address()))
-    def delete(self) -> Expr:
-        return Approve()
+@app.delete(authorize=Authorize.only(Global.creator_address()))
+def delete() -> Expr:
+    return Approve()
 
 
 class AccountPermissionsTestCase(unittest.TestCase):
@@ -86,7 +92,7 @@ class AccountPermissionsTestCase(unittest.TestCase):
             client=sandbox.get_algod_client(),
             sender=cls.owner.address,
             signer=cls.owner.signer,
-            app=AccountPermissionsManager(),
+            app=app,
         )
 
         print("created smart contract:", cls.owner_client.create())
@@ -111,7 +117,7 @@ class AccountPermissionsTestCase(unittest.TestCase):
 
         _sk, address = generate_account()
         result = self.owner_client.call(
-            AccountPermissionsManager.contains, account=address, permissions=self.PERM_0
+            contains, account=address, permissions=self.PERM_0
         )
         print(result.decode_error)
         self.assertEqual(result.return_value, False)
@@ -119,14 +125,10 @@ class AccountPermissionsTestCase(unittest.TestCase):
     def test_permissions(self):
         with self.subTest("grant permissions"):
             result = self.owner_client.call(
-                AccountPermissionsManager.grant,
+                grant,
                 account=self.user.address,
                 permissions=self.PERM_0 | self.PERM_1,
             )
-            account_app_info = self.user_client.client.account_application_info(
-                self.user.address, self.user_client.app_id
-            )
-            # pp(account_app_info)
             self.assertEqual(result.return_value, self.PERM_0 | self.PERM_1)
 
             # check permissions
@@ -139,7 +141,7 @@ class AccountPermissionsTestCase(unittest.TestCase):
             for perms, expected_result in permissions:
                 # user's permissions can be checked by any account
                 result = self.owner_client.call(
-                    AccountPermissionsManager.contains,
+                    contains,
                     account=self.user.address,
                     permissions=perms,
                 )
@@ -147,7 +149,7 @@ class AccountPermissionsTestCase(unittest.TestCase):
 
                 # user can check their own permissons
                 result = self.user_client.call(
-                    AccountPermissionsManager.contains,
+                    contains,
                     account=self.user.address,
                     permissions=perms,
                 )
@@ -155,7 +157,7 @@ class AccountPermissionsTestCase(unittest.TestCase):
 
             with self.subTest("revoke permission"):
                 result = self.owner_client.call(
-                    AccountPermissionsManager.revoke,
+                    revoke,
                     account=self.user.address,
                     permissions=self.PERM_0,
                 )
@@ -163,24 +165,24 @@ class AccountPermissionsTestCase(unittest.TestCase):
 
             with self.subTest("revoke all permissions"):
                 result = self.owner_client.call(
-                    AccountPermissionsManager.grant,
+                    grant,
                     account=self.user.address,
                     permissions=self.PERM_2,
                 )
                 self.assertTrue(result.return_value > 0)
 
                 self.owner_client.call(
-                    AccountPermissionsManager.revoke_all,
+                    revoke_all,
                     account=self.user.address,
                 )
-                account_app_info = self.user_client.get_account_state()
+                account_app_info = self.user_client.get_local_state()
                 # assert that the user has no permissions set
                 self.assertEqual(account_app_info["account_permissions"], 0)
 
     def test_with_negative_permission(self):
         with self.assertRaises(algosdk.error.ABIEncodingError) as err:
             self.owner_client.call(
-                AccountPermissionsManager.grant,
+                grant,
                 account=self.user.address,
                 permissions=-1,
             )
@@ -188,16 +190,16 @@ class AccountPermissionsTestCase(unittest.TestCase):
 
     def test_with_zero_permission(self):
         self.owner_client.call(
-            AccountPermissionsManager.revoke_all,
+            revoke_all,
             account=self.user.address,
         )
         self.owner_client.call(
-            AccountPermissionsManager.grant,
+            grant,
             account=self.user.address,
             permissions=self.PERM_0 | self.PERM_63,
         )
         result = self.owner_client.call(
-            AccountPermissionsManager.grant,
+            grant,
             account=self.user.address,
             permissions=0,
         )

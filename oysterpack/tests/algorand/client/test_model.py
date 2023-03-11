@@ -44,13 +44,12 @@ class AccountModelTestCase(AlgorandTestCase):
         self.assertEqual(sk_mnemonic.to_private_key(), sk)
 
 
-class Foo(Application):
-    pass
+app = Application("foo")
 
 
 class AppIdTestCase(AlgorandTestCase):
     def test_to_address(self):
-        app_client = self.sandbox_application_client(Foo())
+        app_client = self.sandbox_application_client(app)
 
         app_id, app_addess, _tx_id = app_client.create()
         app_id = AppId(app_id)
@@ -61,7 +60,9 @@ class AssetHoldingTestCase(AlgorandTestCase):
     def test_from_data(self):
         # SETUP
         asset_id, creator = self.create_test_asset("GOLD")
-        account_asset_info = self.algod_client.account_asset_info(creator, asset_id)
+        account_asset_info = self.algod_client.account_asset_info(
+            creator.account, asset_id
+        )
 
         # ACT
         asset_holding = AssetHolding.from_data(account_asset_info)

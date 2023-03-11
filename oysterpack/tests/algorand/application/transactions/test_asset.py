@@ -2,6 +2,7 @@ import unittest
 
 from algosdk.transaction import wait_for_confirmation
 from beaker import Application, Authorize
+from beaker.client import ApplicationClient
 from pyteal import (
     Expr,
     Global,
@@ -24,6 +25,11 @@ from oysterpack.algorand.application.transactions.asset import (
     set_optin_txn_fields,
     set_optout_txn_fields,
     set_transfer_txn_fields,
+)
+from oysterpack.algorand.client.accounts import get_auth_address_callable
+from oysterpack.algorand.client.accounts.kmd import (
+    WalletSession,
+    WalletTransactionSigner,
 )
 from oysterpack.algorand.client.transactions import asset as client_assets
 from tests.algorand.test_support import AlgorandTestCase
@@ -123,14 +129,25 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
         # create asset
         asset_id, asset_manager = self.create_test_asset(asset_name="GOLD")
 
-        app_client = self.sandbox_application_client(app)
+        app_client = ApplicationClient(
+            client=self.algod_client,
+            app=app,
+            sender=asset_manager.account,
+            signer=WalletTransactionSigner(
+                WalletSession.from_wallet(
+                    asset_manager.wallet, get_auth_address_callable(self.algod_client)
+                )
+            ),
+        )
+
+        print(f"app_client.sender = {app_client.sender}")
 
         account_starting_balance = self.algod_client.account_info(app_client.sender)[
             "amount"
         ]
 
         # create app
-        app_client.create()
+        app_client.create(sender=asset_manager.account)
 
         # opt app into asset
 
@@ -143,7 +160,9 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
         sp = self.algod_client.suggested_params()
         sp.fee = sp.min_fee * 2
         sp.flat_fee = True
-        app_client.call(optin, asset=asset_id, suggested_params=sp)
+        app_client.call(
+            optin, asset=asset_id, suggested_params=sp, sender=asset_manager.account
+        )
 
         # assert that the app holds the asset
         app_account_info = app_client.get_application_account_info()
@@ -175,6 +194,7 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
             asset=asset_id,
             amount=2000,
             suggested_params=sp,
+            sender=asset_manager.account,
         )
 
         # assert that the assets were transferred
@@ -187,12 +207,17 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
             account_asset_info["asset-holding"]["amount"], 1_000_000_000_000_000 - 8000
         )
 
-        app_client.call(optout, asset=asset_id, suggested_params=sp)
+        app_client.call(
+            optout,
+            asset=asset_id,
+            suggested_params=sp,
+            sender=asset_manager.account,
+        )
 
         app_account_info = app_client.get_application_account_info()
         self.assertEqual(app_account_info["total-assets-opted-in"], 0)
 
-        app_client.delete(suggested_params=sp)
+        app_client.delete(suggested_params=sp, sender=asset_manager.account)
         account_ending_balance = self.algod_client.account_info(app_client.sender)[
             "amount"
         ]

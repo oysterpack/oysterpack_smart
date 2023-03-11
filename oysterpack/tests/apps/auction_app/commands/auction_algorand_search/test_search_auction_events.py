@@ -21,7 +21,7 @@ from oysterpack.apps.auction_app.commands.auction_algorand_search.search_auction
     SearchAuctionEventsRequest,
     AuctionEvent,
 )
-from oysterpack.apps.auction_app.contracts.auction import Auction
+from oysterpack.apps.auction_app.contracts import auction
 from tests.algorand.test_support import AlgorandTestCase
 
 
@@ -129,7 +129,7 @@ class SearchAuctionEventsTestCase(AlgorandTestCase):
         bidder_client = AuctionBidder(
             ApplicationClient(
                 client=self.algod_client,
-                app=Auction(),
+                app=auction.app,
                 app_id=auction_client.app_id,
                 signer=bidder.signer,
                 sender=bidder.address,

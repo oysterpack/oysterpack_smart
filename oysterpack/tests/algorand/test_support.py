@@ -38,6 +38,7 @@ class WalletAccount:
     wallet: Wallet
     account: Address
 
+
 def get_sandbox_accounts() -> list[SandboxAccount]:
     def key(account: SandboxAccount) -> int:
         return get_algo_balance(Address(account.address), sandbox.get_algod_client())
@@ -46,6 +47,7 @@ def get_sandbox_accounts() -> list[SandboxAccount]:
         sandbox.get_accounts(),
         key=key,
     )
+
 
 class AlgorandTestCase(OysterPackTestCase):
     kmd_client: Final[kmd.KMDClient] = sandbox.kmd.get_client()

@@ -315,7 +315,7 @@ def commit(start_time: abi.Uint64, end_time: abi.Uint64) -> Expr:
     When the seller is done setting up the auction, the final step is to commit the auction.
     Once the auction is committed, it can no longer be changed.
 
-    :param start_time: when the bidding session starts
+    :param start_time: when the bidding session starts - time must be >= Global.latest_timestamp() - Int(10)
     :param end_time: when the bidding session ends
     """
     return Seq(
@@ -332,8 +332,9 @@ def commit(start_time: abi.Uint64, end_time: abi.Uint64) -> Expr:
         total_assets := AccountParam.totalAssets(Global.current_application_address()),
         Assert(
             total_assets.value() > Int(1),
-            start_time.get() >= Global.latest_timestamp(),
+            start_time.get() >= Global.latest_timestamp() - Int(10),
             end_time.get() > start_time.get(),
+            end_time.get() > Global.latest_timestamp(),
         ),
         app.state.start_time.set(start_time.get()),
         app.state.end_time.set(end_time.get()),

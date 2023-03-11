@@ -2,9 +2,8 @@ import unittest
 from typing import Final
 
 import algosdk.error
-from beaker import Application, Authorize, sandbox, create
+from beaker import Application, Authorize, sandbox
 from beaker.client import ApplicationClient
-from beaker.decorators import external, opt_in, delete
 from beaker.sandbox.kmd import SandboxAccount
 from pyteal import Global, Expr, Seq, Approve, App, If, Int
 from pyteal.ast import abi
@@ -16,79 +15,89 @@ from oysterpack.algorand.application.state.bitset import (
 )
 
 
-class BitSetApp(Application):
+class BitSetAppState:
     app_bitset: Final[ApplicationBitSet] = ApplicationBitSet()
     account_bitset: Final[AccountBitSet] = AccountBitSet()
 
-    @create
-    def create(self) -> Expr:
-        return self.initialize_application_state()
 
-    @opt_in
-    def optin(self) -> Expr:
-        return self.initialize_account_state()
+app = Application("BitSetApp", state=BitSetAppState())
 
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def set_account_bits(
-        self, account: abi.Account, mask: abi.Uint64, *, output: abi.Uint64
-    ) -> Expr:
-        account_bitset = self.account_bitset[account.address()]
-        return Seq(
-            account_bitset.set_bits(mask),
-            output.set(account_bitset.get()),
+
+@app.create
+def create() -> Expr:
+    return app.initialize_global_state()
+
+
+@app.opt_in
+def optin() -> Expr:
+    return app.initialize_local_state()
+
+
+@app.external(authorize=Authorize.only_creator())
+def set_account_bits(
+    account: abi.Account, mask: abi.Uint64, *, output: abi.Uint64
+) -> Expr:
+    account_bitset = app.state.account_bitset[account.address()]
+    return Seq(
+        account_bitset.set_bits(mask),
+        output.set(account_bitset.get()),
+    )
+
+
+@app.external(authorize=Authorize.only_creator())
+def set_app_bits(mask: abi.Uint64, *, output: abi.Uint64) -> Expr:
+    return Seq(
+        app.state.app_bitset.set_bits(mask),
+        output.set(app.state.app_bitset.get()),
+    )
+
+
+@app.external(authorize=Authorize.only_creator())
+def clear_bits(account: abi.Account, mask: abi.Uint64, *, output: abi.Uint64) -> Expr:
+    account_bitset = app.state.account_bitset[account.address()]
+    return Seq(
+        account_bitset.clear_bits(mask),
+        output.set(account_bitset.get()),
+    )
+
+
+@app.external(authorize=Authorize.only_creator())
+def clear_app_bits(mask: abi.Uint64, *, output: abi.Uint64) -> Expr:
+    return Seq(
+        app.state.app_bitset.clear_bits(mask),
+        output.set(app.state.app_bitset.get()),
+    )
+
+
+@app.external(authorize=Authorize.only_creator())
+def clear(account: abi.Account) -> Expr:
+    return app.state.account_bitset[account.address()].clear()
+
+
+@app.external(authorize=Authorize.only_creator())
+def clear_app_bitset() -> Expr:
+    return app.state.app_bitset.clear()
+
+
+@app.external(read_only=True)
+def contains(account: abi.Account, mask: abi.Uint64, *, output: abi.Bool) -> Expr:
+    return output.set(
+        If(
+            App.optedIn(account.address(), Global.current_application_id()),
+            app.state.account_bitset[account.address()].contains(mask),
+            Int(0),
         )
+    )
 
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def set_app_bits(self, mask: abi.Uint64, *, output: abi.Uint64) -> Expr:
-        return Seq(
-            self.app_bitset.set_bits(mask),
-            output.set(self.app_bitset.get()),
-        )
 
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def clear_bits(
-        self, account: abi.Account, mask: abi.Uint64, *, output: abi.Uint64
-    ) -> Expr:
-        account_bitset = self.account_bitset[account.address()]
-        return Seq(
-            account_bitset.clear_bits(mask),
-            output.set(account_bitset.get()),
-        )
+@app.external(read_only=True)
+def app_bitset_contains(mask: abi.Uint64, *, output: abi.Bool) -> Expr:
+    return output.set(app.state.app_bitset.contains(mask))
 
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def clear_app_bits(self, mask: abi.Uint64, *, output: abi.Uint64) -> Expr:
-        return Seq(
-            self.app_bitset.clear_bits(mask),
-            output.set(self.app_bitset.get()),
-        )
 
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def clear(self, account: abi.Account) -> Expr:
-        return self.account_bitset[account.address()].clear()
-
-    @external(authorize=Authorize.only(Global.creator_address()))
-    def clear_app_bitset(self) -> Expr:
-        return self.app_bitset.clear()
-
-    @external(read_only=True)
-    def contains(
-        self, account: abi.Account, mask: abi.Uint64, *, output: abi.Bool
-    ) -> Expr:
-        return output.set(
-            If(
-                App.optedIn(account.address(), Global.current_application_id()),
-                self.account_bitset[account.address()].contains(mask),
-                Int(0),
-            )
-        )
-
-    @external(read_only=True)
-    def app_bitset_contains(self, mask: abi.Uint64, *, output: abi.Bool) -> Expr:
-        return output.set(self.app_bitset.contains(mask))
-
-    @delete(authorize=Authorize.only(Global.creator_address()))
-    def delete(self) -> Expr:
-        return Approve()
+@app.delete(authorize=Authorize.only_creator())
+def delete() -> Expr:
+    return Approve()
 
 
 class AccountBitSetTestCase(unittest.TestCase):
@@ -114,7 +123,7 @@ class AccountBitSetTestCase(unittest.TestCase):
             client=sandbox.get_algod_client(),
             sender=cls.owner.address,
             signer=cls.owner.signer,
-            app=BitSetApp(),
+            app=app,
         )
 
         print("created smart contract:", cls.owner_client.create())
@@ -138,21 +147,16 @@ class AccountBitSetTestCase(unittest.TestCase):
         from algosdk.account import generate_account
 
         _sk, address = generate_account()
-        result = self.owner_client.call(
-            BitSetApp.contains, account=address, mask=self.PERM_0
-        )
+        result = self.owner_client.call(contains, account=address, mask=self.PERM_0)
         print(result.decode_error)
         self.assertEqual(result.return_value, False)
 
     def test_permissions(self):
         with self.subTest("set_bits"):
             result = self.owner_client.call(
-                BitSetApp.set_account_bits,
+                set_account_bits,
                 account=self.user.address,
                 mask=self.PERM_0 | self.PERM_1,
-            )
-            account_app_info = self.user_client.client.account_application_info(
-                self.user.address, self.user_client.app_id
             )
             # pp(account_app_info)
             self.assertEqual(result.return_value, self.PERM_0 | self.PERM_1)
@@ -167,7 +171,7 @@ class AccountBitSetTestCase(unittest.TestCase):
             for perms, expected_result in permissions:
                 # user's permissions can be checked by any account
                 result = self.owner_client.call(
-                    BitSetApp.contains,
+                    contains,
                     account=self.user.address,
                     mask=perms,
                 )
@@ -175,7 +179,7 @@ class AccountBitSetTestCase(unittest.TestCase):
 
                 # user can check their own permissons
                 result = self.user_client.call(
-                    BitSetApp.contains,
+                    contains,
                     account=self.user.address,
                     mask=perms,
                 )
@@ -183,7 +187,7 @@ class AccountBitSetTestCase(unittest.TestCase):
 
             with self.subTest("clear_bits"):
                 result = self.owner_client.call(
-                    BitSetApp.clear_bits,
+                    clear_bits,
                     account=self.user.address,
                     mask=self.PERM_0,
                 )
@@ -191,24 +195,24 @@ class AccountBitSetTestCase(unittest.TestCase):
 
             with self.subTest("clear"):
                 result = self.owner_client.call(
-                    BitSetApp.set_account_bits,
+                    set_account_bits,
                     account=self.user.address,
                     mask=self.PERM_2,
                 )
                 self.assertTrue(result.return_value > 0)
 
                 self.owner_client.call(
-                    BitSetApp.clear,
+                    clear,
                     account=self.user.address,
                 )
-                account_app_info = self.user_client.get_account_state()
+                account_app_info = self.user_client.get_local_state()
                 # assert that the user has no permissions set
                 self.assertEqual(account_app_info["account_bitset"], 0)
 
     def test_with_negative_permission(self):
         with self.assertRaises(algosdk.error.ABIEncodingError) as err:
             self.owner_client.call(
-                BitSetApp.set_account_bits,
+                set_account_bits,
                 account=self.user.address,
                 mask=-1,
             )
@@ -216,16 +220,16 @@ class AccountBitSetTestCase(unittest.TestCase):
 
     def test_with_zero_permission(self):
         self.owner_client.call(
-            BitSetApp.clear,
+            clear,
             account=self.user.address,
         )
         self.owner_client.call(
-            BitSetApp.set_account_bits,
+            set_account_bits,
             account=self.user.address,
             mask=self.PERM_0 | self.PERM_63,
         )
         result = self.owner_client.call(
-            BitSetApp.set_account_bits,
+            set_account_bits,
             account=self.user.address,
             mask=0,
         )
@@ -255,7 +259,7 @@ class ApptBitSetTestCase(unittest.TestCase):
             client=sandbox.get_algod_client(),
             sender=cls.owner.address,
             signer=cls.owner.signer,
-            app=BitSetApp(),
+            app=app,
         )
 
         print("created smart contract:", cls.owner_client.create())
@@ -274,12 +278,12 @@ class ApptBitSetTestCase(unittest.TestCase):
     def test_bitset(self):
         with self.subTest("set_bits"):
             result = self.owner_client.call(
-                BitSetApp.set_app_bits,
+                set_app_bits,
                 mask=self.PERM_0 | self.PERM_1,
             )
             self.assertEqual(result.return_value, self.PERM_0 | self.PERM_1)
 
-            app_state = self.user_client.get_application_state()
+            app_state = self.user_client.get_global_state()
             self.assertEqual(app_state["app_bitset"], self.PERM_0 | self.PERM_1)
 
             # check permissions
@@ -292,35 +296,35 @@ class ApptBitSetTestCase(unittest.TestCase):
             for perms, expected_result in permissions:
                 # user's permissions can be checked by any account
                 result = self.owner_client.call(
-                    BitSetApp.app_bitset_contains,
+                    app_bitset_contains,
                     mask=perms,
                 )
                 self.assertEqual(result.return_value, expected_result, str(perms))
 
             with self.subTest("clear_bits"):
                 result = self.owner_client.call(
-                    BitSetApp.clear_app_bits,
+                    clear_app_bits,
                     mask=self.PERM_0,
                 )
                 self.assertEqual(result.return_value, self.PERM_1)
 
             with self.subTest("clear"):
                 result = self.owner_client.call(
-                    BitSetApp.set_app_bits,
+                    set_app_bits,
                     mask=self.PERM_2,
                 )
                 self.assertTrue(result.return_value > 0)
 
                 self.owner_client.call(
-                    BitSetApp.clear_app_bitset,
+                    clear_app_bitset,
                 )
-                app_state = self.user_client.get_application_state()
+                app_state = self.user_client.get_global_state()
                 self.assertEqual(app_state["app_bitset"], 0)
 
     def test_with_negative_permission(self):
         with self.assertRaises(algosdk.error.ABIEncodingError) as err:
             self.owner_client.call(
-                BitSetApp.set_account_bits,
+                set_account_bits,
                 account=self.user.address,
                 mask=-1,
             )
@@ -328,14 +332,14 @@ class ApptBitSetTestCase(unittest.TestCase):
 
     def test_with_zero_permission(self):
         self.owner_client.call(
-            BitSetApp.clear_app_bitset,
+            clear_app_bitset,
         )
         self.owner_client.call(
-            BitSetApp.set_app_bits,
+            set_app_bits,
             mask=self.PERM_0 | self.PERM_63,
         )
         result = self.owner_client.call(
-            BitSetApp.set_app_bits,
+            set_app_bits,
             mask=0,
         )
         self.assertEqual(result.return_value, self.PERM_0 | self.PERM_63)

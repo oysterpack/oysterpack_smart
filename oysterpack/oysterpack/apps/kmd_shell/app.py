@@ -26,10 +26,16 @@ from oysterpack.algorand.client.transactions.payment import transfer_algo
 
 
 class WalletNotConnected(Exception):
-    pass
+    """
+    Trying to access a wallet that is not connected
+    """
 
 
 class App:
+    """
+    KMD shell app
+    """
+
     wallet_session: WalletSession | None = None
 
     def __init__(self, config: dict[str, Any]):
@@ -69,11 +75,17 @@ class App:
 
     @classmethod
     def from_config_file(cls, file: Path) -> "App":
-        with open(file, "rb") as f:
-            config = tomllib.load(f)
+        """
+        Constructs a new app instance from the specified TOML config file
+        """
+        with open(file, "rb") as config_file:
+            config = tomllib.load(config_file)
         return cls(config)
 
     def connect_wallet(self, name: WalletName, password: WalletPassword):
+        """
+        Connect ot KMD wallet
+        """
         self.wallet_session = WalletSession(
             kmd_client=self.kmd_client,
             name=name,
@@ -82,43 +94,74 @@ class App:
         )
 
     def disconnect_wallet(self):
+        """
+        Disconnect from KMD wallet
+        """
         self.wallet_session = None
 
     @property
     def connected_wallet(self) -> WalletName | None:
+        """
+        :return: name of connected wallet
+        """
         return self.wallet_session.name if self.wallet_session else None
 
     def list_wallets(self) -> list[Wallet]:
+        """
+        :return: list of KMD wallets
+        """
         return list_wallets(self.kmd_client)
 
     def list_wallet_accounts(self) -> list[Address]:
+        """
+        :return: list of accounts for the connected wallet
+        """
         if self.wallet_session is None:
             raise WalletNotConnected
 
         return self.wallet_session.list_accounts()
 
     def generate_wallet_account(self) -> Address:
+        """
+        Generates a new wallet account for the connected wallet.
+
+        :return: address for the new account that was generated
+        """
         if self.wallet_session is None:
             raise WalletNotConnected
 
         return self.wallet_session.generate_key()
 
-    def rekey(self, account: Address, to: Address) -> TxnId:
+    def rekey(self, account: Address, to: Address) -> TxnId: # pylint: disable=invalid-name
+        """
+        Rekey the account to the specified account.
+
+        Both accounts must exist in the connected wallet
+        """
         if self.wallet_session is None:
             raise WalletNotConnected
 
         return self.wallet_session.rekey(account, to, self.algod_client)
 
     def rekey_back(self, account: Address) -> TxnId:
+        """
+        Rekey back the account.
+        """
         if self.wallet_session is None:
             raise WalletNotConnected
 
         return self.wallet_session.rekey_back(account, self.algod_client)
 
     def get_auth_address(self, account: Address) -> Address:
+        """
+        :return: authorized address for the specified account
+        """
         return get_auth_address(address=account, algod_client=self.algod_client)
 
     def get_rekeyed_accounts(self) -> dict[Address, Address]:
+        """
+        :return: all accounts that have been rekeyed in the connected wallet: address -> auth-address
+        """
         if self.wallet_session is None:
             raise WalletNotConnected
 
@@ -131,8 +174,14 @@ class App:
         return rekeyed_accounts
 
     def export_key(
-        self, wallet_name: WalletName, wallet_password: WalletPassword, account: Address
+            self,
+            wallet_name: WalletName,
+            wallet_password: WalletPassword,
+            account: Address,
     ) -> Mnemonic:
+        """
+        exports the Mnemonic for the specified wallet account
+        """
         wallet_session = WalletSession(
             kmd_client=self.kmd_client,
             name=wallet_name,
@@ -143,13 +192,13 @@ class App:
         return wallet_session.export_key(account)
 
     def transfer_algo(
-        self,
-        wallet_name: WalletName,
-        wallet_password: WalletPassword,
-        sender: Address,
-        receiver: Address,
-        amount: MicroAlgos,
-        note: str | None = None,
+            self,
+            wallet_name: WalletName,
+            wallet_password: WalletPassword,
+            sender: Address,
+            receiver: Address,
+            amount: MicroAlgos,
+            note: str | None = None,
     ) -> TxnId:
         """
         Transfers ALGO between 2 accounts in the same wallet
@@ -182,7 +231,7 @@ class App:
         return TxnId(txid)
 
     def get_account_info(
-        self, account: Address, summary: bool = True
+            self, account: Address, summary: bool = True
     ) -> dict[str, Any]:
         """
         Returns Algorand account info.

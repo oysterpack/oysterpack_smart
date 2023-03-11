@@ -128,9 +128,9 @@ class SearchAuctionEvents:
             next_page=request.next_token,
         )
 
-    def __txn_note_prefix(self, filter: AuctionEvent | AuctionPhase) -> bytes:
-        if isinstance(filter, AuctionEvent):
-            match filter:
+    def __txn_note_prefix(self, prefix: AuctionEvent | AuctionPhase) -> bytes:
+        if isinstance(prefix, AuctionEvent):
+            match prefix:
                 case AuctionEvent.COMMITTED:
                     return AuctionClient.COMMIT_NOTE.encode()
                 case AuctionEvent.BID:
@@ -142,6 +142,8 @@ class SearchAuctionEvents:
                 case AuctionEvent.CANCELLED:
                     return AuctionClient.CANCEL_NOTE.encode()
                 case _:
-                    raise AssertionError(f"event not supported: {filter}")
-        elif isinstance(filter, AuctionPhase):
-            return f"{auction.APP_NAME}/{filter}".encode()
+                    raise AssertionError(f"event not supported: {prefix}")
+        elif isinstance(prefix, AuctionPhase):
+            return f"{auction.APP_NAME}/{prefix}".encode()
+        else:
+            raise ValueError("prefix type is not supported - expecting: AuctionEvent | AuctionPhase")

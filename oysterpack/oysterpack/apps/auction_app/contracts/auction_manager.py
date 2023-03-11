@@ -74,6 +74,12 @@ def create_auction(
         *,
         output: abi.Uint64,
 ) -> Expr:
+    """
+    Creates new auction contract instance
+    
+    :param storage_fees: Auction contract storage fees
+    :param output: Auction contract appliction ID
+    """
     return Seq(
         Assert(
             storage_fees.get().receiver() == Global.current_application_address(),

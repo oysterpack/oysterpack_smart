@@ -10,9 +10,8 @@ Seller must fund the Auction contract with ALGO to pay for contract storage cost
 When the auction is finalized, the ALGO paid for storage costs will be closed out to the creator address.
 """
 
-from typing import Final, Any, Callable
+from typing import Final, Any
 
-from algosdk.abi.method import Method
 from beaker.application import Application
 from beaker.application_specification import ApplicationSpecification
 from beaker.consts import algo
@@ -50,10 +49,13 @@ from oysterpack.algorand.application.transactions.asset import (
 )
 from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.apps.auction_app.contracts.auction_status import AuctionStatus
-from oysterpack.apps.client import get_contract_method
 
 
 class AuctionState:
+    """
+    Auction contract state
+    """
+
     # pylint: disable=invalid-name
 
     status: Final[GlobalStateValue] = GlobalStateValue(
@@ -367,7 +369,7 @@ def cancel() -> Expr:
 
 
 @app.external
-def bid(
+def submit_bid(
     bid: abi.AssetTransferTransaction,
     highest_bidder: abi.Account,
     bid_asset: abi.Asset,
@@ -594,7 +596,3 @@ def auction_storage_fees() -> MicroAlgos:
         + (per_state_int_entry_fee * total_int_entries)
         + (per_state_byte_slice_entry_fee * total_byte_slice_entries)
     )
-
-
-def get_auction_method(contract_method: Callable[..., Expr]) -> Method:
-    return get_contract_method(app.build(), contract_method)

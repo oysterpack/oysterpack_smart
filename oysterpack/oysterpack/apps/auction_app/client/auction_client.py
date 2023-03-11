@@ -254,7 +254,7 @@ class AuctionBidder(_AuctionClientSupport):
 
     BID_NOTE: Final[AppTxnNote] = AppTxnNote(
         app=auction.APP_NAME,
-        method=auction.bid.method_signature(),
+        method=auction.submit_bid.method_signature(),
         group=AuctionPhase.BIDDING,
     )
 
@@ -311,7 +311,7 @@ class AuctionBidder(_AuctionClientSupport):
             highest_bidder = Address(ZERO_ADDRESS)
 
         return self._app_client.call(
-            auction.bid,
+            auction.submit_bid,
             bid=TransactionWithSigner(
                 asset_transfer_txn,
                 cast(TransactionSigner, self._app_client.signer),

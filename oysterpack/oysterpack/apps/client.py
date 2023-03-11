@@ -2,18 +2,15 @@
 Provides client side support to interact with Algorand smart contracts, i.e., applications.
 """
 from base64 import b64decode
-from typing import Any, Callable
+from typing import Any
 
-from algosdk.abi.method import Method
 from algosdk.error import AlgodHTTPError
 from algosdk.logic import get_application_address
 from algosdk.transaction import SuggestedParams
 from algosdk.v2client.algod import AlgodClient
 from beaker import Application
-from beaker.application_specification import ApplicationSpecification
 from beaker.client.application_client import ApplicationClient
 from beaker.precompile import PrecompiledApplication
-from pyteal import Expr
 
 from oysterpack.algorand.client.model import AppId, Address, MicroAlgos
 from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
@@ -72,18 +69,6 @@ def verify_app_id(
         if err.code == 404:
             raise AssertionError("Invalid app ID") from err
         raise err
-
-
-def get_contract_method(
-    app_spec: ApplicationSpecification,
-    method: Callable[..., Expr],
-) -> Method:
-    """
-    :param app_spec: ApplicationSpecification
-    :param method: function that implements contract method
-    :return: ABI Method
-    """
-    return app_spec.contract.get_method_by_name(method.__name__)
 
 
 class AppClient:

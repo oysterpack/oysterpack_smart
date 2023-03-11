@@ -65,7 +65,7 @@ class AuctionManagerWatcherService(Service):
 
     # pylint: disable=too-many-instance-attributes
 
-    def __init__( # pylint: disable=too-many-arguments
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         session_factory: sessionmaker,
         get_registered_auction_managers: GetRegisteredAuctionManagers,

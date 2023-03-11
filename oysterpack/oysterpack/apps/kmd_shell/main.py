@@ -21,6 +21,7 @@ class AppNotInitialized(Exception):
     Indicates an attempt was made to use the app while not initialized
     """
 
+
 @shell(
     prompt="oysterpack-kmd > ",
     intro="Algorand KMD Shell",
@@ -40,8 +41,8 @@ def app(config_file: Path | None = None):
     if config_file is None:
         return
 
-    global __app            # pylint: disable=global-statement
-    global __config_file    # pylint: disable=global-statement
+    global __app  # pylint: disable=global-statement
+    global __config_file  # pylint: disable=global-statement
 
     __app = App.from_config_file(config_file)
     __config_file = config_file
@@ -157,7 +158,7 @@ def list_accounts():
     "--account", required=True, prompt="From", help="Algorand account to rekey"
 )
 @click.option("--to", required=True, prompt="To", help="Algorand account rekey target")
-def rekey(account: Address, to: Address): # pylint: disable=invalid-name
+def rekey(account: Address, to: Address):  # pylint: disable=invalid-name
     """
     Rekeys a wallet account to another account in the same wallet.
     Both accounts must exist in the current connected wallet session.

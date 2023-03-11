@@ -10,7 +10,7 @@ from pyteal.ast import abi
 from oysterpack.algorand.application.state.bitset import AccountBitSet
 
 
-class AccountPermissions(AccountBitSet): # pylint: disable=too-many-ancestors
+class AccountPermissions(AccountBitSet):  # pylint: disable=too-many-ancestors
     """
     Permissions are represented as a bit set.
     Thus, this provides 64 permissions for applications, which should be sufficient for most cases.

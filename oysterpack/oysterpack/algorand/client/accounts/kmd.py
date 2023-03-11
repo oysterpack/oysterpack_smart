@@ -326,7 +326,7 @@ class WalletSession:
         # see - https://github.com/algorand/py-algorand-sdk/issues/436
         try:
             # TODO: remove this hacky work around when the issue is fixed
-            import base64 # pylint: disable=import-outside-toplevel
+            import base64  # pylint: disable=import-outside-toplevel
 
             signing_address_bytes = base64.b32decode(
                 signing_address.encode("utf-8") + b"=" * 6

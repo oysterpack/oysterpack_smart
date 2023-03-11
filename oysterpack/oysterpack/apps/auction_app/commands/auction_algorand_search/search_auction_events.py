@@ -146,4 +146,6 @@ class SearchAuctionEvents:
         elif isinstance(prefix, AuctionPhase):
             return f"{auction.APP_NAME}/{prefix}".encode()
         else:
-            raise ValueError("prefix type is not supported - expecting: AuctionEvent | AuctionPhase")
+            raise ValueError(
+                "prefix type is not supported - expecting: AuctionEvent | AuctionPhase"
+            )

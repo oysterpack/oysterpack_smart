@@ -26,8 +26,6 @@ from pyteal import (
     AssetHolding,
     InnerTxnBuilder,
     Assert,
-    App,
-    Bytes,
     AccountParam,
     Cond,
     Approve,
@@ -37,7 +35,6 @@ from pyteal import (
     Not,
     And,
     Reject,
-    Subroutine,
 )
 from pyteal.ast import abi
 
@@ -136,14 +133,6 @@ app = Application(
 app_spec: ApplicationSpecification = app.build()
 
 
-@Subroutine(TealType.uint64)
-def is_seller(sender: Expr) -> Expr:
-    """
-    Used as an authorization subroutine
-    """
-    return sender == App.globalGet(Bytes("seller_address"))
-
-
 @app.create
 def create(seller: abi.Account) -> Expr:  # pylint: disable=arguments-differ
     """
@@ -199,7 +188,7 @@ def app_name(*, output: abi.String) -> Expr:
     return output.set(APP_NAME)
 
 
-@app.external(authorize=is_seller)
+@app.external(authorize=Authorize.only(app.state.seller_address))
 def set_bid_asset(bid_asset: abi.Asset, min_bid: abi.Uint64) -> Expr:
     """
     Opts in the bid asset, only if it has not yet been opted in.
@@ -250,7 +239,7 @@ def set_bid_asset(bid_asset: abi.Asset, min_bid: abi.Uint64) -> Expr:
     )
 
 
-@app.external(authorize=is_seller)
+@app.external(authorize=Authorize.only(app.state.seller_address))
 def optin_asset(asset: abi.Asset) -> Expr:
     """
     Opt in asset to be sold in the auction.
@@ -274,7 +263,7 @@ def optin_asset(asset: abi.Asset) -> Expr:
     )
 
 
-@app.external(authorize=is_seller)
+@app.external(authorize=Authorize.only(app.state.seller_address))
 def optout_asset(asset: abi.Asset) -> Expr:
     """
     Closes out the asset to the seller
@@ -296,7 +285,7 @@ def optout_asset(asset: abi.Asset) -> Expr:
     )
 
 
-@app.external(authorize=is_seller)
+@app.external(authorize=Authorize.only(app.state.seller_address))
 def withdraw_asset(asset: abi.Asset, amount: abi.Uint64) -> Expr:
     """
     Assets can only be withdrawn when auction status is `New`
@@ -311,7 +300,7 @@ def withdraw_asset(asset: abi.Asset, amount: abi.Uint64) -> Expr:
     )
 
 
-@app.external(authorize=is_seller)
+@app.external(authorize=Authorize.only(app.state.seller_address))
 def commit(start_time: abi.Uint64, end_time: abi.Uint64) -> Expr:
     """
     When the seller is done setting up the auction, the final step is to commit the auction.
@@ -343,7 +332,7 @@ def commit(start_time: abi.Uint64, end_time: abi.Uint64) -> Expr:
     )
 
 
-@app.external(authorize=is_seller)
+@app.external(authorize=Authorize.only(app.state.seller_address))
 def cancel() -> Expr:
     """
     The auction cannot be cancelled once it has been committed.
@@ -437,7 +426,7 @@ def submit_bid(
     )
 
 
-@app.external(authorize=is_seller)
+@app.external(authorize=Authorize.only(app.state.seller_address))
 def accept_bid() -> Expr:
     """
     The seller may choose to accept the current highest bid and end the auction early.

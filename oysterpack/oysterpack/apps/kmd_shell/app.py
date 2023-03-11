@@ -132,7 +132,9 @@ class App:
 
         return self.wallet_session.generate_key()
 
-    def rekey(self, account: Address, to: Address) -> TxnId: # pylint: disable=invalid-name
+    def rekey(
+        self, account: Address, to: Address
+    ) -> TxnId:  # pylint: disable=invalid-name
         """
         Rekey the account to the specified account.
 
@@ -174,10 +176,10 @@ class App:
         return rekeyed_accounts
 
     def export_key(
-            self,
-            wallet_name: WalletName,
-            wallet_password: WalletPassword,
-            account: Address,
+        self,
+        wallet_name: WalletName,
+        wallet_password: WalletPassword,
+        account: Address,
     ) -> Mnemonic:
         """
         exports the Mnemonic for the specified wallet account
@@ -192,13 +194,13 @@ class App:
         return wallet_session.export_key(account)
 
     def transfer_algo(
-            self,
-            wallet_name: WalletName,
-            wallet_password: WalletPassword,
-            sender: Address,
-            receiver: Address,
-            amount: MicroAlgos,
-            note: str | None = None,
+        self,
+        wallet_name: WalletName,
+        wallet_password: WalletPassword,
+        sender: Address,
+        receiver: Address,
+        amount: MicroAlgos,
+        note: str | None = None,
     ) -> TxnId:
         """
         Transfers ALGO between 2 accounts in the same wallet
@@ -231,7 +233,7 @@ class App:
         return TxnId(txid)
 
     def get_account_info(
-            self, account: Address, summary: bool = True
+        self, account: Address, summary: bool = True
     ) -> dict[str, Any]:
         """
         Returns Algorand account info.

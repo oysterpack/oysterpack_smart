@@ -4,7 +4,6 @@ from urllib.error import URLError
 
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
-from beaker import sandbox
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
@@ -47,7 +46,7 @@ class AlgorandNodeHealthCheckTestCase(AlgorandTestCase):
         self.setup_contracts()
 
     def setup_contracts(self):
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
 
         self.creator_auction_manager_client = create_auction_manager(

@@ -6,7 +6,6 @@ from algosdk.account import generate_account
 from algosdk.error import InvalidThresholdError
 from algosdk.transaction import wait_for_confirmation, Multisig, MultisigTransaction
 from algosdk.wallet import Wallet
-from beaker import sandbox
 from beaker.consts import algo
 from ulid import ULID
 
@@ -408,7 +407,7 @@ class WalletSessionTests(AlgorandTestCase):
             get_auth_addr=get_auth_address_callable(self.algod_client),
         )
 
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         account_1 = Address(accounts.pop().address)
         account_2 = Address(accounts.pop().address)
         account_3 = Address(accounts.pop().address)
@@ -525,7 +524,7 @@ class WalletSessionTests(AlgorandTestCase):
             get_auth_addr=get_auth_address_callable(self.algod_client),
         )
 
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         account_1 = Address(accounts.pop().address)
         account_2 = Address(accounts.pop().address)
         account_3 = Address(accounts.pop().address)
@@ -590,7 +589,7 @@ class WalletSessionTests(AlgorandTestCase):
             get_auth_addr=get_auth_address_callable(self.algod_client),
         )
 
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         account_1 = Address(accounts.pop().address)
         account_2 = Address(accounts.pop().address)
         account_3 = Address(accounts.pop().address)
@@ -661,7 +660,7 @@ class WalletSessionTests(AlgorandTestCase):
             get_auth_addr=get_auth_address_callable(self.algod_client),
         )
 
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         account_1 = Address(accounts.pop().address)
         account_2 = Address(accounts.pop().address)
         account_3 = Address(accounts.pop().address)

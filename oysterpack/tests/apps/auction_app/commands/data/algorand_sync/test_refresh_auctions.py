@@ -1,6 +1,5 @@
 import unittest
 
-from beaker import sandbox
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
@@ -55,7 +54,7 @@ class ImportAuctionTestCase(AlgorandTestCase):
         self.refresh_auctions = RefreshAuctions(import_auction=self.import_auction)
 
     def setup_contracts(self):
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
@@ -114,7 +113,7 @@ class ImportAuctionTestCase(AlgorandTestCase):
             # create new Auction from unregistered AuctionManager
             auction_manager_client = create_auction_manager(
                 algod_client=self.algod_client,
-                signer=sandbox.get_accounts().pop().signer,
+                signer=self.get_sandbox_accounts().pop().signer,
             )
             auction_client = auction_manager_client.create_auction()
 

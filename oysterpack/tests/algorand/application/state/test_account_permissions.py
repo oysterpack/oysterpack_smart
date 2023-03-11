@@ -12,6 +12,7 @@ from oysterpack.algorand.application.state.account_permissions import (
     AccountPermissions,
 )
 from oysterpack.algorand.application.state.bitset import decode_bit_mask
+from tests.algorand.test_support import AlgorandTestCase
 
 
 class AccountPermissionsManagerState:
@@ -69,7 +70,7 @@ def delete() -> Expr:
     return Approve()
 
 
-class AccountPermissionsTestCase(unittest.TestCase):
+class AccountPermissionsTestCase(AlgorandTestCase):
     owner: SandboxAccount | None = None
     user: SandboxAccount | None = None
 

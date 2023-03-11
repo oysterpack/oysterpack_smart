@@ -3,7 +3,6 @@ from time import sleep
 from urllib.error import URLError
 
 from algosdk.v2client.indexer import IndexerClient
-from beaker import sandbox
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
@@ -43,7 +42,7 @@ class AlgorandNodeHealthCheckTestCase(AlgorandTestCase):
         self.setup_contracts()
 
     def setup_contracts(self):
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
 
         self.creator_auction_manager_client = create_auction_manager(

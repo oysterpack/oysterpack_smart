@@ -1,8 +1,6 @@
 import unittest
 from time import sleep
 
-from beaker import sandbox
-
 from oysterpack.algorand.client.model import Address
 from oysterpack.apps.auction_app.client.auction_manager_client import (
     create_auction_manager,
@@ -17,7 +15,7 @@ from tests.algorand.test_support import AlgorandTestCase
 class SearchAuctionsTestCase(AlgorandTestCase):
     def test_search_auctions(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
@@ -80,7 +78,7 @@ class SearchAuctionsTestCase(AlgorandTestCase):
 
     def test_search_auction_paging(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 

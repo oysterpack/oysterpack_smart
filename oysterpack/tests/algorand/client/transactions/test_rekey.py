@@ -152,13 +152,10 @@ class RekeyTestCase(AlgorandTestCase):
         # create multsig
         accounts = {
             address: private_key
-            for private_key, address in
-            (generate_account() for i in range(3))
+            for private_key, address in (generate_account() for i in range(3))
         }
         multisig = Multisig(
-            version=1,
-            threshold=len(accounts),
-            addresses=accounts.keys()
+            version=1, threshold=len(accounts), addresses=accounts.keys()
         )
 
         # fund multisig
@@ -192,7 +189,9 @@ class RekeyTestCase(AlgorandTestCase):
         multisig_account_info = self.algod_client.account_info(multisig.address())
         print("after rekeying:", json.dumps(multisig_account_info, indent=3))
         self.assertEqual(
-            get_auth_address(address=multisig.address(), algod_client=self.algod_client),
+            get_auth_address(
+                address=multisig.address(), algod_client=self.algod_client
+            ),
             multisig_auth_account,
         )
 
@@ -213,7 +212,7 @@ class RekeyTestCase(AlgorandTestCase):
         multisig = Multisig(
             version=1,
             threshold=len(accounts),
-            addresses=[account for (_private_key, account) in accounts]
+            addresses=[account for (_private_key, account) in accounts],
         )
 
         # fund multisig
@@ -246,7 +245,9 @@ class RekeyTestCase(AlgorandTestCase):
         # rekey the underlying accounts
         auth_accounts = [generate_account() for i in range(3)]
 
-        for (private_key, account), (_auth_private_key, auth_account) in zip(accounts, auth_accounts):
+        for (private_key, account), (_auth_private_key, auth_account) in zip(
+            accounts, auth_accounts
+        ):
             txn = rekey(
                 account=account,
                 rekey_to=auth_account,
@@ -256,12 +257,13 @@ class RekeyTestCase(AlgorandTestCase):
             txn_id = self.algod_client.send_transaction(signed_txn)
             wait_for_confirmation(self.algod_client, txn_id)
 
-        for (private_key, account), (_auth_private_key, auth_account) in zip(accounts, auth_accounts):
+        for (private_key, account), (_auth_private_key, auth_account) in zip(
+            accounts, auth_accounts
+        ):
             self.assertEqual(
                 get_auth_address(address=account, algod_client=self.algod_client),
                 auth_account,
             )
-
 
         # transfer funds from multisig
         txn = transfer_algo(
@@ -283,7 +285,7 @@ class RekeyTestCase(AlgorandTestCase):
         multisig = Multisig(
             version=1,
             threshold=len(accounts),
-            addresses=[account for (_private_key, account) in accounts]
+            addresses=[account for (_private_key, account) in accounts],
         )
 
         # fund multisig
@@ -305,7 +307,7 @@ class RekeyTestCase(AlgorandTestCase):
         auth_multisig = Multisig(
             version=1,
             threshold=len(accounts),
-            addresses=[account for (_private_key, account) in auth_accounts]
+            addresses=[account for (_private_key, account) in auth_accounts],
         )
 
         # fund multisig

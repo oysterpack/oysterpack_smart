@@ -11,6 +11,8 @@ from pyteal import Approve, Log, TxnField, TxnType, Int
 from pyteal import Expr, Seq, InnerTxnBuilder, Txn, InnerTxn
 from pyteal.ast import abi
 
+from tests.algorand.test_support import AlgorandTestCase
+
 
 def delete_app_txn_fields(app_id: Expr) -> dict[TxnField, Expr | list[Expr]]:
     """
@@ -97,9 +99,9 @@ def suggested_params_with_flat_flee(
     return suggested_params
 
 
-class MyTestCase(unittest.TestCase):
+class MyTestCase(AlgorandTestCase):
     def test_create_delete(self):
-        account = sandbox.get_accounts().pop()
+        account = self.get_sandbox_accounts().pop()
 
         app_client = ApplicationClient(
             sandbox.get_algod_client(), bar, signer=account.signer

@@ -1,8 +1,6 @@
 import unittest
 from time import sleep
 
-from beaker import sandbox
-
 from oysterpack.algorand.client.model import Address, AppId
 from oysterpack.apps.auction_app.client.auction_manager_client import (
     create_auction_manager,
@@ -75,7 +73,7 @@ class SearchAuctionManagerEventsTestCase(AlgorandTestCase):
                     self.assertIsNone(result.auction_txns)
 
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 

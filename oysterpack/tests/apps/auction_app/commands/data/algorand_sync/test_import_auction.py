@@ -1,6 +1,5 @@
 import unittest
 
-from beaker import sandbox
 from sqlalchemy import create_engine, select, func
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
@@ -55,7 +54,7 @@ class ImportAuctionTestCase(AlgorandTestCase):
         self.get_auction = GetAuction(self.session_factory)
 
     def setup_contracts(self):
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 

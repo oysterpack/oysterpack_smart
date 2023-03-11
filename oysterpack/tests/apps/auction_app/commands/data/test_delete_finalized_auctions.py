@@ -1,7 +1,6 @@
 import unittest
 from time import sleep
 
-from beaker import sandbox
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
@@ -76,7 +75,7 @@ class DeleteFinalizedAuctionsTestCase(AlgorandTestCase):
 
     def test_delete_finalized_auctions(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
@@ -154,7 +153,7 @@ class DeleteFinalizedAuctionsTestCase(AlgorandTestCase):
 
     def test_delete_finalized_auctions_batch_size(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
@@ -218,7 +217,7 @@ class DeleteFinalizedAuctionsTestCase(AlgorandTestCase):
 
     def test_delete_finalized_auctions_not_exists_on_algorand(self):
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 

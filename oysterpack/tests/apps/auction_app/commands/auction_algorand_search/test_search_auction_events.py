@@ -3,7 +3,6 @@ import unittest
 from datetime import datetime, UTC, timedelta
 from time import sleep
 
-from beaker import sandbox
 from beaker.client import ApplicationClient
 
 from oysterpack.algorand.client.model import Address
@@ -31,7 +30,7 @@ class SearchAuctionEventsTestCase(AlgorandTestCase):
         search_auction_events = SearchAuctionEvents(self.indexer)
 
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
 
@@ -112,7 +111,7 @@ class SearchAuctionEventsTestCase(AlgorandTestCase):
         search_auction_events = SearchAuctionEvents(self.indexer)
 
         # SETUP
-        accounts = sandbox.get_accounts()
+        accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
         seller = accounts.pop()
         bidder = accounts.pop()
@@ -166,6 +165,7 @@ class SearchAuctionEventsTestCase(AlgorandTestCase):
         auction_client.deposit_asset(gold_asset_id, 10_000)
         # commit the auction
         start_time = auction_client.latest_timestamp()
+        print(start_time.isoformat())
         end_time = start_time + timedelta(days=3)
         auction_client.commit(start_time, end_time)
 

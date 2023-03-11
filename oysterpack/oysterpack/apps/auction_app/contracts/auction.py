@@ -332,9 +332,8 @@ def commit(start_time: abi.Uint64, end_time: abi.Uint64) -> Expr:
         total_assets := AccountParam.totalAssets(Global.current_application_address()),
         Assert(
             total_assets.value() > Int(1),
-            start_time.get() >= Global.latest_timestamp() - Int(10),
+            start_time.get() >= Global.latest_timestamp(),
             end_time.get() > start_time.get(),
-            end_time.get() > Global.latest_timestamp(),
         ),
         app.state.start_time.set(start_time.get()),
         app.state.end_time.set(end_time.get()),

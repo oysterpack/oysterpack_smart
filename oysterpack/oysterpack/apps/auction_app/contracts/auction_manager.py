@@ -16,14 +16,13 @@ The storage fees are retained by the Auction Manager as revenue.
 
 from typing import Final
 
-from beaker import Application, GlobalStateValue, precompiled
+from beaker import Application, precompiled
 from beaker.decorators import Authorize
 from pyteal import (
     Expr,
     InnerTxnBuilder,
     Txn,
     Seq,
-    TealType,
     TxnField,
     Int,
     Assert,
@@ -39,19 +38,7 @@ from oysterpack.apps.auction_app.contracts.auction import auction_storage_fees
 
 APP_NAME: Final[str] = "oysterpack.AuctionManager"
 
-
-class AuctionManagerState:
-    auction_min_balance: Final[GlobalStateValue] = GlobalStateValue(
-        stack_type=TealType.uint64,
-        static=True,
-        descr="Auction contract min balance requirement that is paid by the seller when creating the Auction contract",
-    )
-
-
-app = Application(
-    APP_NAME,
-    state=AuctionManagerState(),
-)
+app = Application(APP_NAME)
 
 
 # pylint: disable=invalid-name
@@ -83,9 +70,9 @@ def get_auction_creation_fees(*, output: abi.Uint64) -> Expr:
 
 @app.external
 def create_auction(
-    storage_fees: abi.PaymentTransaction,
-    *,
-    output: abi.Uint64,
+        storage_fees: abi.PaymentTransaction,
+        *,
+        output: abi.Uint64,
 ) -> Expr:
     return Seq(
         Assert(

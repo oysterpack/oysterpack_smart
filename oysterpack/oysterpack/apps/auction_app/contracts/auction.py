@@ -97,31 +97,31 @@ class AuctionState:
         """
         :return: True if status is New
         """
-        return self.status.get() == Int(AuctionStatus.NEW.value)
+        return self.status == Int(AuctionStatus.NEW.value)
 
     def is_committed(self) -> Expr:
         """
         :return: True if status is Committed
         """
-        return self.status.get() == Int(AuctionStatus.COMMITTED.value)
+        return self.status == Int(AuctionStatus.COMMITTED.value)
 
     def is_bid_accepted(self) -> Expr:
         """
         :return: True if status is BidAccepted
         """
-        return self.status.get() == Int(AuctionStatus.BID_ACCEPTED.value)
+        return self.status == Int(AuctionStatus.BID_ACCEPTED.value)
 
     def is_cancelled(self) -> Expr:
         """
         :return: True if status is Cancelled
         """
-        return self.status.get() == Int(AuctionStatus.CANCELLED.value)
+        return self.status == Int(AuctionStatus.CANCELLED.value)
 
     def is_finalized(self) -> Expr:
         """
         :return: True if status is Finalized
         """
-        return self.status.get() == Int(AuctionStatus.FINALIZED.value)
+        return self.status == Int(AuctionStatus.FINALIZED.value)
 
 
 APP_NAME: Final[str] = "oysterpack.auction"
@@ -229,8 +229,8 @@ def set_bid_asset(bid_asset: abi.Asset, min_bid: abi.Uint64) -> Expr:
             app.state.is_new(),
             min_bid.get() > Int(0),
             Or(
-                app.state.bid_asset_id.get() == Int(0),
-                app.state.bid_asset_id.get() == bid_asset.asset_id(),
+                app.state.bid_asset_id == Int(0),
+                app.state.bid_asset_id == bid_asset.asset_id(),
             ),
         ),
         _assert_no_freeze_clawback(bid_asset),
@@ -288,7 +288,7 @@ def optout_asset(asset: abi.Asset) -> Expr:
         # If the bid asset is being opted out, then reset `bid_set_id` to zero
         # NOTE: in order to change the bid asset, it must first be opted out.
         If(
-            asset.asset_id() == app.state.bid_asset_id.get(),
+            asset.asset_id() == app.state.bid_asset_id,
             app.state.bid_asset_id.set(Int(0)),
         ),
     )
@@ -321,8 +321,8 @@ def commit(start_time: abi.Uint64, end_time: abi.Uint64) -> Expr:
     return Seq(
         Assert(
             app.state.is_new(),
-            app.state.bid_asset_id.get() != Int(0),
-            app.state.min_bid.get() > Int(0),
+            app.state.bid_asset_id != Int(0),
+            app.state.min_bid > Int(0),
         ),
         # besides the bid asset, there should be at least 1 asset for sale
         #
@@ -400,22 +400,22 @@ def bid(
     """
     return Seq(
         Assert(
-            app.state.status.get() == Int(AuctionStatus.COMMITTED.value),
+            app.state.status == Int(AuctionStatus.COMMITTED.value),
             # check auction bidding has started
-            Global.latest_timestamp() >= app.state.start_time.get(),
-            Global.latest_timestamp() <= app.state.end_time.get(),
+            Global.latest_timestamp() >= app.state.start_time,
+            Global.latest_timestamp() <= app.state.end_time,
             bid.get().asset_receiver() == Global.current_application_address(),
-            bid.get().xfer_asset() == app.state.bid_asset_id.get(),
-            bid.get().asset_amount() > app.state.highest_bid.get(),
+            bid.get().xfer_asset() == app.state.bid_asset_id,
+            bid.get().asset_amount() > app.state.highest_bid,
         ),
         # refund the current highest bidder
         # if this is the first bid (highes_bid == 0), then no refund is needed
         If(
-            app.state.highest_bid.get() > Int(0),
+            app.state.highest_bid > Int(0),
             Seq(
                 Assert(
-                    highest_bidder.address() == app.state.highest_bidder_address.get(),
-                    bid_asset.asset_id() == app.state.bid_asset_id.get(),
+                    highest_bidder.address() == app.state.highest_bidder_address,
+                    bid_asset.asset_id() == app.state.bid_asset_id,
                 ),
                 bid_asset_holding := AssetHolding.balance(
                     highest_bidder.address(), bid_asset.asset_id()
@@ -424,8 +424,8 @@ def bid(
                     bid_asset_holding.hasValue(),
                     execute_transfer(
                         receiver=highest_bidder,
-                        asset=app.state.bid_asset_id.get(),
-                        amount=app.state.highest_bid.get(),
+                        asset=app.state.bid_asset_id,
+                        amount=app.state.highest_bid,
                     ),
                 ),
             ),
@@ -449,9 +449,9 @@ def accept_bid() -> Expr:
     """
     return Seq(
         Assert(
-            app.state.status.get() == Int(AuctionStatus.COMMITTED.value),
-            app.state.highest_bid.get() > Int(0),
-            Global.latest_timestamp() <= app.state.end_time.get(),
+            app.state.status == Int(AuctionStatus.COMMITTED.value),
+            app.state.highest_bid > Int(0),
+            Global.latest_timestamp() <= app.state.end_time,
         ),
         app.state.status.set(Int(AuctionStatus.BID_ACCEPTED.value)),
     )
@@ -480,9 +480,9 @@ def finalize(asset: abi.Asset, close_to: abi.Account) -> Expr:
         return Or(
             app.state.is_bid_accepted(),
             And(
-                app.state.status.get() == Int(AuctionStatus.COMMITTED.value),
-                Global.latest_timestamp() > app.state.end_time.get(),
-                app.state.highest_bid.get() > Int(0),
+                app.state.status == Int(AuctionStatus.COMMITTED.value),
+                Global.latest_timestamp() > app.state.end_time,
+                app.state.highest_bid > Int(0),
             ),
         )
 
@@ -491,12 +491,12 @@ def finalize(asset: abi.Asset, close_to: abi.Account) -> Expr:
             Assert(
                 Or(
                     And(
-                        close_to.address() == app.state.seller_address.get(),
-                        asset.asset_id() == app.state.bid_asset_id.get(),
+                        close_to.address() == app.state.seller_address,
+                        asset.asset_id() == app.state.bid_asset_id,
                     ),
                     And(
                         close_to.address() == app.state.highest_bidder_address,
-                        asset.asset_id() != app.state.bid_asset_id.get(),
+                        asset.asset_id() != app.state.bid_asset_id,
                     ),
                 )
             ),
@@ -507,15 +507,15 @@ def finalize(asset: abi.Asset, close_to: abi.Account) -> Expr:
         return Or(
             app.state.is_cancelled(),
             And(
-                app.state.status.get() == Int(AuctionStatus.COMMITTED.value),
-                Global.latest_timestamp() > app.state.end_time.get(),
-                app.state.highest_bid.get() == Int(0),
+                app.state.status == Int(AuctionStatus.COMMITTED.value),
+                Global.latest_timestamp() > app.state.end_time,
+                app.state.highest_bid == Int(0),
             ),
         )
 
     def handle_not_sold() -> Expr:
         return Seq(
-            Assert(close_to.address() == app.state.seller_address.get()),
+            Assert(close_to.address() == app.state.seller_address),
             execute_optout(asset, close_to),
         )
 

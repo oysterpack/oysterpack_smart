@@ -28,13 +28,13 @@ def verify_app(app_client: ApplicationClient):
 
     try:
         app = app_client.client.application_info(app_client.app_id)
-        approval_program = b64decode(app["params"]["approval-program"]).decode()
-        clear_state_program = b64decode(app["params"]["clear-state-program"]).decode()
+        approval_program = b64decode(app["params"]["approval-program"])
+        clear_state_program = b64decode(app["params"]["clear-state-program"])
 
-        if approval_program != app_client.app.approval_program:
+        if approval_program != app_client.approval.raw_binary:
             raise AssertionError("Invalid app ID - approval program does not match")
 
-        if clear_state_program != app_client.app.clear_program:
+        if clear_state_program != app_client.clear.raw_binary:
             raise AssertionError("Invalid app ID - clear program does not match")
     except AlgodHTTPError as err:
         if err.code == 404:

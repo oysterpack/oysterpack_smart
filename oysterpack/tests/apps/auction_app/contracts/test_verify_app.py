@@ -1,8 +1,5 @@
 import unittest
-from base64 import b64decode, b64encode
-from typing import cast
 
-from algosdk.error import AlgodHTTPError
 from beaker import (
     Application,
     Authorize,
@@ -24,59 +21,8 @@ from pyteal import (
     Txn, )
 from pyteal.ast import abi
 
+from oysterpack.apps.client import verify_app
 from tests.algorand.test_support import AlgorandTestCase
-
-
-def verify_app(app_client: ApplicationClient):
-    """
-    Verifies that the app ID references an app whose program binaries matches the app referenced by the ApplicationClient.
-
-    :raise AssertionError: if code does not match
-    """
-
-    def diff(prog_1: str, prog_2: str) -> str:
-        if len(prog_1) != len(prog_2):
-            return f"program lengths do not match: {len(prog_1)} != {len(prog_2)}"
-
-        diffs = ""
-        for i, (a, b) in enumerate(zip(prog_1, prog_2)):
-            if a != b:
-                diffs += "^"
-            else:
-                diffs += " "
-
-        return f"""
-        {prog_1}
-        {prog_2}
-        {diffs}
-        """
-
-    try:
-        app = app_client.client.application_info(app_client.app_id)
-        approval_program = b64decode(app["params"]["approval-program"])
-        clear_state_program = b64decode(app["params"]["clear-state-program"])
-
-        if approval_program != app_client.approval.raw_binary:
-            cause = diff(
-                b64encode(approval_program).decode(),
-                b64encode(cast(bytes, app_client.approval.raw_binary)).decode(),
-            )
-            raise AssertionError(
-                f"Invalid app ID - approval program does not match: {cause}"
-            )
-
-        if clear_state_program != app_client.clear.raw_binary:
-            cause = diff(
-                b64encode(clear_state_program).decode(),
-                b64encode(cast(bytes, app_client.clear.raw_binary)).decode(),
-            )
-            raise AssertionError(
-                f"Invalid app ID - clear program does not match: {cause}"
-            )
-    except AlgodHTTPError as err:
-        if err.code == 404:
-            raise AssertionError("Invalid app ID") from err
-        raise err
 
 
 def close_out_account(close_remainder_to: Expr) -> dict[TxnField, Expr | list[Expr]]:
@@ -100,7 +46,7 @@ def create(owner: abi.Account) -> Expr:
     return Approve()
 
 
-@bar.delete(authorize=Authorize.only_creator())  # IF YOU COMMENT THIS OUT THEN THE TEST PASSES ???
+@bar.delete(authorize=Authorize.only_creator())
 def delete() -> Expr:
     return Seq(
         # assert that the app has opted out of all assets
@@ -130,8 +76,8 @@ foo = Application("Foo")
 
 
 @foo.external
-def create_bar(*,output: abi.Uint64,
-) -> Expr:
+def create_bar(*, output: abi.Uint64,
+               ) -> Expr:
     return Seq(
         InnerTxnBuilder.ExecuteMethodCall(
             app_id=None,
@@ -150,7 +96,7 @@ class MyTestCase(AlgorandTestCase):
             sandbox.get_algod_client(), foo, signer=account.signer
         )
 
-        foo_id = foo_client.create()
+        foo_client.create()
         foo_client.fund(1_000_000)
 
         bar_app_id = foo_client.call(create_bar).return_value

@@ -20,6 +20,7 @@ click-shell = "^2.1"
 sqlalchemy = "^2.0.0"
 pynacl = "^1.5.0"
 reactivex = "^4.0.4"
+websockets = "^10.4"
 
 [tool.poetry.group.dev.dependencies]
 coverage = "^7.0.5"

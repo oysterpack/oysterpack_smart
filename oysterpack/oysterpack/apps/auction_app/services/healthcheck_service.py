@@ -69,7 +69,7 @@ class HealthCheckService(Service):
 
     def run_healthchecks(self):
         """
-        Runs all registered health checks. Results are published on the health chedk Observable stream
+        Runs all registered health checks. Results are published on the health check Observable stream
 
         Notes
         -----

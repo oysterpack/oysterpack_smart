@@ -41,7 +41,7 @@ def create(seller: abi.Account) -> Expr:  # pylint: disable=arguments-differ
     return Seq(Log(seller.address()), Approve())
 
 
-@foo.delete(authorize=Authorize.only_creator())
+@foo.delete(authorize=Authorize.only_creator(), bare=True)
 def delete() -> Expr:
     return Approve()
 

@@ -148,7 +148,7 @@ def create(seller: abi.Account) -> Expr:  # pylint: disable=arguments-differ
     )
 
 
-@app.delete(authorize=Authorize.only_creator())
+@app.delete(authorize=Authorize.only_creator(), bare=True)
 def delete() -> Expr:
     """
     Auction can only be deleted by its creator.

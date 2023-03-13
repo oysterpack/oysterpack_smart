@@ -3,7 +3,8 @@ import unittest
 from beaker import (
     Application,
     Authorize,
-    sandbox, precompiled,
+    sandbox,
+    precompiled,
 )
 from beaker.client import ApplicationClient
 from pyteal import (
@@ -18,7 +19,8 @@ from pyteal import (
     Assert,
     InnerTxnBuilder,
     InnerTxn,
-    Txn, )
+    Txn,
+)
 from pyteal.ast import abi
 
 from oysterpack.apps.client import verify_app
@@ -50,9 +52,7 @@ def create(owner: abi.Account) -> Expr:
 def delete() -> Expr:
     return Seq(
         # assert that the app has opted out of all assets
-        total_assets := AccountParam.totalAssets(
-            Global.current_application_address()
-        ),
+        total_assets := AccountParam.totalAssets(Global.current_application_address()),
         Assert(total_assets.value() == Int(0)),
         # close out ALGO balance to the creator
         InnerTxnBuilder.Execute(close_out_account(Global.creator_address())),
@@ -76,8 +76,10 @@ foo = Application("Foo")
 
 
 @foo.external
-def create_bar(*, output: abi.Uint64,
-               ) -> Expr:
+def create_bar(
+    *,
+    output: abi.Uint64,
+) -> Expr:
     return Seq(
         InnerTxnBuilder.ExecuteMethodCall(
             app_id=None,
@@ -102,13 +104,17 @@ class MyTestCase(AlgorandTestCase):
         bar_app_id = foo_client.call(create_bar).return_value
         print("bar_app_id=", bar_app_id)
 
-        bar_client = ApplicationClient(sandbox.get_algod_client(), bar, app_id=bar_app_id, signer=account.signer)
+        bar_client = ApplicationClient(
+            sandbox.get_algod_client(), bar, app_id=bar_app_id, signer=account.signer
+        )
         verify_app(bar_client)
 
     def test_create_bar_directly(self):
         account = sandbox.get_accounts().pop()
 
-        bar_client = ApplicationClient(sandbox.get_algod_client(), bar, signer=account.signer)
+        bar_client = ApplicationClient(
+            sandbox.get_algod_client(), bar, signer=account.signer
+        )
         bar_app_id = bar_client.create(owner=account.address)
         print("bar_app_id=", bar_app_id)
 

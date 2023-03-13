@@ -44,7 +44,7 @@ app = Application(APP_NAME)
 # pylint: disable=invalid-name
 
 
-@app.create
+@app.create(bare=True)
 def create() -> Expr:
     """
     Initializes application state

@@ -47,6 +47,36 @@ class WebsocketsServiceTestCase(OysterPackIsolatedAsyncioTestCase):
         ws_server.stop()
         ws_server.await_stopped()
 
+    async def test_binary_messages(self) -> None:
+        commands: Subject[ServiceCommand] = Subject()
+        commands_observable: Observable[ServiceCommand] = commands.pipe(
+            observe_on(default_scheduler)
+        )
+
+        messages: list[str | bytes] = []
+
+        async def handler(websocket: WebSocketServerProtocol):
+            async for message in websocket:
+                messages.append(message)
+                logger.info("received message: %s", message)
+                await websocket.send(message)
+
+        ws_server = WebsocketServer(ws_handler=handler, commands=commands_observable)
+
+        ws_server.start()
+        ws_server.await_running()
+
+        async with websockets.connect(f"ws://localhost:{ws_server.ws_port}") as websocket:  # type: ignore
+            for i in range(1, 11):
+                msg = f"msg #{i}"
+                await websocket.send(msg.encode())
+                response = await websocket.recv()
+                self.assertEqual(msg.encode(), response)
+                logger.info("received response: %s %s", type(response), response)
+
+        ws_server.stop()
+        ws_server.await_stopped()
+
 
 if __name__ == "__main__":
     unittest.main()

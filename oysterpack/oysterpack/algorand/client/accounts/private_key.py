@@ -1,6 +1,8 @@
 """
-AlgoPrivateKey adds the capability to encrypt private messages using the same Algorand private key that is used
-to sign messages. Specifically, AlgoPrivateKet supports authenticated encryption, i.e., box encryption:
+:type:`AlgoPrivateKey` adds the capability to encrypt private messages using the same Algorand private key that is used
+to sign messages.
+
+Specifically, :type:``AlgoPrivateKey`` supports authenticated encryption, i.e., box encryption:
 
 https://doc.libsodium.org/public-key_cryptography/authenticated_encryption
 """
@@ -21,7 +23,7 @@ from oysterpack.algorand.client.model import Address, Mnemonic
 EncryptionAddress = NewType("EncryptionAddress", Address)
 
 # public signing key encoded as a base32 address
-# standars Algorand address
+# standard Algorand address
 SigningAddress = NewType("SigningAddress", Address)
 
 
@@ -99,7 +101,9 @@ class AlgoPrivateKey(PrivateKey):
         )
 
     def encrypt(
-        self, msg: bytes, recipient: EncryptionAddress | None = None
+        self,
+        msg: bytes,
+        recipient: EncryptionAddress | None = None,
     ) -> EncryptedMessage:
         """
         Encrypts a message that can only be decrypted by the recipient's private key.
@@ -114,12 +118,14 @@ class AlgoPrivateKey(PrivateKey):
         ).encrypt(msg)
 
     def decrypt(
-        self, msg: EncryptedMessage, sender: EncryptionAddress | None = None
+        self,
+        msg: EncryptedMessage,
+        sender: EncryptionAddress | None = None,
     ) -> bytes:
         """
         Decrypts a message that was encrypted by the sender.
 
-        :param recipient: if None, then recipient is set to self
+        :param sender: if None, then sender is set to self
         """
         return Box(
             self,

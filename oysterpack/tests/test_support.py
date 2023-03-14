@@ -14,5 +14,12 @@ class OysterPackTestCase(unittest.TestCase):
         return logging.getLogger(f"{self.__class__.__name__}.{name}")
 
 
+class OysterPackIsolatedAsyncioTestCase(unittest.IsolatedAsyncioTestCase):
+    maxDiff = None
+
+    def get_logger(self, name: str) -> Logger:
+        return logging.getLogger(f"{self.__class__.__name__}.{name}")
+
+
 if __name__ == "__main__":
     unittest.main()

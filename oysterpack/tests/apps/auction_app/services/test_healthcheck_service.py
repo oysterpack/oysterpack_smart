@@ -10,7 +10,6 @@ from oysterpack.apps.auction_app.data import Base
 from oysterpack.apps.auction_app.healthchecks.database_healthcheck import (
     DatabaseHealthCheck,
 )
-from oysterpack.apps.auction_app.services.healthcheck_service import HealthCheckService
 from oysterpack.core.health_check import (
     HealthCheckResult,
     HealthCheckImpact,
@@ -18,6 +17,7 @@ from oysterpack.core.health_check import (
     HealthCheckStatus,
 )
 from oysterpack.core.logging import get_logger
+from oysterpack.services.healthcheck_service import HealthCheckService
 from tests.test_support import OysterPackTestCase
 
 

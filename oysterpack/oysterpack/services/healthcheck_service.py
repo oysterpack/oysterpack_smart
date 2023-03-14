@@ -16,7 +16,11 @@ from oysterpack.core.service import Service, ServiceCommand
 
 class HealthCheckService(Service):
     """
-    Used to register health checks with the service.
+    All services support health checks. However, several services can depend on the same healthcheck.
+    For example, multiple services may depend on the same database. It would be redundant and inefficient for each
+    service to register the same healthcheck.
+
+    The purpose of this service is to enable application wide health checks to be registered.
     """
 
     def __init__(

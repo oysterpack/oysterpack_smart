@@ -17,7 +17,7 @@ from oysterpack.core.service import Service, ServiceCommand
 
 class WebsocketServer(Service):
     """
-    Websocket Server
+    Runs a websocket server in a separate thread.
     """
 
     def __init__(

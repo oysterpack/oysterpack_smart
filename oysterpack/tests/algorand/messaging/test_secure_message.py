@@ -6,7 +6,7 @@ from nacl.utils import EncryptedMessage
 from ulid import ULID
 
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
-from oysterpack.algorand.client.accounts.secure_message import (
+from oysterpack.algorand.messaging.secure_message import (
     SecretMessage,
     SecureMessage,
 )
@@ -83,8 +83,8 @@ class SecureMessageTestCase(unittest.TestCase):
         secure_message = SecureMessage.sign(sender_private_key, encrypted_msg)
         self.assertTrue(secure_message.verify())
 
-        packed_msg = secure_message.packb()
-        secure_message_2 = SecureMessage.unpackb(packed_msg)
+        packed_msg = secure_message.pack()
+        secure_message_2 = SecureMessage.unpack(packed_msg)
         self.assertEqual(secure_message, secure_message_2)
         self.assertTrue(secure_message_2.verify())
 

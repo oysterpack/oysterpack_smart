@@ -1,0 +1,141 @@
+import asyncio
+import unittest
+from dataclasses import dataclass
+from typing import Iterable, AsyncIterable, cast, Final, Self
+
+import msgpack  # type: ignore
+from algosdk.account import generate_account
+from algosdk.transaction import Transaction
+from beaker import sandbox
+from beaker.consts import algo
+from ulid import ULID
+
+from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
+from oysterpack.algorand.client.model import MicroAlgos
+from oysterpack.algorand.client.transactions import payment
+from oysterpack.algorand.messaging.secure_message_handler import (
+    SecureMessageHandler,
+    MessageContext,
+    pack_secure_message,
+)
+from oysterpack.algorand.messaging.websocket import Data
+from oysterpack.core.message import Message
+from tests.test_support import OysterPackIsolatedAsyncioTestCase
+
+REQUEST_MSG_TYPE: Final[ULID] = ULID.from_str("01GVH1J2JQ4A8SR03MTXG3VMZY")
+
+
+@dataclass(slots=True)
+class Request:
+    id: ULID
+
+    txns: list[Transaction]
+
+    @staticmethod
+    def message_type() -> ULID:
+        return REQUEST_MSG_TYPE
+
+    @classmethod
+    def unpackb(cls, packed: bytes) -> "Request":
+        id, txns = msgpack.unpackb(packed, use_list=False)
+        return cls(
+            id=ULID.from_bytes(id), txns=[Transaction.undictify(txn) for txn in txns]
+        )
+
+    @classmethod
+    def from_message(cls, msg: Message) -> Self:  # type: ignore
+        if msg.type != REQUEST_MSG_TYPE:
+            raise ValueError("invalid message type")
+
+        return Self.unpackb(msg.data)  # type: ignore
+
+    def packb(self) -> bytes:
+        return msgpack.packb((self.id.bytes, [txn.dictify() for txn in self.txns]))
+
+    def to_message(self) -> Message:
+        return Message(
+            id=self.id,
+            type=REQUEST_MSG_TYPE,
+            data=self.packb(),
+        )
+
+
+@dataclass(slots=True)
+class Response:
+    id: ULID
+
+    def packb(self) -> bytes:
+        return msgpack.packb((self.id.bytes))
+
+
+async def request_message_handler(ctx: MessageContext):
+    pass
+
+
+class WebsocketMock:
+    def __init__(self) -> None:
+        self.request_queue: asyncio.Queue[Data] = asyncio.Queue()
+        self.response_queue: asyncio.Queue[Data] = asyncio.Queue()
+
+    async def recv(self) -> Data:
+        return await self.request_queue.get()
+
+    async def send(
+        self,
+        message: Data | Iterable[Data] | AsyncIterable[Data],
+    ) -> None:
+        await self.response_queue.put(cast(Data, message))
+
+
+class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.sender_private_key = AlgoPrivateKey(generate_account()[0])
+        self.recipient_private_key = AlgoPrivateKey(generate_account()[0])
+
+    async def test_message_handling(self):
+        # SETUPE
+        request = Request(
+            id=ULID(),
+            txns=[
+                payment.transfer_algo(
+                    sender=self.sender_private_key.signing_address,
+                    receiver=self.recipient_private_key.signing_address,
+                    amount=MicroAlgos(1 * algo),
+                    suggested_params=sandbox.get_algod_client().suggested_params(),
+                ),
+                payment.transfer_algo(
+                    sender=self.sender_private_key.signing_address,
+                    receiver=self.recipient_private_key.signing_address,
+                    amount=MicroAlgos(10 * algo),
+                    suggested_params=sandbox.get_algod_client().suggested_params(),
+                ),
+            ],
+        )
+
+        # def create_secure_message() -> SecureMessage:
+        #     encrypted_msg = SecretMessage.encrypt(
+        #         sender_private_key=self.sender_private_key,
+        #         recipient=self.recipient_private_key.encryption_address,
+        #         msg=request.to_message().pack(),
+        #     )
+        #     return SecureMessage.sign(self.sender_private_key, encrypted_msg)
+
+        secure_message = await asyncio.to_thread(
+            pack_secure_message,
+            sender_private_key=self.sender_private_key,
+            msg=request.to_message(),
+            recipient=self.recipient_private_key.encryption_address,
+        )
+
+        handle_message = SecureMessageHandler(
+            private_key=self.recipient_private_key,
+            message_handlers=(((Request.message_type(),), request_message_handler),),
+        )
+        ws = WebsocketMock()
+
+        # Act
+        await handle_message(secure_message, ws)
+
+
+if __name__ == "__main__":
+    unittest.main()

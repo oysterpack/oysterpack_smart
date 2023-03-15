@@ -1,46 +1,42 @@
 """
 Standardized messaging format
 """
-from collections import namedtuple
 from dataclasses import dataclass
 
 import msgpack  # type: ignore
 from ulid import ULID
-
-MessageTuple = namedtuple("MessageTuple", ("id", "type", "data"))
 
 
 @dataclass(slots=True)
 class Message:
     """
     Message
+
+    :field:`id` - unique message ID
+    :field:`type` - message type
+    :field:`data` - msgpack serialization format
     """
 
     id: ULID
     type: ULID
     data: bytes
 
-    def to_tuple(self) -> MessageTuple:
-        return MessageTuple(str(self.id), str(self.type), self.data)
-
     @classmethod
-    def from_tuple(cls, msg: MessageTuple) -> "Message":
-        return cls(
-            id=ULID.from_str(msg.id),
-            type=ULID.from_str(msg.type),
-            data=msg.data,
-        )
-
-    @classmethod
-    def create(cls, type: ULID, data: bytes) -> "Message":
+    def create(cls, msg_type: ULID, data: bytes) -> "Message":
+        """
+        Constructor
+        """
         return cls(
             id=ULID(),
-            type=type,
+            type=msg_type,
             data=data,
         )
 
     @classmethod
     def unpack(cls, packed: bytes) -> "Message":
+        """
+        deserializes the message
+        """
         (id, type, data) = msgpack.unpackb(packed, use_list=False)
         return cls(
             id=ULID.from_bytes(id),
@@ -49,4 +45,7 @@ class Message:
         )
 
     def pack(self) -> bytes:
+        """
+        Serialize the message
+        """
         return msgpack.packb((self.id.bytes, self.type.bytes, self.data))

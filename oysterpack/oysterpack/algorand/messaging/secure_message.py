@@ -31,6 +31,9 @@ class SecretMessage:
         recipient: EncryptionAddress,
         msg: bytes,
     ) -> "SecretMessage":
+        """
+        Creates encrypted message
+        """
         return cls(
             sender=sender_private_key.encryption_address,
             recipient=recipient,
@@ -38,6 +41,9 @@ class SecretMessage:
         )
 
     def decrypt(self, recipient_private_key: AlgoPrivateKey) -> bytes:
+        """
+        Decrypts the message
+        """
         return recipient_private_key.decrypt(self.encrypted_msg, self.sender)
 
 
@@ -53,14 +59,30 @@ class SecureMessage:
 
     @classmethod
     def sign(cls, private_key: AlgoPrivateKey, msg: SecretMessage) -> "SecureMessage":
+        """
+        Signs the encrypted message
+        """
         return cls(
             sender=private_key.signing_address,
             signature=private_key.sign(msg.encrypted_msg).signature,
             secret_msg=msg,
         )
 
+    def verify(self) -> bool:
+        """
+        :return: True if the message signature passed verification
+        """
+        return verify_message(
+            message=self.secret_msg.encrypted_msg,
+            signature=self.signature,
+            signer=self.sender,
+        )
+
     @classmethod
-    def unpackb(cls, msg: bytes) -> "SecureMessage":
+    def unpack(cls, msg: bytes) -> "SecureMessage":
+        """
+        Deserializes the msg into a SecureMessage
+        """
         (
             sender,
             signature,
@@ -84,14 +106,10 @@ class SecureMessage:
             ),
         )
 
-    def verify(self) -> bool:
-        return verify_message(
-            message=self.secret_msg.encrypted_msg,
-            signature=self.signature,
-            signer=self.sender,
-        )
-
-    def packb(self) -> bytes:
+    def pack(self) -> bytes:
+        """
+        Serialized the message into bytes
+        """
         return msgpack.packb(
             (
                 self.sender,

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import unittest
 from dataclasses import dataclass
 from typing import Iterable, AsyncIterable, cast, Final, Self
@@ -21,6 +22,8 @@ from oysterpack.algorand.messaging.secure_message_handler import (
 from oysterpack.algorand.messaging.websocket import Data
 from oysterpack.core.message import Message
 from tests.test_support import OysterPackIsolatedAsyncioTestCase
+
+logger = logging.getLogger("SecureMessageHandlerTestCase")
 
 REQUEST_MSG_TYPE: Final[ULID] = ULID.from_str("01GVH1J2JQ4A8SR03MTXG3VMZY")
 
@@ -68,8 +71,12 @@ class Response:
         return msgpack.packb((self.id.bytes))
 
 
-async def request_message_handler(ctx: MessageContext):
-    pass
+async def echo_message_handler(ctx: MessageContext):
+    logger.info("echo_message_handler: START")
+    response = await ctx.pack_secure_message_bytes(lambda: ctx.msg)
+    logger.info("echo_message_handler: packed response")
+    await ctx.websocket.send(response)
+    logger.info("echo_message_handler: sent response")
 
 
 class WebsocketMock:
@@ -78,11 +85,13 @@ class WebsocketMock:
         self.response_queue: asyncio.Queue[Data] = asyncio.Queue()
 
     async def recv(self) -> Data:
-        return await self.request_queue.get()
+        msg = await self.request_queue.get()
+        self.request_queue.task_done()
+        return msg
 
     async def send(
-        self,
-        message: Data | Iterable[Data] | AsyncIterable[Data],
+            self,
+            message: Data | Iterable[Data] | AsyncIterable[Data],
     ) -> None:
         await self.response_queue.put(cast(Data, message))
 
@@ -112,14 +121,6 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
             ],
         )
 
-        # def create_secure_message() -> SecureMessage:
-        #     encrypted_msg = SecretMessage.encrypt(
-        #         sender_private_key=self.sender_private_key,
-        #         recipient=self.recipient_private_key.encryption_address,
-        #         msg=request.to_message().pack(),
-        #     )
-        #     return SecureMessage.sign(self.sender_private_key, encrypted_msg)
-
         secure_message = await asyncio.to_thread(
             pack_secure_message,
             sender_private_key=self.sender_private_key,
@@ -129,12 +130,16 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         handle_message = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(((Request.message_type(),), request_message_handler),),
+            message_handlers=(((Request.message_type(),), echo_message_handler),),
         )
         ws = WebsocketMock()
 
         # Act
         await handle_message(secure_message, ws)
+        response_bytes = await ws.response_queue.get()
+        ws.response_queue.task_done()
+        self.assertIsInstance(response_bytes, bytes)
+        logger.info("len(response_bytes)= %s", len(response_bytes))
 
 
 if __name__ == "__main__":

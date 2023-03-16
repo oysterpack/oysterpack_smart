@@ -79,11 +79,41 @@ class MessageContext:
     Message context for message handling
     """
 
-    private_key: AlgoPrivateKey
+    # used to secure the message transport
+    # all messages sent between the client and server are box encrypted and signed
+    server_private_key: AlgoPrivateKey
+
+    # used to communicate with the client
     websocket: Websocket
-    sender_encryption_address: EncryptionAddress
-    sender_signing_address: SigningAddress
+
+    # who sent the message
+    client_encryption_address: EncryptionAddress
+    # who signed the message
+    client_signing_address: SigningAddress
+    # decrypted message
     msg: Message
+
+    async def pack_secure_message_bytes(
+            self,
+            msg: Callable[[], Message],
+            recipient: EncryptionAddress | None = None,
+    ) -> bytes:
+        """
+        Packs the message into a :type:`SecureMessage` and serializes it to bytes
+
+        :param msg: provides the message
+        :param recipient: if None, then the client is used as the recipient
+        :return: serialized :type:`SecureMessage` bytes
+        """
+
+        def pack_response() -> bytes:
+            return pack_secure_message(
+                sender_private_key=self.server_private_key,
+                msg=msg(),
+                recipient=recipient if recipient else self.client_encryption_address,
+            ).pack()
+
+        return await asyncio.to_thread(pack_response)
 
 
 MessageHandler = Callable[[MessageContext], Awaitable[None]]
@@ -132,15 +162,22 @@ class SecureMessageHandler(ABC):
 
     async def __call__(self, secure_msg: SecureMessage, websocket: Websocket):
         """
-        message handler
+        Workflow
+        --------
+        1. verify the message signature
+        2. decrypt the message
+        3. lookup message handler to process the message
         """
+        try:
+            msg = unpack_secure_message(self.__private_key, secure_msg)
+        except SecureMessageHandlerError as err:
+            msg = err.pack()
 
-        msg = unpack_secure_message(self.__private_key, secure_msg)
         ctx = MessageContext(
-            private_key=self.__private_key,
+            server_private_key=self.__private_key,
             websocket=websocket,
-            sender_encryption_address=secure_msg.secret_msg.sender,
-            sender_signing_address=secure_msg.sender,
+            client_encryption_address=secure_msg.secret_msg.sender,
+            client_signing_address=secure_msg.sender,
             msg=msg,
         )
 
@@ -153,26 +190,23 @@ class SecureMessageHandler(ABC):
 
         If there is no handler registered for the message type, then an error handler is returned.
         """
+
+        async def handle_unsupported_message(ctx: MessageContext):
+            response = await ctx.pack_secure_message_bytes(UnsupportedMessageType(ctx.msg.type).pack)
+            await ctx.websocket.send(response)
+
         for msg_types, handler in self.__message_handlers:
             if msg_type in msg_types:
                 return handler
 
-        return self.handle_unsupported_message
+        async def handle_error(ctx: MessageContext):
+            response = await ctx.pack_secure_message_bytes(lambda: ctx.msg)
+            await ctx.websocket.send(response)
 
-    @staticmethod
-    async def handle_unsupported_message(ctx: MessageContext):
-        """
-        Message error handler for unsupported message types.
-        """
-        def pack_response() -> bytes:
-            return pack_secure_message(
-                sender_private_key=ctx.private_key,
-                msg=UnsupportedMessageType(ctx.msg.type).pack(),
-                recipient=ctx.sender_encryption_address,
-            ).pack()
+        if msg_type == SecureMessageHandlerError.MSG_TYPE:
+            return handle_error
 
-        response = await asyncio.to_thread(pack_response)
-        await ctx.websocket.send(response)
+        return handle_unsupported_message
 
 
 def pack_secure_message(

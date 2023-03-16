@@ -15,6 +15,7 @@ class Websocket(Protocol):
         """
         Used to receive messages
         """
+        ...
 
     async def send(
         self,
@@ -23,3 +24,4 @@ class Websocket(Protocol):
         """
         Used to send messages
         """
+        ...

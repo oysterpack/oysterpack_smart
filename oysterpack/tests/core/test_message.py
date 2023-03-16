@@ -6,7 +6,6 @@ from oysterpack.core.message import Message
 
 
 class MessageTestCase(unittest.TestCase):
-
     def test_pack(self):
         msg = Message.create(ULID(), b"data")
 

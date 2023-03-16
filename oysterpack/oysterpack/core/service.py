@@ -3,7 +3,7 @@ Provides standard for building services
 """
 
 import logging
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import IntEnum, auto
@@ -254,10 +254,10 @@ class Service(ABC):
             self._healthcheck_timer.start()
             self._logger.info("scheduled healthcheck: %s", healthcheck)
 
-        if self._state in [
+        if self._state in (
             ServiceLifecycleState.RUNNING,
             ServiceLifecycleState.STARTING,
-        ]:
+        ):
             return
 
         if self._state in [ServiceLifecycleState.NEW, ServiceLifecycleState.STOPPED]:
@@ -296,16 +296,16 @@ class Service(ABC):
         - The service can only be stopped when state is in [RUNNING, START_FAILED, NEW]
         - When state in [STOPPED, STOPPING], then this is a noop
         """
-        if self._state in [
+        if self._state in (
             ServiceLifecycleState.STOPPED,
             ServiceLifecycleState.STOPPING,
-        ]:
+        ):
             return
 
-        if self._state in [
+        if self._state in (
             ServiceLifecycleState.RUNNING,
             ServiceLifecycleState.START_FAILED,
-        ]:
+        ):
 
             start_failed = self._state == ServiceLifecycleState.START_FAILED
             self._state_subject.on_next(self._set_state(ServiceLifecycleState.STOPPING))
@@ -381,12 +381,14 @@ class Service(ABC):
 
         return ServiceLifecycleEvent(self.name, state)
 
+    @abstractmethod
     def _start(self):
         """
-        Override to perform any startup work.
+        Service startup hook
         """
 
+    @abstractmethod
     def _stop(self):
         """
-        override to perform any shutdown work
+        Service shutdown hook
         """

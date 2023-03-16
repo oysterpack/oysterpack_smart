@@ -86,3 +86,8 @@ class AuctionImportService(Service):
             name=self.name,
             daemon=True,
         ).start()
+
+    def _stop(self):
+        # no additional shutdown work is required
+        # the background worker thread created during startup is monitoring the `_stopped_event` to exit
+        pass

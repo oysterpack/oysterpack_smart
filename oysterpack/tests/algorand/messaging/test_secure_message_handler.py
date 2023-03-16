@@ -90,8 +90,8 @@ class WebsocketMock:
         return msg
 
     async def send(
-            self,
-            message: Data | Iterable[Data] | AsyncIterable[Data],
+        self,
+        message: Data | Iterable[Data] | AsyncIterable[Data],
     ) -> None:
         await self.response_queue.put(cast(Data, message))
 

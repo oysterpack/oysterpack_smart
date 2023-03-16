@@ -263,3 +263,8 @@ class AuctionManagerWatcherService(Service):
                 existing_state.min_round = state.min_round
             else:
                 session.add(TSearchAuctionManagerEvents.create(state))
+
+    def _stop(self):
+        # no additional shutdown work is required
+        # the background worker thread created during startup is monitoring the `_stopped_event` to exit
+        pass

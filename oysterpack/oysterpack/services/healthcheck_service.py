@@ -86,3 +86,13 @@ class HealthCheckService(Service):
                 self._healthchecks_subject.on_next(result)
 
         Thread(target=_run_healthchecks, daemon=True).start()
+
+    def _start(self):
+        # no additional startup work is required
+        # health checks are fully managed by the base Service
+        pass
+
+    def _stop(self):
+        # no additional shutdown work is required
+        # health checks are fully managed by the base Service
+        pass

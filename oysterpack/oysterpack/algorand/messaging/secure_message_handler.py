@@ -94,9 +94,9 @@ class MessageContext:
     msg: Message
 
     async def pack_secure_message_bytes(
-            self,
-            msg: Callable[[], Message],
-            recipient: EncryptionAddress | None = None,
+        self,
+        msg: Callable[[], Message],
+        recipient: EncryptionAddress | None = None,
     ) -> bytes:
         """
         Packs the message into a :type:`SecureMessage` and serializes it to bytes
@@ -192,7 +192,9 @@ class SecureMessageHandler(ABC):
         """
 
         async def handle_unsupported_message(ctx: MessageContext):
-            response = await ctx.pack_secure_message_bytes(UnsupportedMessageType(ctx.msg.type).pack)
+            response = await ctx.pack_secure_message_bytes(
+                UnsupportedMessageType(ctx.msg.type).pack
+            )
             await ctx.websocket.send(response)
 
         for msg_types, handler in self.__message_handlers:
@@ -210,9 +212,9 @@ class SecureMessageHandler(ABC):
 
 
 def pack_secure_message(
-        sender_private_key: AlgoPrivateKey,
-        msg: Message,
-        recipient: EncryptionAddress,
+    sender_private_key: AlgoPrivateKey,
+    msg: Message,
+    recipient: EncryptionAddress,
 ) -> SecureMessage:
     """
     Encrypts and signs the message to construct a SecureMessage
@@ -226,8 +228,8 @@ def pack_secure_message(
 
 
 def unpack_secure_message(
-        recipient_private_key: AlgoPrivateKey,
-        secure_msg: SecureMessage,
+    recipient_private_key: AlgoPrivateKey,
+    secure_msg: SecureMessage,
 ) -> Message:
     """
     Verifies the message signature and decrypts the message.

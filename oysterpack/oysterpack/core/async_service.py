@@ -9,7 +9,7 @@ from datetime import timedelta
 from oysterpack.core.service import (
     ServiceLifecycleState,
     ServiceStartError,
-    ServiceStopError,
+    ServiceStopError, ServiceExceptionGroup,
 )
 
 
@@ -83,10 +83,21 @@ class AsyncService(ABC):
                 self.__set_state(ServiceLifecycleState.RUNNING)
             except Exception as err:
                 self.__set_state(ServiceLifecycleState.START_FAILED)
-                await self.stop()
-                raise ServiceStartError(
-                    self.name, "error occurred while starting"
-                ) from err
+                service_start_err = ServiceStartError(self.name, err)
+                try:
+                    await self.stop()
+                    raise service_start_err from err
+                except ServiceStartError:
+                    raise
+                except ServiceStopError as err:
+                    raise ServiceExceptionGroup(
+                        f"[{self.name}] service failed to start. Then an error was raised trying to stop it.",
+                        (
+                            service_start_err,
+                            ServiceStopError(self.name, err),
+                        )
+                    )
+
         else:
             error = ServiceStartError(
                 self.name,
@@ -117,7 +128,8 @@ class AsyncService(ABC):
             try:
                 await self._stop()
             except Exception as err:
-                self._logger.error("service failed to stop cleanly: %s", err)
+                self._logger.error("An error occurred while stopping service: %s", err)
+                raise ServiceStopError(self.name, err)
             finally:
                 self.__set_state(ServiceLifecycleState.STOPPED)
         elif self.__state == ServiceLifecycleState.NEW:

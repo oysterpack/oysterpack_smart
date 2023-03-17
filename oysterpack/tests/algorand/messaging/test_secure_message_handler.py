@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import unittest
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Iterable, AsyncIterable, cast, Final, Self
 
@@ -9,18 +10,22 @@ from algosdk.account import generate_account
 from algosdk.transaction import Transaction
 from beaker import sandbox
 from beaker.consts import algo
+from websockets.legacy.client import connect
 
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.algorand.client.transactions import payment
 from oysterpack.algorand.messaging.secure_message import SecureMessage
+from oysterpack.algorand.messaging.secure_message_client import SecureMessageClient
 from oysterpack.algorand.messaging.secure_message_handler import (
     SecureMessageHandler,
     MessageContext,
     pack_secure_message,
+    SecureMessageWebsocketHandler,
 )
 from oysterpack.algorand.messaging.websocket import Data
-from oysterpack.core.message import Message, MessageType, MessageId
+from oysterpack.core.message import Message, MessageType, MessageId, Serializable
+from oysterpack.services.asyncio.websockets_server import WebsocketsServer
 from tests.test_support import OysterPackIsolatedAsyncioTestCase
 
 logger = logging.getLogger("SecureMessageHandlerTestCase")
@@ -31,8 +36,8 @@ REQUEST_MSG_TYPE: Final[MessageType] = MessageType.from_str(
 
 
 @dataclass(slots=True)
-class Request:
-    id: MessageId
+class Request(Serializable):
+    request_id: MessageId
 
     txns: list[Transaction]
 
@@ -42,9 +47,9 @@ class Request:
 
     @classmethod
     def unpack(cls, packed: bytes) -> Self:
-        id, txns = msgpack.unpackb(packed, use_list=False)
+        request_id, txns = msgpack.unpackb(packed, use_list=False)
         return cls(
-            id=MessageId.from_bytes(id),
+            request_id=MessageId.from_bytes(request_id),
             txns=[Transaction.undictify(txn) for txn in txns],
         )
 
@@ -58,14 +63,14 @@ class Request:
     def pack(self) -> bytes:
         return msgpack.packb(
             (
-                self.id.bytes,
+                self.request_id.bytes,
                 [txn.dictify() for txn in self.txns],
             )
         )
 
     def to_message(self) -> Message:
         return Message(
-            msg_id=self.id,
+            msg_id=self.request_id,
             msg_type=REQUEST_MSG_TYPE,
             data=self.pack(),
         )
@@ -104,7 +109,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
     async def test_message_handling(self):
         # SETUP
         request = Request(
-            id=MessageId(),
+            request_id=MessageId(),
             txns=[
                 payment.transfer_algo(
                     sender=self.sender_private_key.signing_address,
@@ -158,6 +163,79 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         decrypted_response_msg = Message.unpack(decrypted_response_msg_bytes)
         request_2 = Request.unpack(decrypted_response_msg.data)
         self.assertEqual(request, request_2)
+
+
+class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.sender_private_key = AlgoPrivateKey(generate_account()[0])
+        self.recipient_private_key = AlgoPrivateKey(generate_account()[0])
+
+    async def test_websocket_server(self):
+        # SETUP
+        request = Request(
+            request_id=MessageId(),
+            txns=[
+                payment.transfer_algo(
+                    sender=self.sender_private_key.signing_address,
+                    receiver=self.recipient_private_key.signing_address,
+                    amount=MicroAlgos(1 * algo),
+                    suggested_params=sandbox.get_algod_client().suggested_params(),
+                ),
+                payment.transfer_algo(
+                    sender=self.sender_private_key.signing_address,
+                    receiver=self.recipient_private_key.signing_address,
+                    amount=MicroAlgos(10 * algo),
+                    suggested_params=sandbox.get_algod_client().suggested_params(),
+                ),
+            ],
+        )
+
+        secure_message_handler = SecureMessageHandler(
+            private_key=self.recipient_private_key,
+            message_handlers=((echo_message_handler, (Request.message_type(),)),),
+        )
+
+        websocket_handler = SecureMessageWebsocketHandler(
+            handler=secure_message_handler
+        )
+
+        ws_server = WebsocketsServer(handler=websocket_handler)
+        await ws_server.start()
+        await ws_server.await_running()
+        await asyncio.sleep(0)
+
+        with self.subTest("using ProcessPoolExecutor based SecureMessageClient"):
+            async with connect(f"ws://localhost:{ws_server.port}") as websocket:
+                with ProcessPoolExecutor() as executor:
+                    client = SecureMessageClient(
+                        websocket=websocket,
+                        private_key=self.sender_private_key,
+                        executor=executor,
+                    )
+                    await client.send(
+                        request, self.recipient_private_key.encryption_address
+                    )
+                    response = await client.recv()
+                    data = Request.unpack(response.data)
+                    self.assertEqual(request, data)
+
+        with self.subTest("using ThreadPoolExecutor based SecureMessageClient"):
+            async with connect(f"ws://localhost:{ws_server.port}") as websocket:
+                with ThreadPoolExecutor() as executor:
+                    client = SecureMessageClient(
+                        websocket=websocket,
+                        private_key=self.sender_private_key,
+                        executor=executor,
+                    )
+                    await client.send(
+                        request, self.recipient_private_key.encryption_address
+                    )
+                    response = await client.recv()
+                    data = Request.unpack(response.data)
+                    self.assertEqual(request, data)
+
+        await ws_server.stop()
+        await ws_server.await_stopped()
 
 
 if __name__ == "__main__":

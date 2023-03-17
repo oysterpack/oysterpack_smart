@@ -2,6 +2,7 @@
 Provides support secure messaging
 """
 from dataclasses import dataclass
+from typing import Self
 
 import msgpack  # type: ignore
 from nacl.utils import EncryptedMessage
@@ -30,7 +31,7 @@ class SecretMessage:
         sender_private_key: AlgoPrivateKey,
         recipient: EncryptionAddress,
         msg: bytes,
-    ) -> "SecretMessage":
+    ) -> Self:
         """
         Creates encrypted message
         """
@@ -58,7 +59,7 @@ class SecureMessage:
     secret_msg: SecretMessage
 
     @classmethod
-    def sign(cls, private_key: AlgoPrivateKey, msg: SecretMessage) -> "SecureMessage":
+    def sign(cls, private_key: AlgoPrivateKey, msg: SecretMessage) -> Self:
         """
         Signs the encrypted message
         """
@@ -79,7 +80,7 @@ class SecureMessage:
         )
 
     @classmethod
-    def unpack(cls, msg: bytes) -> "SecureMessage":
+    def unpack(cls, msg: bytes) -> Self:
         """
         Deserializes the msg into a SecureMessage
         """

@@ -9,7 +9,6 @@ from algosdk.account import generate_account
 from algosdk.transaction import Transaction
 from beaker import sandbox
 from beaker.consts import algo
-from ulid import ULID
 
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import MicroAlgos
@@ -20,29 +19,32 @@ from oysterpack.algorand.messaging.secure_message_handler import (
     pack_secure_message,
 )
 from oysterpack.algorand.messaging.websocket import Data
-from oysterpack.core.message import Message
+from oysterpack.core.message import Message, MessageType, MessageId
 from tests.test_support import OysterPackIsolatedAsyncioTestCase
 
 logger = logging.getLogger("SecureMessageHandlerTestCase")
 
-REQUEST_MSG_TYPE: Final[ULID] = ULID.from_str("01GVH1J2JQ4A8SR03MTXG3VMZY")
+REQUEST_MSG_TYPE: Final[MessageType] = MessageType.from_str(
+    "01GVH1J2JQ4A8SR03MTXG3VMZY"
+)
 
 
 @dataclass(slots=True)
 class Request:
-    id: ULID
+    id: MessageId
 
     txns: list[Transaction]
 
     @staticmethod
-    def message_type() -> ULID:
+    def message_type() -> MessageType:
         return REQUEST_MSG_TYPE
 
     @classmethod
     def unpackb(cls, packed: bytes) -> "Request":
         id, txns = msgpack.unpackb(packed, use_list=False)
         return cls(
-            id=ULID.from_bytes(id), txns=[Transaction.undictify(txn) for txn in txns]
+            id=MessageId.from_bytes(id),
+            txns=[Transaction.undictify(txn) for txn in txns],
         )
 
     @classmethod
@@ -65,7 +67,7 @@ class Request:
 
 @dataclass(slots=True)
 class Response:
-    id: ULID
+    id: MessageId
 
     def packb(self) -> bytes:
         return msgpack.packb((self.id.bytes))
@@ -102,9 +104,9 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         self.recipient_private_key = AlgoPrivateKey(generate_account()[0])
 
     async def test_message_handling(self):
-        # SETUPE
+        # SETUP
         request = Request(
-            id=ULID(),
+            id=MessageId(),
             txns=[
                 payment.transfer_algo(
                     sender=self.sender_private_key.signing_address,
@@ -121,6 +123,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
             ],
         )
 
+        # run pack_secure_message in a separate thread to revent the event loop from being blocked
         secure_message = await asyncio.to_thread(
             pack_secure_message,
             sender_private_key=self.sender_private_key,
@@ -130,7 +133,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         handle_message = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(((Request.message_type(),), echo_message_handler),),
+            message_handlers=((echo_message_handler, (Request.message_type(),)),),
         )
         ws = WebsocketMock()
 

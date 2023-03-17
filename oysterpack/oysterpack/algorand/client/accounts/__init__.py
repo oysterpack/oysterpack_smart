@@ -2,6 +2,7 @@
 Algorand account related utility functions
 """
 import functools
+from typing import Any, cast
 
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
@@ -22,7 +23,10 @@ def get_auth_address(address: Address, algod_client: AlgodClient) -> Address:
     """
 
     try:
-        account_info = algod_client.account_info(address, exclude="all")
+        account_info = cast(
+            dict[str, Any],
+            algod_client.account_info(address, exclude="all"),  # type: ignore
+        )
     except AlgodHTTPError as err:
         if err.code == 404:
             raise AccountDoesNotExist from err
@@ -39,7 +43,10 @@ def get_algo_balance(address: Address, algod_client: AlgodClient) -> MicroAlgos:
     """
 
     try:
-        account_info = algod_client.account_info(address, exclude="all")
+        account_info = cast(
+            dict[str, Any],
+            algod_client.account_info(address, exclude="all"),  # type: ignore
+        )
     except AlgodHTTPError as err:
         if err.code == 404:
             raise AccountDoesNotExist from err
@@ -63,7 +70,10 @@ def get_asset_holdings(
     Returns asset holdings for the specified Algorand address
     """
     try:
-        account_info = algod_client.account_info(address)
+        account_info = cast(
+            dict[str, Any],
+            algod_client.account_info(address),
+        )
     except AlgodHTTPError as err:
         if err.code == 404:
             raise AccountDoesNotExist from err
@@ -86,7 +96,10 @@ def get_asset_holding(
     :return : None if the Algorand address does not exist on-chain
     """
     try:
-        data = algod_client.account_asset_info(address=address, asset_id=asset_id)
+        data = cast(
+            dict[str, Any],
+            algod_client.account_asset_info(address=address, asset_id=asset_id),
+        )
     except AlgodHTTPError as err:
         if err.code == 404:
             return None

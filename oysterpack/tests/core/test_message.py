@@ -1,13 +1,11 @@
 import unittest
 
-from ulid import ULID
-
-from oysterpack.core.message import Message
+from oysterpack.core.message import Message, MessageType
 
 
 class MessageTestCase(unittest.TestCase):
     def test_pack(self):
-        msg = Message.create(ULID(), b"data")
+        msg = Message.create(MessageType(), b"data")
 
         packed_msg = msg.pack()
         msg_2 = Message.unpack(packed_msg)

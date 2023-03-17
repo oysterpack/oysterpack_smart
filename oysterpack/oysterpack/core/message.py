@@ -7,6 +7,18 @@ import msgpack  # type: ignore
 from ulid import ULID
 
 
+class MessageId(ULID):
+    """
+    Unique message ID
+    """
+
+
+class MessageType(ULID):
+    """
+    Message type ID
+    """
+
+
 @dataclass(slots=True)
 class Message:
     """
@@ -17,17 +29,17 @@ class Message:
     :field:`data` - msgpack serialization format
     """
 
-    id: ULID
-    type: ULID
+    id: MessageId
+    type: MessageType
     data: bytes
 
     @classmethod
-    def create(cls, msg_type: ULID, data: bytes) -> "Message":
+    def create(cls, msg_type: MessageType, data: bytes) -> "Message":
         """
         Constructor
         """
         return cls(
-            id=ULID(),
+            id=MessageId(),
             type=msg_type,
             data=data,
         )
@@ -39,8 +51,8 @@ class Message:
         """
         (id, type, data) = msgpack.unpackb(packed, use_list=False)
         return cls(
-            id=ULID.from_bytes(id),
-            type=ULID.from_bytes(type),
+            id=MessageId.from_bytes(id),
+            type=MessageType.from_bytes(type),
             data=data,
         )
 

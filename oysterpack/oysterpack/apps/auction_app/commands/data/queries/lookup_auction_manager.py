@@ -1,7 +1,7 @@
 """
 Lookup an auction manager record by app ID or address
 """
-from typing import Tuple
+from typing import Tuple, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
@@ -39,4 +39,6 @@ class LookupAuctionManager:
 
             if auction_manager is None:
                 return None
-            return AuctionManagerAppId(auction_manager.app_id), auction_manager.address
+            return cast(AuctionManagerAppId, auction_manager.app_id), cast(
+                Address, auction_manager.address
+            )

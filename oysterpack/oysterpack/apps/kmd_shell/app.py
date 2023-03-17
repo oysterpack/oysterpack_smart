@@ -3,7 +3,7 @@ Algorand KMD shell
 """
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from algosdk.kmd import KMDClient
 from algosdk.transaction import wait_for_confirmation
@@ -46,7 +46,7 @@ class App:
             )
 
             try:
-                result = algod_client.status()
+                result = cast(dict[str, Any], algod_client.status())
             except Exception as err:
                 raise AssertionError("Failed to connect to Algorand node") from err
 
@@ -244,5 +244,5 @@ class App:
                         any created application parameters
         """
         return self.algod_client.account_info(
-            account, exclude="all" if summary else None
+            account, exclude="all" if summary else None  # type: ignore
         )

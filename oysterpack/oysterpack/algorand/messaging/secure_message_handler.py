@@ -9,7 +9,6 @@ from uuid import UUID
 
 import msgpack  # type: ignore
 from nacl.exceptions import CryptoError
-from ulid import ULID
 
 from oysterpack.algorand.client.accounts.private_key import (
     AlgoPrivateKey,
@@ -18,7 +17,7 @@ from oysterpack.algorand.client.accounts.private_key import (
 )
 from oysterpack.algorand.messaging.secure_message import SecureMessage, SecretMessage
 from oysterpack.algorand.messaging.websocket import Websocket
-from oysterpack.core.message import Message
+from oysterpack.core.message import Message, MessageId, MessageType
 
 
 class SecureMessageHandlerError(Exception):
@@ -26,14 +25,14 @@ class SecureMessageHandlerError(Exception):
     SecureMessageHandler base exception
     """
 
-    MSG_TYPE: Final[ULID] = ULID.from_str("01GVGS7ZK6WE9C3TDRBTVVAJ3J")
+    MSG_TYPE: Final[MessageType] = MessageType.from_str("01GVGS7ZK6WE9C3TDRBTVVAJ3J")
 
-    def pack(self, msg_id: ULID | None = None) -> Message:
+    def pack(self, msg_id: MessageId | None = None) -> Message:
         """
         Serializes the exception into a Message
         """
         return Message(
-            id=msg_id if msg_id else ULID(),
+            id=msg_id if msg_id else MessageId(),
             type=self.MSG_TYPE,
             data=msgpack.packb((self.__class__.__name__, str(self))),
         )
@@ -118,7 +117,8 @@ class MessageContext:
 
 MessageHandler = Callable[[MessageContext], Awaitable[None]]
 
-MessageHandlers = Tuple[Tuple[Tuple[ULID, ...], MessageHandler], ...]
+# MessagHandler:MessageType is a 1:N relationship
+MessageHandlers = Tuple[Tuple[MessageHandler, Tuple[MessageType, ...]], ...]
 
 
 class SecureMessageHandler(ABC):
@@ -151,7 +151,7 @@ class SecureMessageHandler(ABC):
         Message type IDs across all handlers must be unique
         """
         ids: set[UUID] = set()
-        for msg_types, _handler in message_handlers:
+        for _handler, msg_types in message_handlers:
             for msg_type in msg_types:
                 msg_type_uuid = msg_type.to_uuid()
                 if msg_type_uuid in ids:
@@ -166,7 +166,8 @@ class SecureMessageHandler(ABC):
         --------
         1. verify the message signature
         2. decrypt the message
-        3. lookup message handler to process the message
+        3. lookup message handler
+        4. handle message
         """
         try:
             msg = unpack_secure_message(self.__private_key, secure_msg)
@@ -184,11 +185,15 @@ class SecureMessageHandler(ABC):
         handler = self.get_handler(msg.type)
         await handler(ctx)
 
-    def get_handler(self, msg_type: ULID) -> MessageHandler:
+    def get_handler(self, msg_type: MessageType) -> MessageHandler:
         """
         Looks up handler for the specified message type.
 
-        If there is no handler registered for the message type, then an error handler is returned.
+        Notes
+        -----
+        - The following scenarios are handled
+          - When there is no handler registered for the message type
+          - SecureMessageHandlerError
         """
 
         async def handle_unsupported_message(ctx: MessageContext):
@@ -197,7 +202,7 @@ class SecureMessageHandler(ABC):
             )
             await ctx.websocket.send(response)
 
-        for msg_types, handler in self.__message_handlers:
+        for handler, msg_types in self.__message_handlers:
             if msg_type in msg_types:
                 return handler
 

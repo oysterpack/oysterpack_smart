@@ -2,7 +2,7 @@
 Service persistent state
 """
 from dataclasses import dataclass
-from typing import cast
+from typing import cast, Optional
 
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
@@ -41,11 +41,11 @@ class TSearchAuctionManagerEvents(Base):
         :return: SearchAuctionManagerEventsServiceState
         """
         return SearchAuctionManagerEventsServiceState(
-            self.service_name,
-            self.auction_manager_app_id,
-            self.event,
-            self.min_round,
-            self.next_token,
+            cast(str, self.service_name),
+            cast(AuctionManagerAppId, self.auction_manager_app_id),
+            cast(AuctionManagerEvent, self.event),
+            cast(Optional[int], self.min_round),
+            cast(Optional[str], self.next_token),
         )
 
     @classmethod

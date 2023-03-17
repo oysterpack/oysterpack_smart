@@ -1,4 +1,5 @@
 import unittest
+from typing import cast, Any
 
 from algosdk.transaction import wait_for_confirmation
 from beaker import Application, Authorize
@@ -142,9 +143,10 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
 
         print(f"app_client.sender = {app_client.sender}")
 
-        account_starting_balance = self.algod_client.account_info(app_client.sender)[
-            "amount"
-        ]
+        account_info = cast(
+            dict[str, Any], self.algod_client.account_info(cast(str, app_client.sender))
+        )
+        account_starting_balance = account_info["amount"]
 
         # create app
         app_client.create(sender=asset_manager.account)
@@ -200,8 +202,9 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
         # assert that the assets were transferred
         app_account_info = app_client.get_application_account_info()
         self.assertEqual(app_account_info["assets"][0]["amount"], 8000)
-        account_asset_info = app_client.client.account_asset_info(
-            asset_manager.account, asset_id
+        account_asset_info = cast(
+            dict[str, Any],
+            app_client.client.account_asset_info(asset_manager.account, asset_id),
         )
         self.assertEqual(
             account_asset_info["asset-holding"]["amount"], 1_000_000_000_000_000 - 8000
@@ -218,9 +221,10 @@ class AssetOptInOptOutTestCase(AlgorandTestCase):
         self.assertEqual(app_account_info["total-assets-opted-in"], 0)
 
         app_client.delete(suggested_params=sp, sender=asset_manager.account)
-        account_ending_balance = self.algod_client.account_info(app_client.sender)[
-            "amount"
-        ]
+        account_info = cast(
+            dict[str, Any], self.algod_client.account_info(cast(str, app_client.sender))
+        )
+        account_ending_balance = account_info["amount"]
 
         if account_starting_balance > account_ending_balance:
             # when the app is deleted, the app account should have been closed out to the app creator

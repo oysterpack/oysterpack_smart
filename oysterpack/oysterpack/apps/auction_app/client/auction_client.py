@@ -4,7 +4,7 @@ Auction application client
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from enum import StrEnum
-from typing import cast, Final
+from typing import cast, Final, Any
 
 from algosdk.atomic_transaction_composer import (
     TransactionSigner,
@@ -179,7 +179,12 @@ class _AuctionClient(AppClient):
         Raises an exception if the Auction does not hold the asset
         """
         return AssetHolding.from_data(
-            self._app_client.client.account_asset_info(self.contract_address, asset_id)
+            cast(
+                dict[str, Any],
+                self._app_client.client.account_asset_info(
+                    self.contract_address, asset_id
+                ),
+            )
         )
 
 
@@ -210,11 +215,13 @@ class _AuctionClientSupport(AppClient):
         :return: None if the bid asset is not configured
         """
         bid_asset_id = self.get_auction_state().bid_asset_id
+        if bid_asset_id is None:
+            return None
         try:
             bid_asset_holding = self._app_client.client.account_asset_info(
                 self.contract_address, bid_asset_id
             )
-            return AssetHolding.from_data(bid_asset_holding)
+            return AssetHolding.from_data(cast(dict[str, Any], bid_asset_holding))
         except AlgodHTTPError as err:
             if err.code == 404:
                 return None

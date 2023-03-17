@@ -2,6 +2,7 @@
 Algorand node health check
 """
 from dataclasses import dataclass
+from typing import cast, Any
 
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
@@ -49,7 +50,7 @@ class AlgorandNodeHealthCheck(HealthCheck):
         self.__get_auction_managers = get_auction_managers
 
     def execute(self):
-        result = self.__algod_client.status()
+        result = cast(dict[str, Any], self.__algod_client.status())
         if catchup_time := result["catchup-time"] > 0:
             raise AlgorandNodeNotCaughtUp(catchup_time)
 

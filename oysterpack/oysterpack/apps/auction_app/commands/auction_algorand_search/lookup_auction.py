@@ -1,6 +1,7 @@
 """
 Command used to retrieve Auction info from Algorand
 """
+from typing import cast, Any
 
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
@@ -35,7 +36,9 @@ class LookupAuction:
 
     def __call__(self, auction_app_id: AuctionAppId) -> Auction | None:
         try:
-            app_info = self._algod_client.application_info(auction_app_id)
+            app_info = cast(
+                dict[str, Any], self._algod_client.application_info(auction_app_id)
+            )
             creator_address = app_info["params"]["creator"]
             result = self._lookup_auction_manager(creator_address)
             if result is None:

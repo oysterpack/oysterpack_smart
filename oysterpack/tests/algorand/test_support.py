@@ -2,7 +2,7 @@
 Unit tests depend on a local sandbox running.
 """
 from dataclasses import dataclass
-from typing import Final, Any
+from typing import Final, Any, cast
 
 from algosdk import kmd
 from algosdk.atomic_transaction_composer import TransactionSigner
@@ -207,7 +207,9 @@ class AlgorandTestCase(OysterPackTestCase):
 
     def assert_app_txn_notes(self, expected: AppTxnNote, txids: list[TxnId]):
         for txid in txids:
-            txn_info = self.algod_client.pending_transaction_info(txid)
+            txn_info = cast(
+                dict[str, Any], self.algod_client.pending_transaction_info(txid)
+            )
             self.assertEqual(
                 expected.encode(),
                 base64_decode_str(txn_info["txn"]["txn"]["note"]).encode(),

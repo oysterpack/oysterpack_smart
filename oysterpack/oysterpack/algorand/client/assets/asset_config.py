@@ -2,7 +2,7 @@
 Asset Config
 """
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
@@ -48,7 +48,7 @@ class AssetConfig:
                 return None
             raise
 
-        return cls.from_asset_info(asset_info)
+        return cls.from_asset_info(cast(dict[str, Any], asset_info))
 
     @classmethod
     def from_asset_info(cls, asset_info: dict[str, Any]) -> "AssetConfig":

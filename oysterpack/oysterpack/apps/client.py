@@ -2,7 +2,7 @@
 Provides client side support to interact with Algorand smart contracts, i.e., applications.
 """
 from base64 import b64decode
-from typing import Any
+from typing import Any, cast
 
 from algosdk.error import AlgodHTTPError
 from algosdk.logic import get_application_address
@@ -27,7 +27,9 @@ def verify_app(app_client: ApplicationClient):
     """
 
     try:
-        app = app_client.client.application_info(app_client.app_id)
+        app = cast(
+            dict[str, Any], app_client.client.application_info(app_client.app_id)
+        )
         approval_program = b64decode(app["params"]["approval-program"])
         clear_state_program = b64decode(app["params"]["clear-state-program"])
 
@@ -56,7 +58,7 @@ def verify_app_id(
     try:
         precompiled_app = PrecompiledApplication(app, algod_client)
 
-        app_info = algod_client.application_info(app_id)
+        app_info = cast(dict[str, Any], algod_client.application_info(app_id))
         approval_program = b64decode(app_info["params"]["approval-program"])
         clear_state_program = b64decode(app_info["params"]["clear-state-program"])
 
@@ -131,7 +133,9 @@ class AppClient:
         """
         :return: application smart contract info
         """
-        return self._app_client.client.application_info(self.app_id)
+        return cast(
+            dict[str, Any], self._app_client.client.application_info(self.app_id)
+        )
 
     def suggested_params(self, txn_count: int = 1) -> SuggestedParams:
         """

@@ -26,7 +26,7 @@ def to_auction(
         bid_asset_id: AssetId | None,
     ) -> dict[AssetId, int]:
         app_address = get_application_address(app_id)
-        account_info = algod_client.account_info(app_address)
+        account_info = cast(dict[str, Any], algod_client.account_info(app_address))
         auction_assets = [
             AssetHolding.from_data(asset)
             for asset in account_info["assets"]

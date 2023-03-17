@@ -94,10 +94,10 @@ class TAuction(Base):
             for asset_id, amount in auction.assets.items()
         ]
         tauction = cls(
-            app_id=auction.app_id,
-            auction_manager_app_id=auction.auction_manager_app_id,
-            updated_at=int(datetime.now(UTC).timestamp()),
-            assets=assets,
+            app_id=cast(Mapped[AppId], auction.app_id),
+            auction_manager_app_id=cast(Mapped[AppId], auction.auction_manager_app_id),
+            updated_at=cast(Mapped[int], int(datetime.now(UTC).timestamp())),
+            assets=cast(Mapped[list[TAuctionAsset]], assets),
         )
         tauction.state = auction.state
         return tauction
@@ -109,16 +109,16 @@ class TAuction(Base):
         """
 
         return AuctionState(
-            status=AuctionStatus(self.status),
-            seller=Address(self.seller),
+            status=cast(AuctionStatus, self.status),
+            seller=cast(Address, self.seller),
             bid_asset_id=cast(AssetId, self.bid_asset_id)
             if self.bid_asset_id
             else None,
-            min_bid=self.min_bid,
+            min_bid=cast(int, self.min_bid),
             highest_bidder=cast(Address, self.highest_bidder)
             if self.highest_bidder
             else None,
-            highest_bid=self.highest_bid,
+            highest_bid=cast(int, self.highest_bid),
             start_time=datetime.fromtimestamp(cast(int, self.start_time), UTC)
             if self.start_time
             else None,
@@ -181,17 +181,20 @@ class TAuction(Base):
         """
 
         return Auction(
-            app_id=AppId(self.app_id),
-            auction_manager_app_id=AppId(self.auction_manager_app_id),
+            app_id=cast(AppId, self.app_id),
+            auction_manager_app_id=cast(AppId, self.auction_manager_app_id),
             state=self.state,
-            assets={asset.asset_id: asset.amount for asset in self.assets},
+            assets={
+                cast(AssetId, asset.asset_id): cast(int, asset.amount)
+                for asset in cast(list[TAuctionAsset], self.assets)
+            },
         )
 
     def get_asset(self, asset_id: AssetId) -> Optional["TAuctionAsset"]:
         """
         :return: None if the auction does not hold the asset
         """
-        for asset in self.assets:
+        for asset in cast(list[TAuctionAsset], self.assets):
             if asset.asset_id == asset_id:
                 return asset
         return None
@@ -205,14 +208,16 @@ class TAuction(Base):
         if asset:
             asset.amount = amount
         else:
-            self.assets.append(TAuctionAsset.create(self.app_id, asset_id, amount))
+            cast(list[TAuctionAsset], self.assets).append(
+                TAuctionAsset.create(cast(AppId, self.app_id), asset_id, amount)
+            )
 
     def set_assets(self, assets: dict[AssetId, int]):
         """
         Replaces the existing set of Auction assets with the specified assets.
         """
         auction_assets = [
-            TAuctionAsset.create(self.app_id, asset_id, amount)
+            TAuctionAsset.create(cast(AppId, self.app_id), asset_id, amount)
             for asset_id, amount in assets.items()
         ]
         self.assets = cast(Mapped[list[TAuctionAsset]], auction_assets)
@@ -243,7 +248,7 @@ class TAuctionAsset(Base):
         Constructs a TAuctionAsset instance
         """
         return cls(
-            auction_id=auction_id,
-            asset_id=asset_id,
-            amount=amount,
+            auction_id=cast(Mapped[AppId], auction_id),
+            asset_id=cast(Mapped[AssetId], asset_id),
+            amount=cast(Mapped[int], amount),
         )

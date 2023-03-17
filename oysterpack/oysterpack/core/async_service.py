@@ -9,7 +9,8 @@ from datetime import timedelta
 from oysterpack.core.service import (
     ServiceLifecycleState,
     ServiceStartError,
-    ServiceStopError, ServiceExceptionGroup,
+    ServiceStopError,
+    ServiceExceptionGroup,
 )
 
 
@@ -71,8 +72,8 @@ class AsyncService(ABC):
 
     async def start(self):
         if self.__state in (
-                ServiceLifecycleState.RUNNING,
-                ServiceLifecycleState.STARTING,
+            ServiceLifecycleState.RUNNING,
+            ServiceLifecycleState.STARTING,
         ):
             return
 
@@ -95,7 +96,7 @@ class AsyncService(ABC):
                         (
                             service_start_err,
                             ServiceStopError(self.name, err),
-                        )
+                        ),
                     )
 
         else:
@@ -115,14 +116,14 @@ class AsyncService(ABC):
         - When state in [STOPPED, STOPPING], then this is a noop
         """
         if self.__state in (
-                ServiceLifecycleState.STOPPED,
-                ServiceLifecycleState.STOPPING,
+            ServiceLifecycleState.STOPPED,
+            ServiceLifecycleState.STOPPING,
         ):
             return
 
         if self.__state in (
-                ServiceLifecycleState.RUNNING,
-                ServiceLifecycleState.START_FAILED,
+            ServiceLifecycleState.RUNNING,
+            ServiceLifecycleState.START_FAILED,
         ):
             self.__set_state(ServiceLifecycleState.STOPPING)
             try:

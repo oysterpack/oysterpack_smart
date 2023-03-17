@@ -261,8 +261,8 @@ class Service(ABC):
             self._logger.info("scheduled healthcheck: %s", healthcheck)
 
         if self._state in (
-                ServiceLifecycleState.RUNNING,
-                ServiceLifecycleState.STARTING,
+            ServiceLifecycleState.RUNNING,
+            ServiceLifecycleState.STARTING,
         ):
             return
 
@@ -303,14 +303,14 @@ class Service(ABC):
         - When state in [STOPPED, STOPPING], then this is a noop
         """
         if self._state in (
-                ServiceLifecycleState.STOPPED,
-                ServiceLifecycleState.STOPPING,
+            ServiceLifecycleState.STOPPED,
+            ServiceLifecycleState.STOPPING,
         ):
             return
 
         if self._state in (
-                ServiceLifecycleState.RUNNING,
-                ServiceLifecycleState.START_FAILED,
+            ServiceLifecycleState.RUNNING,
+            ServiceLifecycleState.START_FAILED,
         ):
 
             start_failed = self._state == ServiceLifecycleState.START_FAILED

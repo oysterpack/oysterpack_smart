@@ -13,6 +13,7 @@ from beaker.consts import algo
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.algorand.client.transactions import payment
+from oysterpack.algorand.messaging.secure_message import SecureMessage
 from oysterpack.algorand.messaging.secure_message_handler import (
     SecureMessageHandler,
     MessageContext,
@@ -40,7 +41,7 @@ class Request:
         return REQUEST_MSG_TYPE
 
     @classmethod
-    def unpackb(cls, packed: bytes) -> "Request":
+    def unpack(cls, packed: bytes) -> Self:
         id, txns = msgpack.unpackb(packed, use_list=False)
         return cls(
             id=MessageId.from_bytes(id),
@@ -48,29 +49,26 @@ class Request:
         )
 
     @classmethod
-    def from_message(cls, msg: Message) -> Self:  # type: ignore
+    def from_message(cls, msg: Message) -> Self:
         if msg.msg_type != REQUEST_MSG_TYPE:
             raise ValueError("invalid message type")
 
         return Self.unpackb(msg.data)  # type: ignore
 
-    def packb(self) -> bytes:
-        return msgpack.packb((self.id.bytes, [txn.dictify() for txn in self.txns]))
+    def pack(self) -> bytes:
+        return msgpack.packb(
+            (
+                self.id.bytes,
+                [txn.dictify() for txn in self.txns],
+            )
+        )
 
     def to_message(self) -> Message:
         return Message(
             msg_id=self.id,
             msg_type=REQUEST_MSG_TYPE,
-            data=self.packb(),
+            data=self.pack(),
         )
-
-
-@dataclass(slots=True)
-class Response:
-    id: MessageId
-
-    def packb(self) -> bytes:
-        return msgpack.packb((self.id.bytes))
 
 
 async def echo_message_handler(ctx: MessageContext):
@@ -139,10 +137,27 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         # Act
         await handle_message(secure_message, ws)
+
+        # Assert
         response_bytes = await ws.response_queue.get()
         ws.response_queue.task_done()
         self.assertIsInstance(response_bytes, bytes)
         logger.info("len(response_bytes)= %s", len(response_bytes))
+
+        # response should be a SecureMessage
+        response = SecureMessage.unpack(response_bytes)
+        logger.info(response)
+        self.assertTrue(
+            response.verify(), "SecureMessage signature verification failed"
+        )
+        self.assertEqual(self.recipient_private_key.signing_address, response.sender)
+        decrypted_response_msg_bytes = response.secret_msg.decrypt(
+            self.sender_private_key
+        )
+        # request should have been echoed back
+        decrypted_response_msg = Message.unpack(decrypted_response_msg_bytes)
+        request_2 = Request.unpack(decrypted_response_msg.data)
+        self.assertEqual(request, request_2)
 
 
 if __name__ == "__main__":

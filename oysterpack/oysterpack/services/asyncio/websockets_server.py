@@ -4,12 +4,12 @@ Websockets Server
 import asyncio
 from typing import Callable, Awaitable, Any
 
-import websockets
+from websockets.legacy.server import WebSocketServerProtocol
+from websockets.legacy.server import serve
 
 from oysterpack.core.async_service import AsyncService
 
-# pylint: disable=no-member
-WebsocketHandler = Callable[[websockets.WebSocketServerProtocol], Awaitable[Any]]  # type: ignore
+WebsocketHandler = Callable[[WebSocketServerProtocol], Awaitable[Any]]
 
 
 class WebsocketsServer(AsyncService):
@@ -41,7 +41,7 @@ class WebsocketsServer(AsyncService):
         self.__ws_server_stop_signal = asyncio.Future()
 
         async def run_ws_server():
-            async with websockets.serve(self.__handler, port=self.__port):  # type: ignore
+            async with serve(self.__handler, port=self.__port):  # type: ignore
                 await self.__ws_server_stop_signal
 
         self.__ws_server_task = asyncio.create_task(run_ws_server())

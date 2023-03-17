@@ -13,6 +13,10 @@ WebsocketHandler = Callable[[websockets.WebSocketServerProtocol], Awaitable[Any]
 
 
 class WebsocketsServer(AsyncService):
+    """
+    WebsocketsServer
+    """
+
     __ws_server_stop_signal: asyncio.Future[bool] = asyncio.Future()
     __ws_server_task: asyncio.Task
 
@@ -28,6 +32,9 @@ class WebsocketsServer(AsyncService):
 
     @property
     def port(self) -> int:
+        """
+        Port
+        """
         return self.__port
 
     async def _start(self):

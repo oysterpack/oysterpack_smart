@@ -15,6 +15,10 @@ from oysterpack.core.service import (
 
 
 class AsyncService(ABC):
+    """
+    AsyncService is designed to work with asyncio
+    """
+
     def __init__(self):
         self.__state = ServiceLifecycleState.NEW
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -24,6 +28,9 @@ class AsyncService(ABC):
 
     @property
     def state(self) -> ServiceLifecycleState:
+        """
+        :return: ServiceLifecycleState
+        """
         return self.__state
 
     @property
@@ -71,6 +78,9 @@ class AsyncService(ABC):
             await self.__stopped.wait()
 
     async def start(self):
+        """
+        Start the service
+        """
         if self.__state in (
             ServiceLifecycleState.RUNNING,
             ServiceLifecycleState.STARTING,
@@ -82,22 +92,19 @@ class AsyncService(ABC):
             try:
                 await self._start()
                 self.__set_state(ServiceLifecycleState.RUNNING)
-            except Exception as err:
+            except Exception as start_err:  # pylint: disable=broad-exception-caught
                 self.__set_state(ServiceLifecycleState.START_FAILED)
-                service_start_err = ServiceStartError(self.name, err)
                 try:
                     await self.stop()
-                    raise service_start_err from err
-                except ServiceStartError:
-                    raise
-                except ServiceStopError as err:
+                    raise ServiceStartError(self.name, start_err) from start_err
+                except ServiceStopError as stop_err:
                     raise ServiceExceptionGroup(
                         f"[{self.name}] service failed to start. Then an error was raised trying to stop it.",
                         (
-                            service_start_err,
-                            ServiceStopError(self.name, err),
+                            ServiceStartError(self.name, start_err),
+                            ServiceStopError(self.name, stop_err),
                         ),
-                    )
+                    ) from stop_err
 
         else:
             error = ServiceStartError(
@@ -130,7 +137,7 @@ class AsyncService(ABC):
                 await self._stop()
             except Exception as err:
                 self._logger.error("An error occurred while stopping service: %s", err)
-                raise ServiceStopError(self.name, err)
+                raise ServiceStopError(self.name, err) from err
             finally:
                 self.__set_state(ServiceLifecycleState.STOPPED)
         elif self.__state == ServiceLifecycleState.NEW:

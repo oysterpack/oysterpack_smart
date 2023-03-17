@@ -49,7 +49,7 @@ class Request:
 
     @classmethod
     def from_message(cls, msg: Message) -> Self:  # type: ignore
-        if msg.type != REQUEST_MSG_TYPE:
+        if msg.msg_type != REQUEST_MSG_TYPE:
             raise ValueError("invalid message type")
 
         return Self.unpackb(msg.data)  # type: ignore
@@ -59,8 +59,8 @@ class Request:
 
     def to_message(self) -> Message:
         return Message(
-            id=self.id,
-            type=REQUEST_MSG_TYPE,
+            msg_id=self.id,
+            msg_type=REQUEST_MSG_TYPE,
             data=self.packb(),
         )
 

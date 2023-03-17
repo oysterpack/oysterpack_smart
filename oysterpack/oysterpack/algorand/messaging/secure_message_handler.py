@@ -32,8 +32,8 @@ class SecureMessageHandlerError(Exception):
         Serializes the exception into a Message
         """
         return Message(
-            id=msg_id if msg_id else MessageId(),
-            type=self.MSG_TYPE,
+            msg_id=msg_id if msg_id else MessageId(),
+            msg_type=self.MSG_TYPE,
             data=msgpack.packb((self.__class__.__name__, str(self))),
         )
 
@@ -182,7 +182,7 @@ class SecureMessageHandler(ABC):
             msg=msg,
         )
 
-        handler = self.get_handler(msg.type)
+        handler = self.get_handler(msg.msg_type)
         await handler(ctx)
 
     def get_handler(self, msg_type: MessageType) -> MessageHandler:
@@ -198,7 +198,7 @@ class SecureMessageHandler(ABC):
 
         async def handle_unsupported_message(ctx: MessageContext):
             response = await ctx.pack_secure_message_bytes(
-                UnsupportedMessageType(ctx.msg.type).pack
+                UnsupportedMessageType(ctx.msg.msg_type).pack
             )
             await ctx.websocket.send(response)
 

@@ -29,8 +29,8 @@ class Message:
     :field:`data` - msgpack serialization format
     """
 
-    id: MessageId
-    type: MessageType
+    msg_id: MessageId
+    msg_type: MessageType
     data: bytes
 
     @classmethod
@@ -39,8 +39,8 @@ class Message:
         Constructor
         """
         return cls(
-            id=MessageId(),
-            type=msg_type,
+            msg_id=MessageId(),
+            msg_type=msg_type,
             data=data,
         )
 
@@ -49,10 +49,10 @@ class Message:
         """
         deserializes the message
         """
-        (id, type, data) = msgpack.unpackb(packed, use_list=False)
+        (msg_id, msg_type, data) = msgpack.unpackb(packed, use_list=False)
         return cls(
-            id=MessageId.from_bytes(id),
-            type=MessageType.from_bytes(type),
+            msg_id=MessageId.from_bytes(msg_id),
+            msg_type=MessageType.from_bytes(msg_type),
             data=data,
         )
 
@@ -60,4 +60,4 @@ class Message:
         """
         Serialize the message
         """
-        return msgpack.packb((self.id.bytes, self.type.bytes, self.data))
+        return msgpack.packb((self.msg_id.bytes, self.msg_type.bytes, self.data))

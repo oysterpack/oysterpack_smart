@@ -122,7 +122,10 @@ class SignedMessageData(Serializable):
 
     @classmethod
     def sign(
-        cls, private_key: AlgoPrivateKey, data: MessageData, msg_type: MessageType
+        cls,
+        private_key: AlgoPrivateKey,
+        data: MessageData,
+        msg_type: MessageType,
     ) -> Self:
         """
         Signs the encrypted message
@@ -164,7 +167,7 @@ class SignedMessageData(Serializable):
             signer=signer,
             signature=signature,
             data=data,
-            msg_type=msg_type,
+            msg_type=MessageType.from_bytes(msg_type),
         )
 
     def pack(self) -> bytes:
@@ -176,6 +179,6 @@ class SignedMessageData(Serializable):
                 self.signer,
                 self.signature,
                 self.data,
-                self.msg_type,
+                self.msg_type.bytes,
             )
         )

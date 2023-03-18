@@ -11,6 +11,7 @@ import base64
 from typing import NewType
 
 from algosdk import constants, mnemonic
+from algosdk.account import generate_account
 from algosdk.encoding import encode_address, decode_address
 from nacl.exceptions import BadSignatureError
 from nacl.public import PrivateKey, Box, PublicKey
@@ -39,13 +40,17 @@ class AlgoPrivateKey(PrivateKey):
     - Self encrypted messages can be created, i.e., sender == recipient
     """
 
-    def __init__(self, algo_private_key: str | bytes | Mnemonic):
+    def __init__(self, algo_private_key: str | bytes | Mnemonic | None = None):
         """
-        :param algo_private_key: the Algorand account private key can be specified in the following formats:
-                                 1. base64 encoded bytes
-                                 2. raw bytes
-                                 3. Mnemonic
+        :param algo_private_key: If not specified, then a new Algorand private key will be generated.
+            The Algorand account private key can be specified in the following formats:
+                1. base64 encoded bytes
+                2. raw bytes
+                3. Mnemonic
         """
+        if algo_private_key is None:
+            algo_private_key = generate_account()[0]
+
         if isinstance(algo_private_key, str):
             super().__init__(
                 base64.b64decode(algo_private_key)[: constants.key_len_bytes]

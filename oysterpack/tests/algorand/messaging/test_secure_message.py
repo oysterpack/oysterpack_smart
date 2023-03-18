@@ -7,7 +7,7 @@ from ulid import ULID
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.messaging.secure_message import (
     EncryptedMessage,
-    SecureMessage,
+    SignedEncryptedMessage,
 )
 
 
@@ -49,7 +49,7 @@ class SecureMessageTestCase(unittest.TestCase):
             msg=ULID().bytes,
         )
 
-        secure_message = SecureMessage.sign(sender_private_key, encrypted_msg)
+        secure_message = SignedEncryptedMessage.sign(sender_private_key, encrypted_msg)
         self.assertTrue(secure_message.verify())
 
         with self.subTest("when decrypting with invalid private key"):
@@ -73,11 +73,11 @@ class SecureMessageTestCase(unittest.TestCase):
             msg=ULID().bytes,
         )
 
-        secure_message = SecureMessage.sign(sender_private_key, encrypted_msg)
+        secure_message = SignedEncryptedMessage.sign(sender_private_key, encrypted_msg)
         self.assertTrue(secure_message.verify())
 
         packed_msg = secure_message.pack()
-        secure_message_2 = SecureMessage.unpack(packed_msg)
+        secure_message_2 = SignedEncryptedMessage.unpack(packed_msg)
         self.assertEqual(secure_message, secure_message_2)
         self.assertTrue(secure_message_2.verify())
 

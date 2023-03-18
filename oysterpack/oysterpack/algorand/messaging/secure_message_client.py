@@ -11,7 +11,10 @@ from oysterpack.algorand.client.accounts.private_key import (
     AlgoPrivateKey,
     EncryptionAddress,
 )
-from oysterpack.algorand.messaging.secure_message import EncryptedMessage, SecureMessage
+from oysterpack.algorand.messaging.secure_message import (
+    EncryptedMessage,
+    SignedEncryptedMessage,
+)
 from oysterpack.core.message import Serializable, Message
 
 
@@ -79,21 +82,21 @@ def _create_secure_message(
     private_key: AlgoPrivateKey,
     data: Serializable,
     recipient: EncryptionAddress,
-) -> SecureMessage:
+) -> SignedEncryptedMessage:
     msg = Message.create(data.message_type(), data.pack())
     secret_message = EncryptedMessage.encrypt(
         sender_private_key=private_key,
         recipient=recipient,
         msg=msg.pack(),
     )
-    return SecureMessage.sign(
+    return SignedEncryptedMessage.sign(
         private_key=private_key,
         msg=secret_message,
     )
 
 
 def _unpack_message(private_key: AlgoPrivateKey, secure_msg_bytes: bytes) -> Message:
-    secure_msg = SecureMessage.unpack(secure_msg_bytes)
+    secure_msg = SignedEncryptedMessage.unpack(secure_msg_bytes)
     if not secure_msg.verify():
         raise MessageSignatureVerificationFailed()
     decrypted_msg = secure_msg.secret_msg.decrypt(private_key)

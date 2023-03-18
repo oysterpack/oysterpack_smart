@@ -48,7 +48,7 @@ class EncryptedMessage:
 
 
 @dataclass
-class SecureMessage:
+class SignedEncryptedMessage:
     """
     Message is signed and encrypted using the same underlying private key.
     """

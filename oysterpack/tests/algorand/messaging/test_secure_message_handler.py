@@ -15,7 +15,7 @@ from websockets.legacy.client import connect
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.algorand.client.transactions import payment
-from oysterpack.algorand.messaging.secure_message import SecureMessage
+from oysterpack.algorand.messaging.secure_message import SignedEncryptedMessage
 from oysterpack.algorand.messaging.secure_message_client import SecureMessageClient
 from oysterpack.algorand.messaging.secure_message_handler import (
     SecureMessageHandler,
@@ -150,7 +150,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         logger.info("len(response_bytes)= %s", len(response_bytes))
 
         # response should be a SecureMessage
-        response = SecureMessage.unpack(response_bytes)
+        response = SignedEncryptedMessage.unpack(response_bytes)
         logger.info(response)
         self.assertTrue(
             response.verify(), "SecureMessage signature verification failed"

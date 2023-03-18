@@ -18,7 +18,10 @@ from oysterpack.algorand.client.accounts.private_key import (
     EncryptionAddress,
     SigningAddress,
 )
-from oysterpack.algorand.messaging.secure_message import SecureMessage, EncryptedMessage
+from oysterpack.algorand.messaging.secure_message import (
+    SignedEncryptedMessage,
+    EncryptedMessage,
+)
 from oysterpack.algorand.messaging.websocket import Websocket
 from oysterpack.core.logging import get_logger
 from oysterpack.core.message import Message, MessageId, MessageType
@@ -173,7 +176,7 @@ class SecureMessageHandler(ABC):
                     )
                 ids.add(msg_type_uuid)
 
-    async def __call__(self, secure_msg: SecureMessage, websocket: Websocket):
+    async def __call__(self, secure_msg: SignedEncryptedMessage, websocket: Websocket):
         """
         Workflow
         --------
@@ -288,7 +291,7 @@ class SecureMessageWebsocketHandler:
                 log_msg_recv()
 
                 try:
-                    secure_msg = SecureMessage.unpack(msg)
+                    secure_msg = SignedEncryptedMessage.unpack(msg)
                 except BaseException as err:
                     log_msg_failure(err)
                     raise
@@ -341,7 +344,7 @@ def pack_secure_message(
     sender_private_key: AlgoPrivateKey,
     msg: Message,
     recipient: EncryptionAddress,
-) -> SecureMessage:
+) -> SignedEncryptedMessage:
     """
     Encrypts and signs the message to construct a SecureMessage
     """
@@ -350,12 +353,12 @@ def pack_secure_message(
         msg=msg.pack(),
         recipient=recipient,
     )
-    return SecureMessage.sign(sender_private_key, secret_msg)
+    return SignedEncryptedMessage.sign(sender_private_key, secret_msg)
 
 
 def unpack_secure_message(
     recipient_private_key: AlgoPrivateKey,
-    secure_msg: SecureMessage,
+    secure_msg: SignedEncryptedMessage,
 ) -> Message:
     """
     Verifies the message signature and decrypts the message.

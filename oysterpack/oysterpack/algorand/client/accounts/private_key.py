@@ -15,7 +15,6 @@ from algosdk.encoding import encode_address, decode_address
 from nacl.exceptions import BadSignatureError
 from nacl.public import PrivateKey, Box, PublicKey
 from nacl.signing import SigningKey, SignedMessage, VerifyKey
-from nacl.utils import EncryptedMessage
 
 from oysterpack.algorand.client.model import Address, Mnemonic
 
@@ -104,7 +103,7 @@ class AlgoPrivateKey(PrivateKey):
         self,
         msg: bytes,
         recipient: EncryptionAddress | None = None,
-    ) -> EncryptedMessage:
+    ) -> bytes:
         """
         Encrypts a message that can only be decrypted by the recipient's private key.
 
@@ -119,7 +118,7 @@ class AlgoPrivateKey(PrivateKey):
 
     def decrypt(
         self,
-        msg: EncryptedMessage,
+        msg: bytes,
         sender: EncryptionAddress | None = None,
     ) -> bytes:
         """
@@ -132,7 +131,10 @@ class AlgoPrivateKey(PrivateKey):
             encryption_address_to_public_key(
                 sender if sender else self.encryption_address
             ),
-        ).decrypt(msg.ciphertext, msg.nonce)
+        ).decrypt(
+            ciphertext=msg[Box.NONCE_SIZE :],
+            nonce=msg[: Box.NONCE_SIZE],
+        )
 
     def sign(self, msg: bytes) -> SignedMessage:
         """

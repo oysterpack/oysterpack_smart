@@ -2,12 +2,11 @@ import unittest
 
 from algosdk.account import generate_account
 from nacl.exceptions import CryptoError
-from nacl.utils import EncryptedMessage
 from ulid import ULID
 
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.messaging.secure_message import (
-    SecretMessage,
+    EncryptedMessage,
     SecureMessage,
 )
 
@@ -20,7 +19,7 @@ class SecureMessageTestCase(unittest.TestCase):
         data = ULID().bytes
 
         # encrypt
-        encrypted_msg = SecretMessage.encrypt(
+        encrypted_msg = EncryptedMessage.encrypt(
             sender_private_key=sender_private_key,
             recipient=recipient_private_key.encryption_address,
             msg=data,
@@ -35,13 +34,7 @@ class SecureMessageTestCase(unittest.TestCase):
 
         with self.subTest("when decrypting altered msg"):
             # alter message
-            encrypted_msg.encrypted_msg = EncryptedMessage._from_parts(
-                combined=encrypted_msg.encrypted_msg.nonce
-                + encrypted_msg.encrypted_msg.ciphertext
-                + b"1",
-                nonce=encrypted_msg.encrypted_msg.nonce,
-                ciphertext=encrypted_msg.encrypted_msg.ciphertext + b"1",
-            )
+            encrypted_msg.encrypted_msg = encrypted_msg.encrypted_msg + b"1"
             with self.assertRaises(CryptoError):
                 encrypted_msg.decrypt(recipient_private_key)
 
@@ -50,7 +43,7 @@ class SecureMessageTestCase(unittest.TestCase):
         sender_private_key = AlgoPrivateKey(generate_account()[0])
         recipient_private_key = AlgoPrivateKey(generate_account()[0])
 
-        encrypted_msg = SecretMessage.encrypt(
+        encrypted_msg = EncryptedMessage.encrypt(
             sender_private_key=sender_private_key,
             recipient=recipient_private_key.encryption_address,
             msg=ULID().bytes,
@@ -74,7 +67,7 @@ class SecureMessageTestCase(unittest.TestCase):
         sender_private_key = AlgoPrivateKey(generate_account()[0])
         recipient_private_key = AlgoPrivateKey(generate_account()[0])
 
-        encrypted_msg = SecretMessage.encrypt(
+        encrypted_msg = EncryptedMessage.encrypt(
             sender_private_key=sender_private_key,
             recipient=recipient_private_key.encryption_address,
             msg=ULID().bytes,

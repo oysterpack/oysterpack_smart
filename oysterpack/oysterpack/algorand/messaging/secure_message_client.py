@@ -11,7 +11,7 @@ from oysterpack.algorand.client.accounts.private_key import (
     AlgoPrivateKey,
     EncryptionAddress,
 )
-from oysterpack.algorand.messaging.secure_message import SecretMessage, SecureMessage
+from oysterpack.algorand.messaging.secure_message import EncryptedMessage, SecureMessage
 from oysterpack.core.message import Serializable, Message
 
 
@@ -81,7 +81,7 @@ def _create_secure_message(
     recipient: EncryptionAddress,
 ) -> SecureMessage:
     msg = Message.create(data.message_type(), data.pack())
-    secret_message = SecretMessage.encrypt(
+    secret_message = EncryptedMessage.encrypt(
         sender_private_key=private_key,
         recipient=recipient,
         msg=msg.pack(),

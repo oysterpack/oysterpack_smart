@@ -18,7 +18,7 @@ from oysterpack.algorand.client.accounts.private_key import (
     EncryptionAddress,
     SigningAddress,
 )
-from oysterpack.algorand.messaging.secure_message import SecureMessage, SecretMessage
+from oysterpack.algorand.messaging.secure_message import SecureMessage, EncryptedMessage
 from oysterpack.algorand.messaging.websocket import Websocket
 from oysterpack.core.logging import get_logger
 from oysterpack.core.message import Message, MessageId, MessageType
@@ -345,7 +345,7 @@ def pack_secure_message(
     """
     Encrypts and signs the message to construct a SecureMessage
     """
-    secret_msg = SecretMessage.encrypt(
+    secret_msg = EncryptedMessage.encrypt(
         sender_private_key=sender_private_key,
         msg=msg.pack(),
         recipient=recipient,

@@ -3,11 +3,17 @@ Standardized messaging format using MessagePack as the binary serialization form
 
 https://msgpack.org/
 """
-from dataclasses import dataclass
-from typing import Self, Protocol
+from dataclasses import dataclass, field
+from typing import Self, Protocol, ClassVar
 
 import msgpack  # type: ignore
 from ulid import ULID
+
+from oysterpack.algorand.client.accounts.private_key import (
+    SigningAddress,
+    AlgoPrivateKey,
+    verify_message,
+)
 
 
 class MessageId(ULID):
@@ -23,6 +29,29 @@ class MessageType(ULID):
 
 
 MessageData = bytes
+
+
+class Serializable(Protocol):
+    """
+    Serializable protocol
+    """
+
+    @staticmethod
+    def message_type() -> MessageType:
+        ...
+
+    def pack(self) -> bytes:
+        """
+        Packs the object into bytes
+        """
+        ...
+
+    @classmethod
+    def unpack(cls, packed: bytes) -> Self:
+        """
+        Unpacks the packed bytes into a new instance of Self
+        """
+        ...
 
 
 @dataclass(slots=True)
@@ -73,24 +102,80 @@ class Message:
         return msgpack.packb((self.msg_id.bytes, self.msg_type.bytes, self.data))
 
 
-class Serializable(Protocol):
+@dataclass(slots=True)
+class SignedMessageData(Serializable):
     """
-    Serializable protocol
+    Signed message data
     """
 
-    @staticmethod
-    def message_type() -> MessageType:
-        ...
+    signer: SigningAddress
+    signature: bytes
+
+    data: MessageData
+    msg_type: MessageType
+
+    SIGNED_MESSAGE_DATA_MSG_TYPE: ClassVar[MessageType] = field(
+        default=MessageType.from_str("01GVS4P3NQY9BDXH7X9MN17A6X"),
+        init=False,
+        repr=False,
+    )
+
+    @classmethod
+    def sign(
+        cls, private_key: AlgoPrivateKey, data: MessageData, msg_type: MessageType
+    ) -> Self:
+        """
+        Signs the encrypted message
+        """
+        return cls(
+            signer=private_key.signing_address,
+            signature=private_key.sign(data).signature,
+            data=data,
+            msg_type=msg_type,
+        )
+
+    def verify(self) -> bool:
+        """
+        :return: True if the message signature passed verification
+        """
+        return verify_message(
+            message=self.data,
+            signature=self.signature,
+            signer=self.signer,
+        )
+
+    @classmethod
+    def message_type(cls) -> MessageType:
+        return cls.SIGNED_MESSAGE_DATA_MSG_TYPE
+
+    @classmethod
+    def unpack(cls, msg: bytes) -> Self:
+        """
+        Deserialize the msg
+        """
+        (
+            signer,
+            signature,
+            data,
+            msg_type,
+        ) = msgpack.unpackb(msg, use_list=False)
+
+        return cls(
+            signer=signer,
+            signature=signature,
+            data=data,
+            msg_type=msg_type,
+        )
 
     def pack(self) -> bytes:
         """
-        Packs the object into bytes
+        Serialized the message into bytes
         """
-        ...
-
-    @classmethod
-    def unpack(cls, packed: bytes) -> Self:
-        """
-        Unpacks the packed bytes into a new instance of Self
-        """
-        ...
+        return msgpack.packb(
+            (
+                self.signer,
+                self.signature,
+                self.data,
+                self.msg_type,
+            )
+        )

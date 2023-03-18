@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Self
 
 import msgpack  # type: ignore
-from nacl.utils import EncryptedMessage
 
 from oysterpack.algorand.client.accounts.private_key import (
     SigningAddress,
@@ -16,14 +15,14 @@ from oysterpack.algorand.client.accounts.private_key import (
 
 
 @dataclass(slots=True)
-class SecretMessage:
+class EncryptedMessage:
     """
     Encrypted message
     """
 
     sender: EncryptionAddress
     recipient: EncryptionAddress
-    encrypted_msg: EncryptedMessage
+    encrypted_msg: bytes
 
     @classmethod
     def encrypt(
@@ -56,10 +55,10 @@ class SecureMessage:
 
     sender: SigningAddress
     signature: bytes
-    secret_msg: SecretMessage
+    secret_msg: EncryptedMessage
 
     @classmethod
-    def sign(cls, private_key: AlgoPrivateKey, msg: SecretMessage) -> Self:
+    def sign(cls, private_key: AlgoPrivateKey, msg: EncryptedMessage) -> Self:
         """
         Signs the encrypted message
         """
@@ -89,21 +88,16 @@ class SecureMessage:
             signature,
             secret_msg_sender,
             secret_msg_recipient,
-            secret_msg_nonce,
-            secret_msg_ciphertext,
+            secret_msg_encrypted_msg,
         ) = msgpack.unpackb(msg, use_list=False)
 
         return cls(
             sender=sender,
             signature=signature,
-            secret_msg=SecretMessage(
+            secret_msg=EncryptedMessage(
                 sender=secret_msg_sender,
                 recipient=secret_msg_recipient,
-                encrypted_msg=EncryptedMessage._from_parts(
-                    nonce=secret_msg_nonce,
-                    ciphertext=secret_msg_ciphertext,
-                    combined=secret_msg_nonce + secret_msg_ciphertext,
-                ),
+                encrypted_msg=secret_msg_encrypted_msg,
             ),
         )
 
@@ -117,7 +111,6 @@ class SecureMessage:
                 self.signature,
                 self.secret_msg.sender,
                 self.secret_msg.recipient,
-                self.secret_msg.encrypted_msg.nonce,
-                self.secret_msg.encrypted_msg.ciphertext,
+                self.secret_msg.encrypted_msg,
             )
         )

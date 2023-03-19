@@ -4,9 +4,11 @@ Standardized messaging format using MessagePack as the binary serialization form
 https://msgpack.org/
 """
 from dataclasses import dataclass, field
-from typing import Self, Protocol, ClassVar
+from typing import Self, Protocol, ClassVar, cast
 
 import msgpack  # type: ignore
+from algosdk import encoding
+from algosdk.transaction import Multisig
 from ulid import ULID
 
 from oysterpack.algorand.client.accounts.private_key import (
@@ -29,6 +31,7 @@ class MessageType(ULID):
 
 
 MessageData = bytes
+Signature = bytes
 
 
 class Serializable(Protocol):
@@ -36,8 +39,8 @@ class Serializable(Protocol):
     Serializable protocol
     """
 
-    @staticmethod
-    def message_type() -> MessageType:
+    @classmethod
+    def message_type(cls) -> MessageType:
         ...
 
     def pack(self) -> bytes:
@@ -109,16 +112,20 @@ class SignedMessageData(Serializable):
     """
 
     signer: SigningAddress
-    signature: bytes
+    signature: Signature
 
     data: MessageData
     msg_type: MessageType
 
-    SIGNED_MESSAGE_DATA_MSG_TYPE: ClassVar[MessageType] = field(
+    _MESSAGE_TYPE: ClassVar[MessageType] = field(
         default=MessageType.from_str("01GVS4P3NQY9BDXH7X9MN17A6X"),
         init=False,
         repr=False,
     )
+
+    @classmethod
+    def message_type(cls) -> MessageType:
+        return cls._MESSAGE_TYPE
 
     @classmethod
     def sign(
@@ -146,10 +153,6 @@ class SignedMessageData(Serializable):
             signature=self.signature,
             signer=self.signer,
         )
-
-    @classmethod
-    def message_type(cls) -> MessageType:
-        return cls.SIGNED_MESSAGE_DATA_MSG_TYPE
 
     @classmethod
     def unpack(cls, msg: bytes) -> Self:
@@ -182,3 +185,129 @@ class SignedMessageData(Serializable):
                 self.msg_type.bytes,
             )
         )
+
+
+class MultisigSignaturesBelowThreshold(Exception):
+    """
+    The number of signatures is below the required threshold
+    """
+
+
+@dataclass(slots=True)
+class MultisigMessageData(Serializable):
+    """
+    Message data signed by a multisig account
+    """
+
+    multisig: Multisig
+
+    data: MessageData
+    msg_type: MessageType
+
+    _MESSAGE_TYPE: ClassVar[MessageType] = field(
+        default=MessageType.from_str("01GVXYW3CASBFM99X65KAPJ8JT"),
+        init=False,
+        repr=False,
+    )
+
+    def __post_init__(self):
+        self.multisig.validate()
+
+    @classmethod
+    def message_type(cls) -> MessageType:
+        return cls._MESSAGE_TYPE
+
+    @classmethod
+    def unpack(cls, msg: bytes) -> Self:
+        """
+        Deserialize the msg
+        """
+        (
+            multisig_version,
+            multisig_threshold,
+            multisig_subsigs,
+            data,
+            msg_type,
+        ) = msgpack.unpackb(msg, use_list=False)
+        multisig = Multisig(
+            version=multisig_version,
+            threshold=multisig_threshold,
+            addresses=[
+                encoding.encode_address(public_key)
+                for (public_key, _signature) in multisig_subsigs
+            ],
+        )
+        for i, subsig in enumerate(multisig.subsigs):
+            subsig.signature = multisig_subsigs[i][1]
+        return cls(
+            multisig=multisig,
+            data=data,
+            msg_type=MessageType.from_bytes(msg_type),
+        )
+
+    def pack(self) -> bytes:
+        """
+        Serialized the message into bytes
+        """
+        return msgpack.packb(
+            (
+                self.multisig.version,
+                self.multisig.threshold,
+                [
+                    (subsig.public_key, subsig.signature)
+                    for subsig in self.multisig.subsigs
+                ],
+                self.data,
+                self.msg_type.bytes,
+            )
+        )
+
+    def verify(self) -> bool:
+        """
+        :return: True if the message signature passed verification
+        """
+        subsigs = [
+            subsig for subsig in self.multisig.subsigs if subsig.signature is not None
+        ]
+        if len(subsigs) < self.multisig.threshold:
+            raise MultisigSignaturesBelowThreshold
+
+        for subsig in subsigs:
+            if not verify_message(
+                message=self.data,
+                signature=subsig.signature,
+                signer=cast(SigningAddress, encoding.encode_address(subsig.public_key)),
+            ):
+                return False
+
+        return True
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, MultisigMessageData):
+            return False
+
+        if self.data != other.data:
+            return False
+
+        if self.msg_type != other.msg_type:
+            return False
+
+        if self.multisig.version != other.multisig.version:
+            return False
+
+        if self.multisig.threshold != other.multisig.threshold:
+            return False
+
+        if len(self.multisig.subsigs) != len(other.multisig.subsigs):
+            return False
+
+        for subsig_1, subsig_2 in zip(self.multisig.subsigs, other.multisig.subsigs):
+            if subsig_1.public_key != subsig_2.public_key:
+                return False
+            if subsig_1.signature != subsig_2.signature:
+                return False
+
+        return True
+
+    def __repr__(self):
+        return f"MultisigMessageData(multisig={self.multisig.dictify()}, msg_type={self.msg_type}, data={self.data})"

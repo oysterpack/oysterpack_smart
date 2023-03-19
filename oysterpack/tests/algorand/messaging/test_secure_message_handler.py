@@ -3,6 +3,7 @@ import logging
 import unittest
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
+from ssl import SSLCertVerificationError
 from typing import Iterable, AsyncIterable, cast, Final, Self
 
 import msgpack  # type: ignore
@@ -96,8 +97,8 @@ class WebsocketMock:
         return msg
 
     async def send(
-        self,
-        message: Data | Iterable[Data] | AsyncIterable[Data],
+            self,
+            message: Data | Iterable[Data] | AsyncIterable[Data],
     ) -> None:
         await self.response_queue.put(cast(Data, message))
 
@@ -210,8 +211,8 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         with self.subTest("using ProcessPoolExecutor based SecureMessageClient"):
             async with connect(
-                f"wss://localhost:{ws_server.port}",
-                ssl=client_ssl_context(),
+                    f"wss://localhost:{ws_server.port}",
+                    ssl=client_ssl_context(),
             ) as websocket:
                 with ProcessPoolExecutor() as executor:
                     client = SecureMessageClient(
@@ -228,8 +229,8 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         with self.subTest("using ThreadPoolExecutor based SecureMessageClient"):
             async with connect(
-                f"wss://localhost:{ws_server.port}",
-                ssl=client_ssl_context(),
+                    f"wss://localhost:{ws_server.port}",
+                    ssl=client_ssl_context(),
             ) as websocket:
                 with ThreadPoolExecutor() as executor:
                     client = SecureMessageClient(
@@ -243,6 +244,10 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                     response = await client.recv()
                     data = Request.unpack(response.data)
                     self.assertEqual(request, data)
+
+        with self.subTest("SSLContext with server CA cert is required to connect via TLS"):
+            with self.assertRaises(SSLCertVerificationError):
+                await connect(f"wss://localhost:{ws_server.port}")
 
         await ws_server.stop()
         await ws_server.await_stopped()

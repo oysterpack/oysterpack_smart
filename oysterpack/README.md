@@ -1,7 +1,7 @@
 Developer Workspace Setup
 --------------------------
 
-1. Ensure python installation supports sqlite3
+1. Ensure python installation supports sqlite3 extensions
 
 How to build python with sqlite support:
 
@@ -25,3 +25,7 @@ Algorand
 RX
 --
 - https://rxmarbles.com/
+
+TLS
+---
+- https://www.golinuxcloud.com/mutual-tls-authentication-mtls/

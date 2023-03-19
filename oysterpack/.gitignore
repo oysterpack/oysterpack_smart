@@ -1,3 +1,5 @@
 temp
 
 **/*.sqlite
+/.idea/sqldialects.xml
+/.idea/dataSources.xml

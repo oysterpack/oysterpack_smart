@@ -2,6 +2,7 @@
 Websockets Server
 """
 import asyncio
+from ssl import SSLContext
 from typing import Callable, Awaitable, Any
 
 from websockets.legacy.server import WebSocketServerProtocol
@@ -24,11 +25,13 @@ class WebsocketsServer(AsyncService):
         self,
         handler: WebsocketHandler,
         port: int = 8008,
+        ssl_context: SSLContext | None = None,
     ):
         super().__init__()
 
         self.__handler = handler
         self.__port = port
+        self.__ssl_context = ssl_context
 
     @property
     def port(self) -> int:
@@ -41,7 +44,7 @@ class WebsocketsServer(AsyncService):
         self.__ws_server_stop_signal = asyncio.Future()
 
         async def run_ws_server():
-            async with serve(self.__handler, port=self.__port):  # type: ignore
+            async with serve(self.__handler, port=self.__port, ssl=self.__ssl_context):  # type: ignore
                 await self.__ws_server_stop_signal
 
         self.__ws_server_task = asyncio.create_task(run_ws_server())

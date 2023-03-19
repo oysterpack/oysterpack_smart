@@ -12,6 +12,7 @@ from beaker import sandbox
 from beaker.consts import algo
 from websockets.legacy.client import connect
 
+from algorand.messaging import server_ssl_context, client_ssl_context
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.algorand.client.transactions import payment
@@ -199,13 +200,19 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
             handler=secure_message_handler
         )
 
-        ws_server = WebsocketsServer(handler=websocket_handler)
+        ws_server = WebsocketsServer(
+            handler=websocket_handler,
+            ssl_context=server_ssl_context(),
+        )
         await ws_server.start()
         await ws_server.await_running()
         await asyncio.sleep(0)
 
         with self.subTest("using ProcessPoolExecutor based SecureMessageClient"):
-            async with connect(f"ws://localhost:{ws_server.port}") as websocket:
+            async with connect(
+                f"wss://localhost:{ws_server.port}",
+                ssl=client_ssl_context(),
+            ) as websocket:
                 with ProcessPoolExecutor() as executor:
                     client = SecureMessageClient(
                         websocket=websocket,
@@ -220,7 +227,10 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                     self.assertEqual(request, data)
 
         with self.subTest("using ThreadPoolExecutor based SecureMessageClient"):
-            async with connect(f"ws://localhost:{ws_server.port}") as websocket:
+            async with connect(
+                f"wss://localhost:{ws_server.port}",
+                ssl=client_ssl_context(),
+            ) as websocket:
                 with ThreadPoolExecutor() as executor:
                     client = SecureMessageClient(
                         websocket=websocket,

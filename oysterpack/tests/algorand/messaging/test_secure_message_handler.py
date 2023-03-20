@@ -13,7 +13,6 @@ from beaker import sandbox
 from beaker.consts import algo
 from websockets.legacy.client import connect
 
-from algorand.messaging import server_ssl_context, client_ssl_context
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.algorand.client.transactions import payment
@@ -28,6 +27,7 @@ from oysterpack.algorand.messaging.secure_message_handler import (
 from oysterpack.algorand.messaging.websocket import Data
 from oysterpack.core.message import Message, MessageType, MessageId, Serializable
 from oysterpack.services.asyncio.websockets_server import WebsocketsServer
+from tests.algorand.messaging import server_ssl_context, client_ssl_context
 from tests.test_support import OysterPackIsolatedAsyncioTestCase
 
 logger = logging.getLogger("SecureMessageHandlerTestCase")

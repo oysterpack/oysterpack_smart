@@ -2,7 +2,6 @@
 SecureMessage handler
 """
 import asyncio
-from abc import ABC
 from asyncio import Task
 from dataclasses import dataclass
 from datetime import datetime, UTC
@@ -135,7 +134,7 @@ MessageHandler = Callable[[MessageContext], Awaitable[None]]
 MessageHandlers = Tuple[Tuple[MessageHandler, Tuple[MessageType, ...]], ...]
 
 
-class SecureMessageHandler(ABC):
+class SecureMessageHandler:
     """
     Callable[[SecureMessage],Websocket]
 

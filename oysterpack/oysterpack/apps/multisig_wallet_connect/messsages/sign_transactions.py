@@ -3,7 +3,7 @@ Messages for signing Algorand transactions
 """
 from dataclasses import dataclass, field
 from enum import IntEnum, auto
-from typing import ClassVar, Self
+from typing import ClassVar, Self, cast
 
 import msgpack  # type: ignore
 from algosdk.transaction import Transaction, MultisigTransaction, PaymentTxn
@@ -79,8 +79,8 @@ class SignTransactionsRequest(Serializable):
             app_id=app_id,
             signer=signer,
             transactions=[Transaction.undictify(txn) for txn in txns],
-            service_fee=PaymentTxn.undictify(service_fee),
             description=description,
+            service_fee=cast(PaymentTxn, PaymentTxn.undictify(service_fee)),
         )
 
     def pack(self) -> bytes:
@@ -144,11 +144,7 @@ class SignTransactionsResult(Serializable):
         """
 
         return msgpack.packb(
-            (
-                self.request_id.bytes,
-                self.transaction_ids,
-                self.service_fee_txid
-            )
+            (self.request_id.bytes, self.transaction_ids, self.service_fee_txid)
         )
 
 
@@ -202,7 +198,7 @@ class SignMultisigTransactionsMessage(Serializable):
             multisig_signer=multisig_signer,
             transactions=[MultisigTransaction.undictify(txn) for txn in txns],
             description=description,
-            service_fee=PaymentTxn.undictify(service_fee)
+            service_fee=cast(PaymentTxn, PaymentTxn.undictify(service_fee)),
         )
 
     def pack(self) -> bytes:
@@ -226,9 +222,12 @@ class SignMultisigTransactionsMessage(Serializable):
         :return: True when all required signatures have been collected and verified on all transactions
         """
         for txn in self.transactions:
-            if not txn.multisig.verify(transaction_message_for_signing(txn.transaction)):
+            if not txn.multisig.verify(
+                transaction_message_for_signing(txn.transaction)
+            ):
                 return False
         return True
+
 
 class ErrCode(IntEnum):
     # app is not registered
@@ -256,6 +255,7 @@ class SignTransactionsError(Exception, Serializable):
     """
     The SignTransactionsRequest failed
     """
+
     request_id: RequestId
     code: ErrCode
     message: str

@@ -11,13 +11,15 @@ from oysterpack.algorand.client.transactions.smart_contract import base64_encode
 from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
     SignTransactionsRequest,
     RequestId,
-    SignTransactionsResult, SignTransactionsError, ErrCode, SignMultisigTransactionsMessage,
+    SignTransactionsResult,
+    SignTransactionsError,
+    ErrCode,
+    SignMultisigTransactionsMessage,
 )
 from tests.algorand.test_support import AlgorandTestCase
 
 
 class SignTransactionsTestCase(AlgorandTestCase):
-
     def test_request_pack_unpack(self):
         logger = self.get_logger("test_request_pack_unpack")
         sender = AlgoPrivateKey()
@@ -67,7 +69,7 @@ class SignTransactionsTestCase(AlgorandTestCase):
         err = SignTransactionsError(
             request_id=RequestId(),
             code=ErrCode.AppNotRegistered,
-            message="app is not registered"
+            message="app is not registered",
         )
 
         packed = err.pack()
@@ -96,13 +98,10 @@ class SignTransactionsTestCase(AlgorandTestCase):
             addresses=[
                 primary_signer.signing_address,
                 secondary_signer.signing_address,
-            ]
+            ],
         )
 
-        multisig_txn = MultisigTransaction(
-            transaction=txn,
-            multisig=multisig
-        )
+        multisig_txn = MultisigTransaction(transaction=txn, multisig=multisig)
 
         service_fee = transfer_algo(
             sender=sender.signing_address,
@@ -165,7 +164,6 @@ class SignTransactionsTestCase(AlgorandTestCase):
             logger.info(f"message length = {len(packed)}")
             request_2 = SignMultisigTransactionsMessage.unpack(packed)
             self.assertEqual(request, request_2)
-
 
 
 if __name__ == "__main__":

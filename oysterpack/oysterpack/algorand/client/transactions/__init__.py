@@ -22,8 +22,8 @@ def create_lease() -> bytes:
 
 
 def suggested_params_with_flat_flee(
-        algod_client: AlgodClient,
-        txn_count: int = 1,
+    algod_client: AlgodClient,
+    txn_count: int = 1,
 ) -> SuggestedParams:
     """
     Returns a suggested txn params using the min flat fee.

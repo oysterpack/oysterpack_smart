@@ -7,6 +7,7 @@ from ulid import ULID
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import AppId, MicroAlgos, TxnId
 from oysterpack.algorand.client.transactions.payment import transfer_algo
+from oysterpack.algorand.client.transactions.smart_contract import base64_encode
 from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
     SignTransactionsRequest,
     RequestId,
@@ -123,6 +124,48 @@ class SignTransactionsTestCase(AlgorandTestCase):
         logger.info(f"message length = {len(packed)}")
         request_2 = SignMultisigTransactionsMessage.unpack(packed)
         self.assertEqual(request, request_2)
+
+        with self.subTest("with 1 signature"):
+            multisig_txn.sign(
+                base64_encode(primary_signer.signing_key._signing_key).decode()
+            )
+
+            request = SignMultisigTransactionsMessage(
+                request_id=RequestId(),
+                app_id=AppId(100),
+                signer=sender.signing_address,
+                multisig_signer=primary_signer.signing_address,
+                transactions=[multisig_txn],
+                service_fee=service_fee,
+                description="ALGO transfer",
+            )
+            self.assertFalse(request.verify_signatures())
+            packed = request.pack()
+            logger.info(f"message length = {len(packed)}")
+            request_2 = SignMultisigTransactionsMessage.unpack(packed)
+            self.assertEqual(request, request_2)
+
+        with self.subTest("with 2 signature2"):
+            multisig_txn.sign(
+                base64_encode(secondary_signer.signing_key._signing_key).decode()
+            )
+
+            request = SignMultisigTransactionsMessage(
+                request_id=RequestId(),
+                app_id=AppId(100),
+                signer=sender.signing_address,
+                multisig_signer=primary_signer.signing_address,
+                transactions=[multisig_txn],
+                service_fee=service_fee,
+                description="ALGO transfer",
+            )
+            self.assertTrue(request.verify_signatures())
+
+            packed = request.pack()
+            logger.info(f"message length = {len(packed)}")
+            request_2 = SignMultisigTransactionsMessage.unpack(packed)
+            self.assertEqual(request, request_2)
+
 
 
 if __name__ == "__main__":

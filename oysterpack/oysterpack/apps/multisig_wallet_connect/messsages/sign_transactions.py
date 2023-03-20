@@ -11,6 +11,7 @@ from ulid import ULID
 
 from oysterpack.algorand.client.accounts.private_key import SigningAddress
 from oysterpack.algorand.client.model import AppId, TxnId
+from oysterpack.algorand.client.transactions import transaction_message_for_signing
 from oysterpack.core.message import Serializable, MessageType
 
 RequestId = ULID
@@ -219,6 +220,15 @@ class SignMultisigTransactionsMessage(Serializable):
                 self.service_fee.dictify(),
             )
         )
+
+    def verify_signatures(self) -> bool:
+        """
+        :return: True when all required signatures have been collected and verified on all transactions
+        """
+        for txn in self.transactions:
+            if not txn.multisig.verify(transaction_message_for_signing(txn.transaction)):
+                return False
+        return True
 
 class ErrCode(IntEnum):
     # app is not registered

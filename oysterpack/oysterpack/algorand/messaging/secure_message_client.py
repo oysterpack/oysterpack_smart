@@ -12,8 +12,8 @@ from oysterpack.algorand.client.accounts.private_key import (
     EncryptionAddress,
 )
 from oysterpack.algorand.messaging.secure_message import (
-    EncryptedMessage,
-    SignedEncryptedMessage,
+    pack_secure_message,
+    unpack_secure_message,
 )
 from oysterpack.core.message import Serializable, Message
 
@@ -56,48 +56,25 @@ class SecureMessageClient:
 
     async def send(self, data: Serializable, recipient: EncryptionAddress):
         # run CPU intensive work via executor because we don't want to block the event loop
-        # secure_message = await asyncio.to_thread(create_secure_message)
         secure_message = await asyncio.get_event_loop().run_in_executor(
             self.__executor,
-            _create_secure_message,
+            pack_secure_message,
             self.__private_key,
             data,
             recipient,
         )
-        await self.__websocket.send(secure_message.pack())
+        await self.__websocket.send(secure_message)
 
     async def recv(self) -> Message:
         secure_msg_bytes = cast(bytes, await self.__websocket.recv())
 
         # run CPU intensive work via executor because we don't want to block the event loop
         return await asyncio.get_event_loop().run_in_executor(
-            self.__executor, _unpack_message, self.__private_key, secure_msg_bytes
+            self.__executor,
+            unpack_secure_message,
+            self.__private_key,
+            secure_msg_bytes,
         )
 
     async def close(self):
         await self.__websocket.close()
-
-
-def _create_secure_message(
-    private_key: AlgoPrivateKey,
-    data: Serializable,
-    recipient: EncryptionAddress,
-) -> SignedEncryptedMessage:
-    msg = Message.create(data.message_type(), data.pack())
-    secret_message = EncryptedMessage.encrypt(
-        sender_private_key=private_key,
-        recipient=recipient,
-        msg=msg.pack(),
-    )
-    return SignedEncryptedMessage.sign(
-        private_key=private_key,
-        msg=secret_message,
-    )
-
-
-def _unpack_message(private_key: AlgoPrivateKey, secure_msg_bytes: bytes) -> Message:
-    secure_msg = SignedEncryptedMessage.unpack(secure_msg_bytes)
-    if not secure_msg.verify():
-        raise MessageSignatureVerificationFailed()
-    decrypted_msg = secure_msg.secret_msg.decrypt(private_key)
-    return Message.unpack(decrypted_msg)

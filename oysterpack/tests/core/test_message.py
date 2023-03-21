@@ -7,8 +7,8 @@ from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.core.message import (
     Message,
     MessageType,
-    SignedMessageData,
-    MultisigMessageData,
+    SignedMessage,
+    MultisigMessage,
 )
 
 
@@ -25,7 +25,7 @@ class SignedMessageDataTestCase(unittest.TestCase):
     def test_pack_unpack(self):
         algo_private_key = AlgoPrivateKey()
 
-        msg = SignedMessageData.sign(
+        msg = SignedMessage.sign(
             private_key=algo_private_key,
             msg_type=MessageType(),
             data=ULID().bytes,
@@ -34,7 +34,7 @@ class SignedMessageDataTestCase(unittest.TestCase):
         self.assertTrue(msg.verify())
 
         packed_msg = msg.pack()
-        msg_2 = SignedMessageData.unpack(packed_msg)
+        msg_2 = SignedMessage.unpack(packed_msg)
         self.assertEqual(msg, msg_2)
 
 
@@ -51,7 +51,7 @@ class MultisigMessageDataTestCase(unittest.TestCase):
         multisig.subsigs[0].signature = keys[0].sign(data).signature
         multisig.subsigs[2].signature = keys[2].sign(data).signature
 
-        msg = MultisigMessageData(
+        msg = MultisigMessage(
             multisig=multisig,
             msg_type=MessageType(),
             data=data,
@@ -60,7 +60,7 @@ class MultisigMessageDataTestCase(unittest.TestCase):
         self.assertTrue(msg.verify())
 
         packed_msg = msg.pack()
-        msg_2 = MultisigMessageData.unpack(packed_msg)
+        msg_2 = MultisigMessage.unpack(packed_msg)
 
         self.assertEqual(msg, msg_2)
 

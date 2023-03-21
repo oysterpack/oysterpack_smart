@@ -16,12 +16,14 @@ from websockets.legacy.client import connect
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.algorand.client.transactions import payment
-from oysterpack.algorand.messaging.secure_message import SignedEncryptedMessage
+from oysterpack.algorand.messaging.secure_message import (
+    SignedEncryptedMessage,
+    create_secure_message,
+)
 from oysterpack.algorand.messaging.secure_message_client import SecureMessageClient
 from oysterpack.algorand.messaging.secure_message_handler import (
     SecureMessageHandler,
     MessageContext,
-    pack_secure_message,
     SecureMessageWebsocketHandler,
 )
 from oysterpack.algorand.messaging.websocket import Data
@@ -80,7 +82,7 @@ class Request(Serializable):
 
 async def echo_message_handler(ctx: MessageContext):
     logger.info("echo_message_handler: START")
-    response = await ctx.pack_secure_message_bytes(lambda: ctx.msg)
+    response = await ctx.pack_secure_message(Request.unpack(ctx.msg.data))
     logger.info("echo_message_handler: packed response")
     await ctx.websocket.send(response)
     logger.info("echo_message_handler: sent response")
@@ -104,6 +106,16 @@ class WebsocketMock:
 
 
 class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
+    executor: ProcessPoolExecutor
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.executor = ProcessPoolExecutor()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.executor.shutdown()
+
     def setUp(self) -> None:
         self.sender_private_key = AlgoPrivateKey(generate_account()[0])
         self.recipient_private_key = AlgoPrivateKey(generate_account()[0])
@@ -128,17 +140,16 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
             ],
         )
 
-        # run pack_secure_message in a separate thread to revent the event loop from being blocked
-        secure_message = await asyncio.to_thread(
-            pack_secure_message,
-            sender_private_key=self.sender_private_key,
-            msg=request.to_message(),
+        secure_message = create_secure_message(
+            private_key=self.sender_private_key,
+            data=request,
             recipient=self.recipient_private_key.encryption_address,
         )
 
         handle_message = SecureMessageHandler(
             private_key=self.recipient_private_key,
             message_handlers=((echo_message_handler, (Request.message_type(),)),),
+            executor=self.executor,
         )
         ws = WebsocketMock()
 
@@ -168,6 +179,16 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
 
 class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
+    executor: ProcessPoolExecutor
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.executor = ProcessPoolExecutor()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.executor.shutdown()
+
     def setUp(self) -> None:
         self.sender_private_key = AlgoPrivateKey(generate_account()[0])
         self.recipient_private_key = AlgoPrivateKey(generate_account()[0])
@@ -195,6 +216,7 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         secure_message_handler = SecureMessageHandler(
             private_key=self.recipient_private_key,
             message_handlers=((echo_message_handler, (Request.message_type(),)),),
+            executor=self.executor,
         )
 
         websocket_handler = SecureMessageWebsocketHandler(
@@ -221,7 +243,8 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                         executor=executor,
                     )
                     await client.send(
-                        request, self.recipient_private_key.encryption_address
+                        request,
+                        self.recipient_private_key.encryption_address,
                     )
                     response = await client.recv()
                     data = Request.unpack(response.data)

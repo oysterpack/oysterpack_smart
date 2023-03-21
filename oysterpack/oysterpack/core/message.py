@@ -63,8 +63,8 @@ class Message:
     Message
 
     :field:`id` - unique message ID
-    :field:`type` - message type
-    :field:`data` - msgpack serialization format
+    :field:`type` - data message type
+    :field:`data` - msgpack serialized data
     """
 
     msg_id: MessageId
@@ -87,7 +87,7 @@ class Message:
         """
         deserializes the message
         """
-        (msg_id, msg_type, data) = msgpack.unpackb(packed, use_list=False)
+        (msg_type, msg_id, data) = msgpack.unpackb(packed, use_list=False)
         return cls(
             msg_id=MessageId.from_bytes(msg_id),
             msg_type=MessageType.from_bytes(msg_type),
@@ -102,13 +102,19 @@ class Message:
         -----
         - serialized message format: (MessageId, MessageType, MessageData)
         """
-        return msgpack.packb((self.msg_id.bytes, self.msg_type.bytes, self.data))
+        return msgpack.packb(
+            (
+                self.msg_type.bytes,
+                self.msg_id.bytes,
+                self.data,
+            )
+        )
 
 
 @dataclass(slots=True)
-class SignedMessageData(Serializable):
+class SignedMessage(Serializable):
     """
-    Signed message data
+    Signed message
     """
 
     signer: SigningAddress
@@ -160,10 +166,10 @@ class SignedMessageData(Serializable):
         Deserialize the msg
         """
         (
+            msg_type,
             signer,
             signature,
             data,
-            msg_type,
         ) = msgpack.unpackb(msg, use_list=False)
 
         return cls(
@@ -179,10 +185,10 @@ class SignedMessageData(Serializable):
         """
         return msgpack.packb(
             (
+                self.msg_type.bytes,
                 self.signer,
                 self.signature,
                 self.data,
-                self.msg_type.bytes,
             )
         )
 
@@ -194,9 +200,9 @@ class MultisigSignaturesBelowThreshold(Exception):
 
 
 @dataclass(slots=True)
-class MultisigMessageData(Serializable):
+class MultisigMessage(Serializable):
     """
-    Message data signed by a multisig account
+    Message signed by a multisig account
     """
 
     multisig: Multisig
@@ -223,11 +229,11 @@ class MultisigMessageData(Serializable):
         Deserialize the msg
         """
         (
+            msg_type,
             multisig_version,
             multisig_threshold,
             multisig_subsigs,
             data,
-            msg_type,
         ) = msgpack.unpackb(msg, use_list=False)
         multisig = Multisig(
             version=multisig_version,
@@ -251,6 +257,7 @@ class MultisigMessageData(Serializable):
         """
         return msgpack.packb(
             (
+                self.msg_type.bytes,
                 self.multisig.version,
                 self.multisig.threshold,
                 [
@@ -258,7 +265,6 @@ class MultisigMessageData(Serializable):
                     for subsig in self.multisig.subsigs
                 ],
                 self.data,
-                self.msg_type.bytes,
             )
         )
 
@@ -283,7 +289,7 @@ class MultisigMessageData(Serializable):
         return True
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, MultisigMessageData):
+        if not isinstance(other, MultisigMessage):
             return False
 
         if self.data != other.data:

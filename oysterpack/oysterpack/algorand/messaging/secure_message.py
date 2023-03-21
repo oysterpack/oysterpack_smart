@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Self
 
 import msgpack  # type: ignore
+from nacl.exceptions import CryptoError
 
 from oysterpack.algorand.client.accounts.private_key import (
     SigningAddress,
@@ -12,6 +13,7 @@ from oysterpack.algorand.client.accounts.private_key import (
     AlgoPrivateKey,
     verify_message,
 )
+from oysterpack.core.message import Serializable, Message
 
 
 @dataclass(slots=True)
@@ -114,3 +116,85 @@ class SignedEncryptedMessage:
                 self.secret_msg.encrypted_msg,
             )
         )
+
+
+def create_secure_message(
+    private_key: AlgoPrivateKey,
+    data: Serializable,
+    recipient: EncryptionAddress,
+) -> SignedEncryptedMessage:
+    """
+    Constructs a SignedEncryptedMessage and serializes it
+    """
+    msg = Message.create(data.message_type(), data.pack())
+    secret_message = EncryptedMessage.encrypt(
+        sender_private_key=private_key,
+        recipient=recipient,
+        msg=msg.pack(),
+    )
+    return SignedEncryptedMessage.sign(
+        private_key=private_key,
+        msg=secret_message,
+    )
+
+
+def pack_secure_message(
+    private_key: AlgoPrivateKey,
+    data: Serializable,
+    recipient: EncryptionAddress,
+) -> bytes:
+    """
+    Constructs a SignedEncryptedMessage and serializes it
+    """
+    return create_secure_message(
+        private_key=private_key,
+        data=data,
+        recipient=recipient,
+    ).pack()
+
+
+class InvalidSecureMessage(Exception):
+    """
+    InvalidSecureMessage
+    """
+
+
+class MessageSignatureVerificationFailed(InvalidSecureMessage):
+    """
+    Message signature verification failed
+    """
+
+
+class DecryptionFailed(InvalidSecureMessage):
+    """
+    DecryptionFailed
+    """
+
+
+def unpack_secure_message(
+    private_key: AlgoPrivateKey,
+    secure_msg_bytes: bytes,
+) -> Message:
+    """
+    1. Deserializes secure_msg_bytes into s SignedEncryptedMessage
+    2. verifies the signature
+    3. decrypts the message
+    4. Deserializes the decrypted message into a Message
+    """
+    try:
+        secure_msg = SignedEncryptedMessage.unpack(secure_msg_bytes)
+    except Exception as err:
+        raise InvalidSecureMessage("failed to unpack secure message") from err
+
+    if not secure_msg.verify():
+        raise MessageSignatureVerificationFailed()
+
+    try:
+        decrypted_msg = secure_msg.secret_msg.decrypt(private_key)
+    except CryptoError as err:
+        raise DecryptionFailed() from err
+
+    try:
+        return Message.unpack(decrypted_msg)
+    except Exception as err:
+        raise InvalidSecureMessage("failed to unpack message") from err

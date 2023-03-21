@@ -184,7 +184,7 @@ def unpack_secure_message(
     try:
         secure_msg = SignedEncryptedMessage.unpack(secure_msg_bytes)
     except Exception as err:
-        raise InvalidSecureMessage("failed to unpack secure message") from err
+        raise InvalidSecureMessage("failed to unpack SignedEncryptedMessage") from err
 
     if not secure_msg.verify():
         raise MessageSignatureVerificationFailed()
@@ -197,4 +197,4 @@ def unpack_secure_message(
     try:
         return Message.unpack(decrypted_msg)
     except Exception as err:
-        raise InvalidSecureMessage("failed to unpack message") from err
+        raise InvalidSecureMessage("failed to unpack Message") from err

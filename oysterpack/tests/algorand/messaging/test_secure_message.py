@@ -9,7 +9,9 @@ from ulid import ULID
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.messaging.secure_message import (
     EncryptedMessage,
-    SignedEncryptedMessage, pack_secure_message, unpack_secure_message,
+    SignedEncryptedMessage,
+    pack_secure_message,
+    unpack_secure_message,
 )
 from oysterpack.core.message import Serializable, MessageType
 
@@ -81,7 +83,7 @@ class SecureMessageTestCase(unittest.TestCase):
 
         with self.subTest("when message has been altered"):
             secure_message.sender = sender_private_key.signing_address
-            secure_message.secret_msg.encrypted_msg += b"1"
+            secure_message.encrypted_msg.encrypted_msg += b"1"
             self.assertFalse(secure_message.verify())
 
     def test_secure_message_packing(self):
@@ -108,7 +110,9 @@ class SecureMessageTestCase(unittest.TestCase):
         recipient_private_key = AlgoPrivateKey()
         data = Data("data")
 
-        secure_message_bytes = pack_secure_message(sender_private_key, data, recipient_private_key.encryption_address)
+        secure_message_bytes = pack_secure_message(
+            sender_private_key, data, recipient_private_key.encryption_address
+        )
 
         msg = unpack_secure_message(recipient_private_key, secure_message_bytes)
         self.assertEqual(data.message_type(), msg.msg_type)

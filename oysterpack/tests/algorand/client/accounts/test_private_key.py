@@ -30,10 +30,16 @@ class AlgoPrivateKeyTestCase(unittest.TestCase):
             algo_private_key_2 = AlgoPrivateKey(algo_private_key.mnemonic)
             self.assertEqual(algo_private_key.public_key, algo_private_key_2.public_key)
 
-        with self.subTest("create AlgoPrivatekey with new auto generated Algorand account"):
+        with self.subTest(
+            "create AlgoPrivatekey with new auto generated Algorand account"
+        ):
             algo_private_key_3 = AlgoPrivateKey()
             signed_msg = algo_private_key_3.sign(b"data")
-            verify_message(signed_msg.message,signed_msg.signature, algo_private_key.signing_address)
+            verify_message(
+                signed_msg.message,
+                signed_msg.signature,
+                algo_private_key.signing_address,
+            )
 
         with self.subTest("create AlgoPrivateKey from an unsupported type"):
             with self.assertRaises(ValueError):

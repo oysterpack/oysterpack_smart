@@ -57,7 +57,7 @@ class SignedEncryptedMessage:
 
     sender: SigningAddress
     signature: bytes
-    secret_msg: EncryptedMessage
+    encrypted_msg: EncryptedMessage
 
     @classmethod
     def sign(cls, private_key: AlgoPrivateKey, msg: EncryptedMessage) -> Self:
@@ -67,7 +67,7 @@ class SignedEncryptedMessage:
         return cls(
             sender=private_key.signing_address,
             signature=private_key.sign(msg.encrypted_msg).signature,
-            secret_msg=msg,
+            encrypted_msg=msg,
         )
 
     def verify(self) -> bool:
@@ -75,7 +75,7 @@ class SignedEncryptedMessage:
         :return: True if the message signature passed verification
         """
         return verify_message(
-            message=self.secret_msg.encrypted_msg,
+            message=self.encrypted_msg.encrypted_msg,
             signature=self.signature,
             signer=self.sender,
         )
@@ -96,7 +96,7 @@ class SignedEncryptedMessage:
         return cls(
             sender=sender,
             signature=signature,
-            secret_msg=EncryptedMessage(
+            encrypted_msg=EncryptedMessage(
                 sender=secret_msg_sender,
                 recipient=secret_msg_recipient,
                 encrypted_msg=secret_msg_encrypted_msg,
@@ -111,9 +111,9 @@ class SignedEncryptedMessage:
             (
                 self.sender,
                 self.signature,
-                self.secret_msg.sender,
-                self.secret_msg.recipient,
-                self.secret_msg.encrypted_msg,
+                self.encrypted_msg.sender,
+                self.encrypted_msg.recipient,
+                self.encrypted_msg.encrypted_msg,
             )
         )
 
@@ -190,7 +190,7 @@ def unpack_secure_message(
         raise MessageSignatureVerificationFailed()
 
     try:
-        decrypted_msg = secure_msg.secret_msg.decrypt(private_key)
+        decrypted_msg = secure_msg.encrypted_msg.decrypt(private_key)
     except CryptoError as err:
         raise DecryptionFailed() from err
 

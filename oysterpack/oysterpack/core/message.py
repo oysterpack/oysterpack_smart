@@ -23,11 +23,17 @@ class MessageId(ULID):
     Unique message ID
     """
 
+    def __hash__(self):
+        return self.bytes.__hash__()
+
 
 class MessageType(ULID):
     """
     Message type ID
     """
+
+    def __hash__(self):
+        return self.bytes.__hash__()
 
 
 MessageData = bytes
@@ -137,17 +143,17 @@ class SignedMessage(Serializable):
     def sign(
         cls,
         private_key: AlgoPrivateKey,
-        data: MessageData,
-        msg_type: MessageType,
+        msg: Serializable,
     ) -> Self:
         """
         Signs the encrypted message
         """
+        data = msg.pack()
         return cls(
             signer=private_key.signing_address,
             signature=private_key.sign(data).signature,
             data=data,
-            msg_type=msg_type,
+            msg_type=msg.message_type(),
         )
 
     def verify(self) -> bool:
@@ -220,6 +226,14 @@ class MultisigMessage(Serializable):
         self.multisig.validate()
 
     @classmethod
+    def create(cls, multisig: Multisig, msg: Serializable) -> Self:
+        return cls(
+            multisig=multisig,
+            data=msg.pack(),
+            msg_type=msg.message_type(),
+        )
+
+    @classmethod
     def message_type(cls) -> MessageType:
         return cls._MESSAGE_TYPE
 
@@ -267,6 +281,15 @@ class MultisigMessage(Serializable):
                 self.data,
             )
         )
+
+    def sign(self, private_key: AlgoPrivateKey):
+        public_key = bytes(private_key.signing_key.verify_key)
+        for subsig in self.multisig.subsigs:
+            if subsig.public_key == public_key:
+                sig = private_key.sign(self.data)
+                subsig.signature = sig.signature
+                return
+        raise ValueError("invalid private key")
 
     def verify(self) -> bool:
         """

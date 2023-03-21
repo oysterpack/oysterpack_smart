@@ -7,11 +7,11 @@ from concurrent.futures import Executor
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from enum import IntEnum, auto
-from typing import Final, Callable, Awaitable, Tuple, Self
-from uuid import UUID
+from typing import Final, Callable, Awaitable, Self, Tuple
 
 import msgpack  # type: ignore
 from nacl.exceptions import CryptoError
+from ulid import ULID
 from websockets.legacy.server import WebSocketServerProtocol
 
 from oysterpack.algorand.client.accounts.private_key import (
@@ -62,19 +62,19 @@ class SecureMessageHandlerError(Exception, Serializable):
         return Message(
             msg_id=MessageId(),
             msg_type=self.MSG_TYPE,
-            data=msgpack.packb(
-                (
-                    self.err_code,
-                    self.msg,
-                )
-            ),
+            data=self.pack(),
         )
 
     def pack(self) -> bytes:
         """
         Serializes the exception into a Message
         """
-        return self.to_message().pack()
+        return msgpack.packb(
+            (
+                self.err_code,
+                self.msg,
+            )
+        )
 
     @classmethod
     def unpack(cls, packed: bytes) -> Self:
@@ -130,14 +130,41 @@ class MessageContext:
             recipient if recipient else self.client_encryption_address,
         )
 
+    @property
+    def msg_type(self) -> MessageType:
+        """
+        :return: msg type
+        """
+        if self.signed_msg_data is not None:
+            return self.signed_msg_data.msg_type
+
+        return self.msg.msg_type
+
+    @property
+    def msg_data(self) -> bytes:
+        """
+        :return: serialized msg data
+        """
+        if self.signed_msg_data is not None:
+            return self.signed_msg_data.data
+
+        return self.msg.data
+
 
 # async message handler
 MessageHandler = Callable[[MessageContext], Awaitable[None]]
 
+
+@dataclass(slots=True)
+class MessageHandlerMapping:
+    msg_handler: MessageHandler
+    msg_types: set[MessageType]
+
+
 # MessagHandler:MessageType is a 1:N relationship
-MessageHandlers = Tuple[Tuple[MessageHandler, Tuple[MessageType, ...]], ...]
+MessageHandlers = Tuple[MessageHandlerMapping, ...]
 
-
+# TODO: add logging
 class SecureMessageHandler:
     """
     Callable[[SecureMessage],Websocket]
@@ -178,15 +205,14 @@ class SecureMessageHandler:
         """
         Message type IDs across all handlers must be unique
         """
-        ids: set[UUID] = set()
-        for _handler, msg_types in message_handlers:
-            for msg_type in msg_types:
-                msg_type_uuid = msg_type.to_uuid()
-                if msg_type_uuid in ids:
+        ids: set[ULID] = set()
+        for mapping in message_handlers:
+            for msg_type in mapping.msg_types:
+                if msg_type in ids:
                     raise ValueError(
                         f"Message type IDs must be unique. Found duplicate: {msg_type}"
                     )
-                ids.add(msg_type_uuid)
+                ids.add(msg_type)
 
     async def __call__(self, secure_msg: SignedEncryptedMessage, websocket: Websocket):
         """
@@ -201,20 +227,17 @@ class SecureMessageHandler:
         try:
             msg = unpack_secure_message(self.__private_key, secure_msg)
         except SecureMessageHandlerError as err:
-            secure_message = await asyncio.get_event_loop().run_in_executor(
-                self.__executor,
-                pack_secure_message,
-                self.__private_key,
-                err,
-                secure_msg.secret_msg.sender,
+            await self._handle_secure_message_handler_error(
+                err=err,
+                secure_msg=secure_msg,
+                websocket=websocket,
             )
-            await websocket.send(secure_message)
             return
 
         ctx = MessageContext(
             server_private_key=self.__private_key,
             websocket=websocket,
-            client_encryption_address=secure_msg.secret_msg.sender,
+            client_encryption_address=secure_msg.encrypted_msg.sender,
             client_signing_address=secure_msg.sender,
             msg=msg,
             executor=self.__executor,
@@ -223,23 +246,48 @@ class SecureMessageHandler:
         if msg.msg_type == SignedMessage.message_type():
             ctx.signed_msg_data = SignedMessage.unpack(msg.data)
             if not ctx.signed_msg_data.verify():
-                raise SecureMessageHandlerError(
-                    SecureMessageHandlerErrorCode.SIGNATURE_VERIFICATION_FAILED,
-                    "message data signature verification failed",
+                await self._handle_secure_message_handler_error(
+                    err=SecureMessageHandlerError(
+                        SecureMessageHandlerErrorCode.SIGNATURE_VERIFICATION_FAILED,
+                        "message data signature verification failed",
+                    ),
+                    secure_msg=secure_msg,
+                    websocket=websocket,
                 )
+                return
             handler = self.get_handler(ctx.signed_msg_data.msg_type)
         elif msg.msg_type == MultisigMessage.message_type():
             ctx.signed_msg_data = MultisigMessage.unpack(msg.data)
             if not ctx.signed_msg_data.verify():
-                raise SecureMessageHandlerError(
-                    SecureMessageHandlerErrorCode.SIGNATURE_VERIFICATION_FAILED,
-                    "message data multisig verification failed",
+                await self._handle_secure_message_handler_error(
+                    err=SecureMessageHandlerError(
+                        SecureMessageHandlerErrorCode.SIGNATURE_VERIFICATION_FAILED,
+                        "message data multisig verification failed",
+                    ),
+                    secure_msg=secure_msg,
+                    websocket=websocket,
                 )
+                return
             handler = self.get_handler(ctx.signed_msg_data.msg_type)
         else:
             handler = self.get_handler(msg.msg_type)
 
         await handler(ctx)
+
+    async def _handle_secure_message_handler_error(
+        self,
+        err: SecureMessageHandlerError,
+        secure_msg: SignedEncryptedMessage,
+        websocket: Websocket,
+    ):
+        secure_message = await asyncio.get_event_loop().run_in_executor(
+            self.__executor,
+            pack_secure_message,
+            self.__private_key,
+            err,
+            secure_msg.encrypted_msg.sender,
+        )
+        await websocket.send(secure_message)
 
     def get_handler(self, msg_type: MessageType) -> MessageHandler:
         """
@@ -261,9 +309,9 @@ class SecureMessageHandler:
             )
             await ctx.websocket.send(response)
 
-        for handler, msg_types in self.__message_handlers:
-            if msg_type in msg_types:
-                return handler
+        for mapping in self.__message_handlers:
+            if msg_type in mapping.msg_types:
+                return mapping.msg_handler
 
         return handle_unsupported_message
 
@@ -391,7 +439,7 @@ def unpack_secure_message(
         )
 
     try:
-        msg_bytes = secure_msg.secret_msg.decrypt(recipient_private_key)
+        msg_bytes = secure_msg.encrypted_msg.decrypt(recipient_private_key)
     except CryptoError as err:
         raise SecureMessageHandlerError(
             SecureMessageHandlerErrorCode.DECRYPTION_FAILED,

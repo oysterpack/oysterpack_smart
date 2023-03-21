@@ -1,5 +1,8 @@
 import unittest
+from dataclasses import field, dataclass
+from typing import Self, ClassVar
 
+import msgpack  # type: ignore
 from algosdk.transaction import Multisig
 from ulid import ULID
 
@@ -9,6 +12,7 @@ from oysterpack.core.message import (
     MessageType,
     SignedMessage,
     MultisigMessage,
+    Serializable,
 )
 
 
@@ -21,15 +25,32 @@ class MessageTestCase(unittest.TestCase):
         self.assertEqual(msg, msg_2)
 
 
+@dataclass(slots=True)
+class FooMsg(Serializable):
+    MSG_TYPE: ClassVar[MessageType] = MessageType()
+
+    data: ULID = field(default_factory=ULID)
+
+    @classmethod
+    def message_type(cls) -> MessageType:
+        return cls.MSG_TYPE
+
+    def pack(self) -> bytes:
+        """
+        Packs the object into bytes
+        """
+        return msgpack.packb(self.data.bytes)
+
+    @classmethod
+    def unpack(cls, packed: bytes) -> Self:
+        return cls(ULID.from_bytes(msgpack.unpackb(packed)))
+
+
 class SignedMessageDataTestCase(unittest.TestCase):
     def test_pack_unpack(self):
         algo_private_key = AlgoPrivateKey()
 
-        msg = SignedMessage.sign(
-            private_key=algo_private_key,
-            msg_type=MessageType(),
-            data=ULID().bytes,
-        )
+        msg = SignedMessage.sign(private_key=algo_private_key, msg=FooMsg())
 
         self.assertTrue(msg.verify())
 
@@ -45,17 +66,19 @@ class MultisigMessageDataTestCase(unittest.TestCase):
         data = ULID().bytes
 
         multisig = Multisig(
-            version=1, threshold=2, addresses=[key.signing_address for key in keys]
+            version=1,
+            threshold=2,
+            addresses=[key.signing_address for key in keys],
         )
-
-        multisig.subsigs[0].signature = keys[0].sign(data).signature
-        multisig.subsigs[2].signature = keys[2].sign(data).signature
 
         msg = MultisigMessage(
             multisig=multisig,
             msg_type=MessageType(),
             data=data,
         )
+
+        msg.sign(keys[0])
+        msg.sign(keys[2])
 
         self.assertTrue(msg.verify())
 

@@ -6,6 +6,7 @@ from typing import Protocol, Iterable, AsyncIterable
 
 Data = str | bytes
 
+
 class CloseCode(IntEnum):
     """
     WebSocket close codes
@@ -44,4 +45,3 @@ class Websocket(Protocol):
         :param reason:
         :return:
         """
-

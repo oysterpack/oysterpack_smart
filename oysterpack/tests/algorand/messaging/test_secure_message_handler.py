@@ -15,12 +15,16 @@ from beaker.consts import algo
 from websockets.exceptions import ConnectionClosedOK
 from websockets.legacy.client import connect
 
-from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey, EncryptionAddress
+from oysterpack.algorand.client.accounts.private_key import (
+    AlgoPrivateKey,
+    EncryptionAddress,
+)
 from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.algorand.client.transactions import payment
 from oysterpack.algorand.messaging.secure_message import (
     SignedEncryptedMessage,
-    create_secure_message, EncryptedMessage,
+    create_secure_message,
+    EncryptedMessage,
 )
 from oysterpack.algorand.messaging.secure_message_client import SecureMessageClient
 from oysterpack.algorand.messaging.secure_message_handler import (
@@ -68,7 +72,7 @@ class Request(Serializable):
             request_id=MessageId.from_bytes(request_id),
             txns=[Transaction.undictify(txn) for txn in txns],
             fail=fail,
-            sleep=timedelta(microseconds=sleep) if sleep else None
+            sleep=timedelta(microseconds=sleep) if sleep else None,
         )
 
     def pack(self) -> bytes:
@@ -77,7 +81,7 @@ class Request(Serializable):
                 self.request_id.bytes,
                 [txn.dictify() for txn in self.txns],
                 self.fail,
-                self.sleep.microseconds if self.sleep is not None else None
+                self.sleep.microseconds if self.sleep is not None else None,
             )
         )
 
@@ -89,7 +93,7 @@ async def echo_message_handler(ctx: MessageContext):
 
     request = Request.unpack(ctx.msg_data)
     if request.sleep:
-        await asyncio.sleep(float(request.sleep.microseconds) / 10 ** 6)
+        await asyncio.sleep(float(request.sleep.microseconds) / 10**6)
     if request.fail:
         raise Exception("BOOM!")
 
@@ -111,8 +115,8 @@ class WebsocketMock(Websocket):
         return msg
 
     async def send(
-            self,
-            message: Data | Iterable[Data] | AsyncIterable[Data],
+        self,
+        message: Data | Iterable[Data] | AsyncIterable[Data],
     ) -> None:
         await self.response_queue.put(cast(Data, message))
 
@@ -262,9 +266,9 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         )
 
         def create_secure_message(
-                private_key: AlgoPrivateKey,
-                data: Serializable,
-                recipient: EncryptionAddress,
+            private_key: AlgoPrivateKey,
+            data: Serializable,
+            recipient: EncryptionAddress,
         ) -> SignedEncryptedMessage:
             msg = Message.create(data.message_type(), data.pack())
             secret_message = EncryptedMessage.encrypt(
@@ -319,15 +323,15 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         )
 
         def create_secure_message(
-                private_key: AlgoPrivateKey,
-                data: Serializable,
-                recipient: EncryptionAddress,
+            private_key: AlgoPrivateKey,
+            data: Serializable,
+            recipient: EncryptionAddress,
         ) -> SignedEncryptedMessage:
             msg = Message.create(data.message_type(), data.pack())
             secret_message = EncryptedMessage.encrypt(
                 sender_private_key=private_key,
                 recipient=recipient,
-                msg=msg.pack()+b"1",
+                msg=msg.pack() + b"1",
             )
             return SignedEncryptedMessage.sign(
                 private_key=private_key,
@@ -362,7 +366,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
     async def test_init(self):
         with self.subTest("no message handlers specified"):
-            with self.assertRaises(ValueError) as err:
+            with self.assertRaises(ValueError):
                 SecureMessageHandler(
                     private_key=self.recipient_private_key,
                     message_handlers=(),
@@ -370,7 +374,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                 )
 
         with self.subTest("duplicate MessageTypes registered"):
-            with self.assertRaises(ValueError) as err:
+            with self.assertRaises(ValueError):
                 SecureMessageHandler(
                     private_key=self.recipient_private_key,
                     message_handlers=(
@@ -759,8 +763,8 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         with self.subTest("using ProcessPoolExecutor based SecureMessageClient"):
             async with connect(
-                    f"wss://localhost:{ws_server.port}",
-                    ssl=client_ssl_context(),
+                f"wss://localhost:{ws_server.port}",
+                ssl=client_ssl_context(),
             ) as websocket:
                 with ProcessPoolExecutor() as executor:
                     client = SecureMessageClient(
@@ -773,13 +777,14 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                         self.recipient_private_key.encryption_address,
                     )
                     response = await client.recv()
+                    await client.close()
                     data = Request.unpack(response.data)
                     self.assertEqual(request, data)
 
         with self.subTest("using ThreadPoolExecutor based SecureMessageClient"):
             async with connect(
-                    f"wss://localhost:{ws_server.port}",
-                    ssl=client_ssl_context(),
+                f"wss://localhost:{ws_server.port}",
+                ssl=client_ssl_context(),
             ) as websocket:
                 with ThreadPoolExecutor() as executor:
                     client = SecureMessageClient(
@@ -791,11 +796,12 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                         request, self.recipient_private_key.encryption_address
                     )
                     response = await client.recv()
+                    await client.close()
                     data = Request.unpack(response.data)
                     self.assertEqual(request, data)
 
         with self.subTest(
-                "SSLContext with server CA cert is required to connect via TLS"
+            "SSLContext with server CA cert is required to connect via TLS"
         ):
             with self.assertRaises(SSLCertVerificationError):
                 await connect(f"wss://localhost:{ws_server.port}")
@@ -815,7 +821,7 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                     suggested_params=sandbox.get_algod_client().suggested_params(),
                 ),
             ],
-            sleep=timedelta(milliseconds=10)
+            sleep=timedelta(milliseconds=10),
         )
 
         secure_message_handler = SecureMessageHandler(
@@ -836,17 +842,15 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         self.assertEqual(1, websocket_handler.max_concurrent_requests)
 
         ws_server = WebsocketsServer(
-            handler=websocket_handler,
-            ssl_context=server_ssl_context(),
-            port=8009
+            handler=websocket_handler, ssl_context=server_ssl_context(), port=8009
         )
         await ws_server.start()
         await ws_server.await_running()
         await asyncio.sleep(0)
 
         async with connect(
-                f"wss://localhost:{ws_server.port}",
-                ssl=client_ssl_context(),
+            f"wss://localhost:{ws_server.port}",
+            ssl=client_ssl_context(),
         ) as websocket:
             with ProcessPoolExecutor() as executor:
                 client = SecureMessageClient(
@@ -856,10 +860,12 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                 )
                 tasks = []
                 for _ in range(10):
-                    task = asyncio.create_task(client.send(
-                        request,
-                        self.recipient_private_key.encryption_address,
-                    ))
+                    task = asyncio.create_task(
+                        client.send(
+                            request,
+                            self.recipient_private_key.encryption_address,
+                        )
+                    )
                     tasks.append(task)
                 for _ in range(10):
                     response = await client.recv()
@@ -883,7 +889,7 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                     suggested_params=sandbox.get_algod_client().suggested_params(),
                 ),
             ],
-            fail=True
+            fail=True,
         )
 
         secure_message_handler = SecureMessageHandler(
@@ -898,22 +904,19 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         )
 
         websocket_handler = SecureMessageWebsocketHandler(
-            handler=secure_message_handler,
-            max_concurrent_requests=1
+            handler=secure_message_handler, max_concurrent_requests=1
         )
 
         ws_server = WebsocketsServer(
-            handler=websocket_handler,
-            ssl_context=server_ssl_context(),
-            port=8009
+            handler=websocket_handler, ssl_context=server_ssl_context(), port=8009
         )
         await ws_server.start()
         await ws_server.await_running()
         await asyncio.sleep(0)
 
         async with connect(
-                f"wss://localhost:{ws_server.port}",
-                ssl=client_ssl_context(),
+            f"wss://localhost:{ws_server.port}",
+            ssl=client_ssl_context(),
         ) as websocket:
             with ProcessPoolExecutor() as executor:
                 client = SecureMessageClient(
@@ -925,10 +928,12 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                 with self.assertRaises(ConnectionClosedOK) as err:
                     tasks = []
                     for _ in range(10):
-                        task = asyncio.create_task(client.send(
-                            request,
-                            self.recipient_private_key.encryption_address,
-                        ))
+                        task = asyncio.create_task(
+                            client.send(
+                                request,
+                                self.recipient_private_key.encryption_address,
+                            )
+                        )
                         tasks.append(task)
                     await client.recv()
                 logger.exception(err.exception)
@@ -948,7 +953,7 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                     suggested_params=sandbox.get_algod_client().suggested_params(),
                 ),
             ],
-            fail=True
+            fail=True,
         )
 
         secure_message_handler = SecureMessageHandler(
@@ -967,17 +972,15 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         )
 
         ws_server = WebsocketsServer(
-            handler=websocket_handler,
-            ssl_context=server_ssl_context(),
-            port=8009
+            handler=websocket_handler, ssl_context=server_ssl_context(), port=8009
         )
         await ws_server.start()
         await ws_server.await_running()
         await asyncio.sleep(0)
 
         async with connect(
-                f"wss://localhost:{ws_server.port}",
-                ssl=client_ssl_context(),
+            f"wss://localhost:{ws_server.port}",
+            ssl=client_ssl_context(),
         ) as websocket:
             with ProcessPoolExecutor() as executor:
                 client = SecureMessageClient(
@@ -985,10 +988,12 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                     private_key=self.sender_private_key,
                     executor=executor,
                 )
-                await asyncio.create_task(client.send(
-                    request,
-                    self.recipient_private_key.encryption_address,
-                ))
+                await asyncio.create_task(
+                    client.send(
+                        request,
+                        self.recipient_private_key.encryption_address,
+                    )
+                )
                 with self.assertRaises(ConnectionClosedOK) as err:
                     await client.recv()
                 logger.exception(err.exception)
@@ -1014,9 +1019,7 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         )
 
         ws_server = WebsocketsServer(
-            handler=websocket_handler,
-            ssl_context=server_ssl_context(),
-            port=8011
+            handler=websocket_handler, ssl_context=server_ssl_context(), port=8011
         )
         await ws_server.start()
         await ws_server.await_running()
@@ -1025,8 +1028,8 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         # websocket connection should be closed when by the server when invalid messages are received
         with self.subTest("send str message"):
             async with connect(
-                    f"wss://localhost:{ws_server.port}",
-                    ssl=client_ssl_context(),
+                f"wss://localhost:{ws_server.port}",
+                ssl=client_ssl_context(),
             ) as websocket:
                 await websocket.send("request")
                 with self.assertRaises(ConnectionClosedOK) as err:
@@ -1035,8 +1038,8 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         with self.subTest("send bytes message"):
             async with connect(
-                    f"wss://localhost:{ws_server.port}",
-                    ssl=client_ssl_context(),
+                f"wss://localhost:{ws_server.port}",
+                ssl=client_ssl_context(),
             ) as websocket:
                 await websocket.send(b"request")
                 with self.assertRaises(ConnectionClosedOK) as err:

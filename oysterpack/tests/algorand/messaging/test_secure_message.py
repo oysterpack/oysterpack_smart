@@ -2,7 +2,7 @@ import unittest
 from dataclasses import dataclass
 from typing import Self
 
-import msgpack
+import msgpack  # type: ignore
 from nacl.exceptions import CryptoError
 from ulid import ULID
 
@@ -12,6 +12,10 @@ from oysterpack.algorand.messaging.secure_message import (
     SignedEncryptedMessage,
     pack_secure_message,
     unpack_secure_message,
+    InvalidSecureMessage,
+    create_secure_message,
+    MessageSignatureVerificationFailed,
+    DecryptionFailed,
 )
 from oysterpack.core.message import Serializable, MessageType
 
@@ -19,6 +23,7 @@ from oysterpack.core.message import Serializable, MessageType
 @dataclass(slots=True)
 class Data(Serializable):
     text: str
+    num: int = 1
 
     @classmethod
     def message_type(cls) -> MessageType:
@@ -28,11 +33,11 @@ class Data(Serializable):
         """
         Packs the object into bytes
         """
-        return msgpack.packb(self.text)
+        return msgpack.packb((self.text, self.num))
 
     @classmethod
     def unpack(cls, packed: bytes) -> Self:
-        return cls(msgpack.unpackb(packed))
+        return cls(*msgpack.unpackb(packed))
 
 
 class SecureMessageTestCase(unittest.TestCase):
@@ -117,6 +122,61 @@ class SecureMessageTestCase(unittest.TestCase):
         msg = unpack_secure_message(recipient_private_key, secure_message_bytes)
         self.assertEqual(data.message_type(), msg.msg_type)
         self.assertEqual(data, Data.unpack(msg.data))
+
+    def test_unpack_secure_message(self):
+        sender_private_key = AlgoPrivateKey()
+        recipient_private_key = AlgoPrivateKey()
+
+        with self.subTest("invalid SignedEncryptedMessage bytes"):
+            with self.assertRaises(InvalidSecureMessage):
+                unpack_secure_message(recipient_private_key, b"invalid message")
+
+        with self.subTest("when secure_msg type is SignedEncryptedMessaged"):
+            data = Data("data")
+
+            secure_message = create_secure_message(
+                sender_private_key, data, recipient_private_key.encryption_address
+            )
+            msg = unpack_secure_message(recipient_private_key, secure_message)
+            self.assertEqual(data.message_type(), msg.msg_type)
+            self.assertEqual(data, Data.unpack(msg.data))
+
+        with self.subTest("with invalid signature"):
+            data = Data("data")
+
+            secure_message = create_secure_message(
+                sender_private_key, data, recipient_private_key.encryption_address
+            )
+            secure_message.sender = AlgoPrivateKey().signing_address
+            with self.assertRaises(MessageSignatureVerificationFailed):
+                unpack_secure_message(recipient_private_key, secure_message)
+
+        with self.subTest("with corrupt encrypted data"):
+            data = Data("data")
+
+            secure_message = create_secure_message(
+                sender_private_key, data, recipient_private_key.encryption_address
+            )
+            secure_message.encrypted_msg.encrypted_msg += b"1"
+            secure_message = SignedEncryptedMessage.sign(
+                sender_private_key,
+                secure_message.encrypted_msg,
+            )
+            with self.assertRaises(DecryptionFailed):
+                unpack_secure_message(recipient_private_key, secure_message)
+
+        with self.subTest("invalid message"):
+            secret_message = EncryptedMessage.encrypt(
+                sender_private_key=sender_private_key,
+                recipient=recipient_private_key.encryption_address,
+                msg=b"invalid message",
+            )
+            secure_message = SignedEncryptedMessage.sign(
+                private_key=sender_private_key,
+                msg=secret_message,
+            )
+            with self.assertRaises(InvalidSecureMessage):
+                unpack_secure_message(recipient_private_key, secure_message)
 
 
 if __name__ == "__main__":

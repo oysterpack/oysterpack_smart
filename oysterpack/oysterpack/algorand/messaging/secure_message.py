@@ -2,7 +2,7 @@
 Provides support secure messaging
 """
 from dataclasses import dataclass
-from typing import Self
+from typing import Self, overload
 
 import msgpack  # type: ignore
 from nacl.exceptions import CryptoError
@@ -171,20 +171,44 @@ class DecryptionFailed(InvalidSecureMessage):
     """
 
 
+@overload
 def unpack_secure_message(
     private_key: AlgoPrivateKey,
-    secure_msg_bytes: bytes,
+    secure_msg: SignedEncryptedMessage,
 ) -> Message:
     """
-    1. Deserializes secure_msg_bytes into s SignedEncryptedMessage
+    overlaod for SignedEncryptedMessage instance
+    """
+
+
+@overload
+def unpack_secure_message(
+    private_key: AlgoPrivateKey,
+    secure_msg: bytes,
+) -> Message:
+    """
+    overlaod for SignedEncryptedMessage bytes
+    """
+
+
+def unpack_secure_message(
+    private_key: AlgoPrivateKey,
+    secure_msg: bytes | SignedEncryptedMessage,
+) -> Message:
+    """
+    1. If :param:`secure_msg` is bytes, then deserialize it into s SignedEncryptedMessage
     2. verifies the signature
     3. decrypts the message
     4. Deserializes the decrypted message into a Message
     """
-    try:
-        secure_msg = SignedEncryptedMessage.unpack(secure_msg_bytes)
-    except Exception as err:
-        raise InvalidSecureMessage("failed to unpack SignedEncryptedMessage") from err
+
+    if isinstance(secure_msg, bytes):
+        try:
+            secure_msg = SignedEncryptedMessage.unpack(secure_msg)
+        except Exception as err:
+            raise InvalidSecureMessage(
+                "failed to unpack SignedEncryptedMessage"
+            ) from err
 
     if not secure_msg.verify():
         raise MessageSignatureVerificationFailed()

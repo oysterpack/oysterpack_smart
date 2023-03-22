@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from datetime import datetime, UTC
 from typing import Callable, Awaitable, Tuple, ClassVar
 
-import msgpack  # type: ignore
-from nacl.exceptions import CryptoError
 from ulid import ULID
 from websockets.legacy.server import WebSocketServerProtocol
 
@@ -21,6 +19,8 @@ from oysterpack.algorand.client.accounts.private_key import (
 from oysterpack.algorand.messaging.secure_message import (
     SignedEncryptedMessage,
     pack_secure_message,
+    unpack_secure_message,
+    InvalidSecureMessage,
 )
 from oysterpack.algorand.messaging.websocket import Websocket, CloseCode
 from oysterpack.core.logging import get_logger
@@ -36,42 +36,6 @@ from oysterpack.core.message import (
 class SecureMessageHandlerError(Exception):
     """
     SecureMessageHandler base exception
-    """
-
-
-class SignatureVerificationFailed(SecureMessageHandlerError):
-    """
-    SignatureVerificationFailed
-    """
-
-
-class MultisigVerificationFailed(SecureMessageHandlerError):
-    """
-    MultisigVerificationFailed
-    """
-
-
-class DecryptionFailed(SecureMessageHandlerError):
-    """
-    DecryptionFailed
-    """
-
-
-class UnsupportedMessageType(SecureMessageHandlerError):
-    """
-    UnsupportedMessageType
-    """
-
-
-class InvalidMessage(SecureMessageHandlerError):
-    """
-    InvalidMessage
-    """
-
-
-class MessageHandlerFailed(SecureMessageHandlerError):
-    """
-    MessageHandlerFailed
     """
 
 
@@ -100,9 +64,9 @@ class MessageContext:
     signed_msg_data: SignedMessage | MultisigMessage | None = None
 
     async def pack_secure_message(
-            self,
-            data: Serializable,
-            recipient: EncryptionAddress | None = None,
+        self,
+        data: Serializable,
+        recipient: EncryptionAddress | None = None,
     ) -> bytes:
         """
         Wraps the `data` into a :type:`SecureMessage` and serializes it to bytes
@@ -166,10 +130,10 @@ class SecureMessageHandler:
     """
 
     def __init__(
-            self,
-            private_key: AlgoPrivateKey,
-            message_handlers: MessageHandlers,
-            executor: Executor,
+        self,
+        private_key: AlgoPrivateKey,
+        message_handlers: MessageHandlers,
+        executor: Executor,
     ):
         """
         Notes
@@ -219,7 +183,7 @@ class SecureMessageHandler:
         msg: Message | SignedMessage | MultisigMessage
         try:
             msg = unpack_secure_message(self.__private_key, secure_msg)
-        except SecureMessageHandlerError as err:
+        except InvalidSecureMessage as err:
             await websocket.close(code=CloseCode.GOING_AWAY, reason="invalid message")
             self.__logger.exception(err)
             return
@@ -236,14 +200,18 @@ class SecureMessageHandler:
         if msg.msg_type == SignedMessage.message_type():
             ctx.signed_msg_data = SignedMessage.unpack(msg.data)
             if not ctx.signed_msg_data.verify():
-                await websocket.close(code=CloseCode.GOING_AWAY, reason="invalid signature")
+                await websocket.close(
+                    code=CloseCode.GOING_AWAY, reason="invalid signature"
+                )
                 self.__logger.error("SignedMessage verification failed")
                 return
             handler = self.get_handler(ctx.signed_msg_data.msg_type)
         elif msg.msg_type == MultisigMessage.message_type():
             ctx.signed_msg_data = MultisigMessage.unpack(msg.data)
             if not ctx.signed_msg_data.verify():
-                await websocket.close(code=CloseCode.GOING_AWAY, reason="invalid signature")
+                await websocket.close(
+                    code=CloseCode.GOING_AWAY, reason="invalid signature"
+                )
                 self.__logger.error("MultisigMessage verification failed")
                 return
             handler = self.get_handler(ctx.signed_msg_data.msg_type)
@@ -264,7 +232,9 @@ class SecureMessageHandler:
         """
 
         async def handle_unsupported_message(ctx: MessageContext):
-            await ctx.websocket.close(code=CloseCode.GOING_AWAY, reason="unsupported msg type")
+            await ctx.websocket.close(
+                code=CloseCode.GOING_AWAY, reason="unsupported msg type"
+            )
             self.__logger.error("unsupported message type: %s", ctx.msg.msg_type)
 
         for mapping in self.__message_handlers:
@@ -300,9 +270,9 @@ class SecureMessageWebsocketHandler:
     MSG_HANDLER_ERR_CODE: ClassVar[int] = 1001
 
     def __init__(
-            self,
-            handler: SecureMessageHandler,
-            max_concurrent_requests: int = 1000,
+        self,
+        handler: SecureMessageHandler,
+        max_concurrent_requests: int = 1000,
     ):
         """
         :param handler: SecureMessageHandler
@@ -340,7 +310,10 @@ class SecureMessageWebsocketHandler:
 
         def log_throttled():
             self.__metrics.throttle_count += 1
-            self.__logger.warning("requests are being throttled - throttle count = %s", self.__metrics.throttle_count)
+            self.__logger.warning(
+                "requests are being throttled - throttle count = %s",
+                self.__metrics.throttle_count,
+            )
 
         async for msg in websocket:
             if isinstance(msg, bytes):
@@ -349,7 +322,9 @@ class SecureMessageWebsocketHandler:
                 try:
                     secure_msg = SignedEncryptedMessage.unpack(msg)
                 except BaseException as err:
-                    await websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason="invalid message")
+                    await websocket.close(
+                        code=self.MSG_HANDLER_ERR_CODE, reason="invalid message"
+                    )
                     err.add_note("SignedEncryptedMessage.unpack(msg) failed")
                     log_msg_failure(err)
                     return
@@ -373,7 +348,11 @@ class SecureMessageWebsocketHandler:
                             )
                             self.__tasks.add(close_task)
                             close_task.add_done_callback(self.__tasks.remove)
-                            log_msg_failure(MessageHandlerFailed(f"{type(task_err)} : {task_err}"))
+                            log_msg_failure(
+                                SecureMessageHandlerError(
+                                    f"{type(task_err)} : {task_err}"
+                                )
+                            )
 
                     task.add_done_callback(on_done)
                 else:
@@ -391,8 +370,12 @@ class SecureMessageWebsocketHandler:
                         log_msg_failure(err)
                         return
             else:
-                await websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason="invalid message")
-                log_msg_failure(InvalidMessage(f"unsupported msg type: {type(msg)}"))
+                await websocket.close(
+                    code=self.MSG_HANDLER_ERR_CODE, reason="invalid message"
+                )
+                log_msg_failure(
+                    SecureMessageHandlerError(f"unsupported msg type: {type(msg)}")
+                )
                 return
 
     @property
@@ -409,24 +392,3 @@ class SecureMessageWebsocketHandler:
         :return: SecureMessageWebsocketHandlerMetrics
         """
         return self.__metrics
-
-
-def unpack_secure_message(
-        recipient_private_key: AlgoPrivateKey,
-        secure_msg: SignedEncryptedMessage,
-) -> Message:
-    """
-    Verifies the message signature and decrypts the message.
-    """
-    if not secure_msg.verify():
-        raise SignatureVerificationFailed()
-
-    try:
-        msg_bytes = secure_msg.encrypted_msg.decrypt(recipient_private_key)
-    except CryptoError as err:
-        raise DecryptionFailed() from err
-
-    try:
-        return Message.unpack(msg_bytes)
-    except Exception as err:
-        raise InvalidMessage() from err

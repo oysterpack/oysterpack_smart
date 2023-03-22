@@ -6,7 +6,7 @@ from asyncio import Task
 from concurrent.futures import Executor
 from dataclasses import dataclass
 from datetime import datetime, UTC
-from enum import IntEnum, auto
+from enum import auto, StrEnum
 from typing import Final, Callable, Awaitable, Self, Tuple, ClassVar
 
 import msgpack  # type: ignore
@@ -35,17 +35,18 @@ from oysterpack.core.message import (
 )
 
 
-class SecureMessageHandlerErrorCode(IntEnum):
+class SecureMessageHandlerErrorCode(StrEnum):
     SIGNATURE_VERIFICATION_FAILED = auto()
     DECRYPTION_FAILED = auto()
     # Message with unsupported message type was received
     UNSUPPORTED_MSG_TYPE = auto()
     INVALID_MSG = auto()
+    MESSAGE_HANDLER_FAILED = auto()
 
 
 class SecureMessageHandlerError(Exception, Serializable):
     """
-    SecureMessageHandler base exception
+    SecureMessageHandlerError
     """
 
     MSG_TYPE: Final[MessageType] = MessageType.from_str("01GVGS7ZK6WE9C3TDRBTVVAJ3J")
@@ -374,7 +375,12 @@ class SecureMessageWebsocketHandler:
             self.__metrics.failure_count += 1
             self.__metrics.last_msg_failure_timestamp = datetime.now(UTC)
             self.__logger.debug("message failure: %s", self.__metrics)
-            self.__logger.exception("message failure: %s", err)
+
+            # exceptions raised by background asyncio have no traceback
+            if err.__traceback__:
+                self.__logger.exception("message failure: %s", err)
+            else:
+                self.__logger.error("message failure: %s", err)
 
         def log_throttled():
             self.__metrics.throttle_count += 1
@@ -387,8 +393,10 @@ class SecureMessageWebsocketHandler:
                 try:
                     secure_msg = SignedEncryptedMessage.unpack(msg)
                 except BaseException as err:
-                    await websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason=str(err))
+                    await websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason="invalid message")
+                    err.add_note("SignedEncryptedMessage.unpack(msg) failed")
                     log_msg_failure(err)
+                    return
 
                 if self.request_task_count < self.__max_concurrent_requests:
                     # process task concurrently
@@ -402,10 +410,17 @@ class SecureMessageWebsocketHandler:
                             log_msg_success()
                         else:
                             close_task = asyncio.create_task(
-                                websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason=str(task_err)))
+                                websocket.close(
+                                    code=self.MSG_HANDLER_ERR_CODE,
+                                    reason="message handler failed",
+                                )
+                            )
                             self.__tasks.add(close_task)
                             close_task.add_done_callback(self.__tasks.remove)
-                            log_msg_failure(task_err)
+                            log_msg_failure(SecureMessageHandlerError(
+                                SecureMessageHandlerErrorCode.MESSAGE_HANDLER_FAILED,
+                                f"{type(task_err)} : {task_err}",
+                            ))
 
                     task.add_done_callback(on_done)
                 else:
@@ -415,16 +430,20 @@ class SecureMessageWebsocketHandler:
                         await self.__handler(secure_msg, websocket)
                         log_msg_success()
                     except BaseException as err:
-                        await websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason=str(err))
+                        await websocket.close(
+                            code=self.MSG_HANDLER_ERR_CODE,
+                            reason="message handler failed",
+                        )
+                        err.add_note("message handler task failed")
                         log_msg_failure(err)
-                        raise
+                        return
             else:
-                invalid_msg_err = SecureMessageHandlerError(
+                await websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason="invalid message")
+                log_msg_failure(SecureMessageHandlerError(
                     SecureMessageHandlerErrorCode.INVALID_MSG,
-                    "invalid message",
-                )
-                await websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason=str(invalid_msg_err))
-                log_msg_failure(invalid_msg_err)
+                    f"unsupported msg type: {type(msg)}",
+                ))
+                return
 
     @property
     def max_concurrent_requests(self) -> int:

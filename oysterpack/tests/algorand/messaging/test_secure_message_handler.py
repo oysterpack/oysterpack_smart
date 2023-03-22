@@ -761,8 +761,9 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         websocket_handler = SecureMessageWebsocketHandler(
             handler=secure_message_handler,
-            max_concurrent_requests=2,
+            max_concurrent_requests=1,
         )
+        self.assertEqual(1, websocket_handler.max_concurrent_requests)
 
         ws_server = WebsocketsServer(
             handler=websocket_handler,
@@ -927,8 +928,6 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
     async def test_invalid_msg(self):
         # SETUP
-        request = "msg"
-
         secure_message_handler = SecureMessageHandler(
             private_key=self.recipient_private_key,
             message_handlers=(
@@ -953,14 +952,26 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         await ws_server.await_running()
         await asyncio.sleep(0)
 
-        async with connect(
-                f"wss://localhost:{ws_server.port}",
-                ssl=client_ssl_context(),
-        ) as websocket:
-            await websocket.send(request)
-            with self.assertRaises(ConnectionClosedOK) as err:
-                await websocket.recv()
-            logger.exception(err.exception)
+        # websocket connection should be closed when by the server when invalid messages are received
+        with self.subTest("send str message"):
+            async with connect(
+                    f"wss://localhost:{ws_server.port}",
+                    ssl=client_ssl_context(),
+            ) as websocket:
+                await websocket.send("request")
+                with self.assertRaises(ConnectionClosedOK) as err:
+                    await websocket.recv()
+                logger.exception(err.exception)
+
+        with self.subTest("send bytes message"):
+            async with connect(
+                    f"wss://localhost:{ws_server.port}",
+                    ssl=client_ssl_context(),
+            ) as websocket:
+                await websocket.send(b"request")
+                with self.assertRaises(ConnectionClosedOK) as err:
+                    await websocket.recv()
+                logger.exception(err.exception)
 
         await ws_server.stop()
         await ws_server.await_stopped()

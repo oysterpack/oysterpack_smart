@@ -6,8 +6,7 @@ from asyncio import Task
 from concurrent.futures import Executor
 from dataclasses import dataclass
 from datetime import datetime, UTC
-from enum import auto, StrEnum
-from typing import Final, Callable, Awaitable, Self, Tuple, ClassVar
+from typing import Callable, Awaitable, Tuple, ClassVar
 
 import msgpack  # type: ignore
 from nacl.exceptions import CryptoError
@@ -23,11 +22,10 @@ from oysterpack.algorand.messaging.secure_message import (
     SignedEncryptedMessage,
     pack_secure_message,
 )
-from oysterpack.algorand.messaging.websocket import Websocket
+from oysterpack.algorand.messaging.websocket import Websocket, CloseCode
 from oysterpack.core.logging import get_logger
 from oysterpack.core.message import (
     Message,
-    MessageId,
     MessageType,
     MultisigMessage,
     SignedMessage,
@@ -35,55 +33,46 @@ from oysterpack.core.message import (
 )
 
 
-class SecureMessageHandlerErrorCode(StrEnum):
-    SIGNATURE_VERIFICATION_FAILED = auto()
-    DECRYPTION_FAILED = auto()
-    # Message with unsupported message type was received
-    UNSUPPORTED_MSG_TYPE = auto()
-    INVALID_MSG = auto()
-    MESSAGE_HANDLER_FAILED = auto()
-
-
-class SecureMessageHandlerError(Exception, Serializable):
+class SecureMessageHandlerError(Exception):
     """
-    SecureMessageHandlerError
+    SecureMessageHandler base exception
     """
 
-    MSG_TYPE: Final[MessageType] = MessageType.from_str("01GVGS7ZK6WE9C3TDRBTVVAJ3J")
 
-    def __init__(self, err_code: SecureMessageHandlerErrorCode, msg: str):
-        self.err_code = err_code
-        self.msg = msg
+class SignatureVerificationFailed(SecureMessageHandlerError):
+    """
+    SignatureVerificationFailed
+    """
 
-    @classmethod
-    def message_type(cls) -> MessageType:
-        return cls.MSG_TYPE
 
-    def to_message(self) -> Message:
-        return Message(
-            msg_id=MessageId(),
-            msg_type=self.MSG_TYPE,
-            data=self.pack(),
-        )
+class MultisigVerificationFailed(SecureMessageHandlerError):
+    """
+    MultisigVerificationFailed
+    """
 
-    def pack(self) -> bytes:
-        """
-        Serializes the exception into a Message
-        """
-        return msgpack.packb(
-            (
-                self.err_code,
-                self.msg,
-            )
-        )
 
-    @classmethod
-    def unpack(cls, packed: bytes) -> Self:
-        """
-        Deserializes the exception
-        """
-        err_code, err_msg = msgpack.unpackb(packed)
-        return cls(err_code, err_msg)
+class DecryptionFailed(SecureMessageHandlerError):
+    """
+    DecryptionFailed
+    """
+
+
+class UnsupportedMessageType(SecureMessageHandlerError):
+    """
+    UnsupportedMessageType
+    """
+
+
+class InvalidMessage(SecureMessageHandlerError):
+    """
+    InvalidMessage
+    """
+
+
+class MessageHandlerFailed(SecureMessageHandlerError):
+    """
+    MessageHandlerFailed
+    """
 
 
 @dataclass(slots=True)
@@ -116,9 +105,9 @@ class MessageContext:
             recipient: EncryptionAddress | None = None,
     ) -> bytes:
         """
-        Wraps the `msg` into a :type:`SecureMessage` and serializes it to bytes
+        Wraps the `data` into a :type:`SecureMessage` and serializes it to bytes
 
-        :param msg: provides the message to be wrapped in a :type:`SecureMessage`
+        :param data: provides the message to be wrapped in a :type:`SecureMessage`
         :param recipient: if None, then the client is used as the recipient
         :return: serialized :type:`SecureMessage` bytes
         """
@@ -202,8 +191,10 @@ class SecureMessageHandler:
         self.__private_key = private_key
         self.__message_handlers = message_handlers
         self.__executor = executor
+        self.__logger = get_logger(self)
 
-    def __validate_message_handlers(self, message_handlers: MessageHandlers):
+    @staticmethod
+    def __validate_message_handlers(message_handlers: MessageHandlers):
         """
         Message type IDs across all handlers must be unique
         """
@@ -229,11 +220,8 @@ class SecureMessageHandler:
         try:
             msg = unpack_secure_message(self.__private_key, secure_msg)
         except SecureMessageHandlerError as err:
-            await self._handle_secure_message_handler_error(
-                err=err,
-                secure_msg=secure_msg,
-                websocket=websocket,
-            )
+            await websocket.close(code=CloseCode.GOING_AWAY, reason="invalid message")
+            self.__logger.exception(err)
             return
 
         ctx = MessageContext(
@@ -248,48 +236,21 @@ class SecureMessageHandler:
         if msg.msg_type == SignedMessage.message_type():
             ctx.signed_msg_data = SignedMessage.unpack(msg.data)
             if not ctx.signed_msg_data.verify():
-                await self._handle_secure_message_handler_error(
-                    err=SecureMessageHandlerError(
-                        SecureMessageHandlerErrorCode.SIGNATURE_VERIFICATION_FAILED,
-                        "message data signature verification failed",
-                    ),
-                    secure_msg=secure_msg,
-                    websocket=websocket,
-                )
+                await websocket.close(code=CloseCode.GOING_AWAY, reason="invalid signature")
+                self.__logger.error("SignedMessage verification failed")
                 return
             handler = self.get_handler(ctx.signed_msg_data.msg_type)
         elif msg.msg_type == MultisigMessage.message_type():
             ctx.signed_msg_data = MultisigMessage.unpack(msg.data)
             if not ctx.signed_msg_data.verify():
-                await self._handle_secure_message_handler_error(
-                    err=SecureMessageHandlerError(
-                        SecureMessageHandlerErrorCode.SIGNATURE_VERIFICATION_FAILED,
-                        "message data multisig verification failed",
-                    ),
-                    secure_msg=secure_msg,
-                    websocket=websocket,
-                )
+                await websocket.close(code=CloseCode.GOING_AWAY, reason="invalid signature")
+                self.__logger.error("MultisigMessage verification failed")
                 return
             handler = self.get_handler(ctx.signed_msg_data.msg_type)
         else:
             handler = self.get_handler(msg.msg_type)
 
         await handler(ctx)
-
-    async def _handle_secure_message_handler_error(
-            self,
-            err: SecureMessageHandlerError,
-            secure_msg: SignedEncryptedMessage,
-            websocket: Websocket,
-    ):
-        secure_message = await asyncio.get_event_loop().run_in_executor(
-            self.__executor,
-            pack_secure_message,
-            self.__private_key,
-            err,
-            secure_msg.encrypted_msg.sender,
-        )
-        await websocket.send(secure_message)
 
     def get_handler(self, msg_type: MessageType) -> MessageHandler:
         """
@@ -303,13 +264,8 @@ class SecureMessageHandler:
         """
 
         async def handle_unsupported_message(ctx: MessageContext):
-            response = await ctx.pack_secure_message(
-                SecureMessageHandlerError(
-                    SecureMessageHandlerErrorCode.UNSUPPORTED_MSG_TYPE,
-                    str(ctx.msg.msg_type),
-                )
-            )
-            await ctx.websocket.send(response)
+            await ctx.websocket.close(code=CloseCode.GOING_AWAY, reason="unsupported msg type")
+            self.__logger.error("unsupported message type: %s", ctx.msg.msg_type)
 
         for mapping in self.__message_handlers:
             if msg_type in mapping.msg_types:
@@ -417,10 +373,7 @@ class SecureMessageWebsocketHandler:
                             )
                             self.__tasks.add(close_task)
                             close_task.add_done_callback(self.__tasks.remove)
-                            log_msg_failure(SecureMessageHandlerError(
-                                SecureMessageHandlerErrorCode.MESSAGE_HANDLER_FAILED,
-                                f"{type(task_err)} : {task_err}",
-                            ))
+                            log_msg_failure(MessageHandlerFailed(f"{type(task_err)} : {task_err}"))
 
                     task.add_done_callback(on_done)
                 else:
@@ -439,10 +392,7 @@ class SecureMessageWebsocketHandler:
                         return
             else:
                 await websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason="invalid message")
-                log_msg_failure(SecureMessageHandlerError(
-                    SecureMessageHandlerErrorCode.INVALID_MSG,
-                    f"unsupported msg type: {type(msg)}",
-                ))
+                log_msg_failure(InvalidMessage(f"unsupported msg type: {type(msg)}"))
                 return
 
     @property
@@ -469,23 +419,14 @@ def unpack_secure_message(
     Verifies the message signature and decrypts the message.
     """
     if not secure_msg.verify():
-        raise SecureMessageHandlerError(
-            SecureMessageHandlerErrorCode.SIGNATURE_VERIFICATION_FAILED,
-            "signature verification failed",
-        )
+        raise SignatureVerificationFailed()
 
     try:
         msg_bytes = secure_msg.encrypted_msg.decrypt(recipient_private_key)
     except CryptoError as err:
-        raise SecureMessageHandlerError(
-            SecureMessageHandlerErrorCode.DECRYPTION_FAILED,
-            "decryption failed",
-        ) from err
+        raise DecryptionFailed() from err
 
     try:
         return Message.unpack(msg_bytes)
     except Exception as err:
-        raise SecureMessageHandlerError(
-            SecureMessageHandlerErrorCode.INVALID_MSG,
-            f"failed to unpack message: {err}",
-        ) from err
+        raise InvalidMessage() from err

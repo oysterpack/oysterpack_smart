@@ -15,13 +15,12 @@ from beaker.consts import algo
 from websockets.exceptions import ConnectionClosedOK
 from websockets.legacy.client import connect
 
-from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
+from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey, EncryptionAddress
 from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.algorand.client.transactions import payment
 from oysterpack.algorand.messaging.secure_message import (
     SignedEncryptedMessage,
-    create_secure_message,
-    unpack_secure_message,
+    create_secure_message, EncryptedMessage,
 )
 from oysterpack.algorand.messaging.secure_message_client import SecureMessageClient
 from oysterpack.algorand.messaging.secure_message_handler import (
@@ -29,10 +28,8 @@ from oysterpack.algorand.messaging.secure_message_handler import (
     MessageContext,
     SecureMessageWebsocketHandler,
     MessageHandlerMapping,
-    SecureMessageHandlerError,
-    SecureMessageHandlerErrorCode,
 )
-from oysterpack.algorand.messaging.websocket import Data
+from oysterpack.algorand.messaging.websocket import Data, Websocket, CloseCode
 from oysterpack.core.message import (
     Message,
     MessageType,
@@ -86,7 +83,9 @@ class Request(Serializable):
 
 
 async def echo_message_handler(ctx: MessageContext):
-    logger.info("echo_message_handler: START")
+    logger.info("echo_message_handler: received message type: %s", ctx.msg_type)
+
+    assert Request.message_type() == ctx.msg_type
 
     request = Request.unpack(ctx.msg_data)
     if request.sleep:
@@ -100,10 +99,11 @@ async def echo_message_handler(ctx: MessageContext):
     logger.info("echo_message_handler: sent response")
 
 
-class WebsocketMock:
+class WebsocketMock(Websocket):
     def __init__(self) -> None:
         self.request_queue: asyncio.Queue[Data] = asyncio.Queue()
         self.response_queue: asyncio.Queue[Data] = asyncio.Queue()
+        self.closed = False
 
     async def recv(self) -> Data:
         msg = await self.request_queue.get()
@@ -115,6 +115,11 @@ class WebsocketMock:
             message: Data | Iterable[Data] | AsyncIterable[Data],
     ) -> None:
         await self.response_queue.put(cast(Data, message))
+
+    async def close(self, code: int = 1000, reason: str = "") -> None:
+        self.closed = True
+        self.close_code = code
+        self.close_reason = reason
 
 
 class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
@@ -238,21 +243,122 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         await handle_message(secure_message, ws)
 
         # Assert
-        response_bytes = await ws.response_queue.get()
-        ws.response_queue.task_done()
-        self.assertIsInstance(response_bytes, bytes)
-        logger.info("len(response_bytes)= %s", len(response_bytes))
+        self.assertTrue(ws.closed)
+        self.assertEqual(CloseCode.GOING_AWAY, ws.close_code)
+        self.assertEqual("invalid message", ws.close_reason)
 
-        # response should be a SecureMessage
-        response_msg = unpack_secure_message(self.sender_private_key, response_bytes)
-        self.assertEqual(
-            SecureMessageHandlerError.message_type(), response_msg.msg_type
+    async def test_decryption_failure(self):
+        # SETUP
+        request = Request(
+            request_id=MessageId(),
+            txns=[
+                payment.transfer_algo(
+                    sender=self.sender_private_key.signing_address,
+                    receiver=self.recipient_private_key.signing_address,
+                    amount=MicroAlgos(1 * algo),
+                    suggested_params=sandbox.get_algod_client().suggested_params(),
+                ),
+            ],
         )
-        err = SecureMessageHandlerError.unpack(response_msg.data)
-        logger.info(err)
-        self.assertEqual(
-            SecureMessageHandlerErrorCode.SIGNATURE_VERIFICATION_FAILED, err.err_code
+
+        def create_secure_message(
+                private_key: AlgoPrivateKey,
+                data: Serializable,
+                recipient: EncryptionAddress,
+        ) -> SignedEncryptedMessage:
+            msg = Message.create(data.message_type(), data.pack())
+            secret_message = EncryptedMessage.encrypt(
+                sender_private_key=private_key,
+                recipient=recipient,
+                msg=msg.pack(),
+            )
+            secret_message.encrypted_msg += b"1"
+            return SignedEncryptedMessage.sign(
+                private_key=private_key,
+                msg=secret_message,
+            )
+
+        secure_message = create_secure_message(
+            private_key=self.sender_private_key,
+            data=request,
+            recipient=self.recipient_private_key.encryption_address,
         )
+
+        handle_message = SecureMessageHandler(
+            private_key=self.recipient_private_key,
+            message_handlers=(
+                MessageHandlerMapping(
+                    msg_handler=echo_message_handler,
+                    msg_types={Request.message_type()},
+                ),
+            ),
+            executor=self.executor,
+        )
+        ws = WebsocketMock()
+
+        # Act
+        await handle_message(secure_message, ws)
+
+        # Assert
+        self.assertTrue(ws.closed)
+        self.assertEqual(CloseCode.GOING_AWAY, ws.close_code)
+        self.assertEqual("invalid message", ws.close_reason)
+
+    async def test_message_unpacking_error(self):
+        # SETUP
+        request = Request(
+            request_id=MessageId(),
+            txns=[
+                payment.transfer_algo(
+                    sender=self.sender_private_key.signing_address,
+                    receiver=self.recipient_private_key.signing_address,
+                    amount=MicroAlgos(1 * algo),
+                    suggested_params=sandbox.get_algod_client().suggested_params(),
+                ),
+            ],
+        )
+
+        def create_secure_message(
+                private_key: AlgoPrivateKey,
+                data: Serializable,
+                recipient: EncryptionAddress,
+        ) -> SignedEncryptedMessage:
+            msg = Message.create(data.message_type(), data.pack())
+            secret_message = EncryptedMessage.encrypt(
+                sender_private_key=private_key,
+                recipient=recipient,
+                msg=msg.pack()+b"1",
+            )
+            return SignedEncryptedMessage.sign(
+                private_key=private_key,
+                msg=secret_message,
+            )
+
+        secure_message = create_secure_message(
+            private_key=self.sender_private_key,
+            data=request,
+            recipient=self.recipient_private_key.encryption_address,
+        )
+
+        handle_message = SecureMessageHandler(
+            private_key=self.recipient_private_key,
+            message_handlers=(
+                MessageHandlerMapping(
+                    msg_handler=echo_message_handler,
+                    msg_types={Request.message_type()},
+                ),
+            ),
+            executor=self.executor,
+        )
+        ws = WebsocketMock()
+
+        # Act
+        await handle_message(secure_message, ws)
+
+        # Assert
+        self.assertTrue(ws.closed)
+        self.assertEqual(CloseCode.GOING_AWAY, ws.close_code)
+        self.assertEqual("invalid message", ws.close_reason)
 
     async def test_init(self):
         with self.subTest("no message handlers specified"):
@@ -396,21 +502,9 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         await handle_message(secure_message, ws)
 
         # Assert
-        response_bytes = await ws.response_queue.get()
-        ws.response_queue.task_done()
-        self.assertIsInstance(response_bytes, bytes)
-        logger.info("len(response_bytes)= %s", len(response_bytes))
-
-        # response should be a SecureMessage
-        response_msg = unpack_secure_message(self.sender_private_key, response_bytes)
-        self.assertEqual(
-            SecureMessageHandlerError.message_type(), response_msg.msg_type
-        )
-        err = SecureMessageHandlerError.unpack(response_msg.data)
-        logger.info(err)
-        self.assertEqual(
-            SecureMessageHandlerErrorCode.SIGNATURE_VERIFICATION_FAILED, err.err_code
-        )
+        self.assertTrue(ws.closed)
+        self.assertEqual(CloseCode.GOING_AWAY, ws.close_code)
+        self.assertEqual("invalid signature", ws.close_reason)
 
     async def test_multisig_message(self):
         # SETUP
@@ -554,21 +648,9 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         await handle_message(secure_message, ws)
 
         # Assert
-        response_bytes = await ws.response_queue.get()
-        ws.response_queue.task_done()
-        self.assertIsInstance(response_bytes, bytes)
-        logger.info("len(response_bytes)= %s", len(response_bytes))
-
-        # response should be a SecureMessage
-        response_msg = unpack_secure_message(self.sender_private_key, response_bytes)
-        self.assertEqual(
-            SecureMessageHandlerError.message_type(), response_msg.msg_type
-        )
-        err = SecureMessageHandlerError.unpack(response_msg.data)
-        logger.info(err)
-        self.assertEqual(
-            SecureMessageHandlerErrorCode.SIGNATURE_VERIFICATION_FAILED, err.err_code
-        )
+        self.assertTrue(ws.closed)
+        self.assertEqual(CloseCode.GOING_AWAY, ws.close_code)
+        self.assertEqual("invalid signature", ws.close_reason)
 
     async def test_unsupported_message(self):
         # SETUP
@@ -612,21 +694,9 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         await handle_message(secure_message, ws)
 
         # Assert
-        response_bytes = await ws.response_queue.get()
-        ws.response_queue.task_done()
-        self.assertIsInstance(response_bytes, bytes)
-        logger.info("len(response_bytes)= %s", len(response_bytes))
-
-        # response should be a SecureMessage
-        response_msg = unpack_secure_message(self.sender_private_key, response_bytes)
-        self.assertEqual(
-            SecureMessageHandlerError.message_type(), response_msg.msg_type
-        )
-        err = SecureMessageHandlerError.unpack(response_msg.data)
-        logger.info(err)
-        self.assertEqual(
-            SecureMessageHandlerErrorCode.UNSUPPORTED_MSG_TYPE, err.err_code
-        )
+        self.assertTrue(ws.closed)
+        self.assertEqual(CloseCode.GOING_AWAY, ws.close_code)
+        self.assertEqual("unsupported msg type", ws.close_reason)
 
 
 class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):

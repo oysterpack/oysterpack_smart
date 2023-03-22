@@ -9,7 +9,7 @@ from typing import Any
 
 def configure_logging(level: int = logging.WARNING):
     """
-    Confifues logging format and log level.
+    Configures logging format and log level.
 
     :param level: default = logging.WARNING
     :return: None
@@ -26,7 +26,8 @@ def configure_logging(level: int = logging.WARNING):
     """
     logging.Formatter.converter = time.gmtime
     logging.basicConfig(
-        format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s", level=level
+        format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
+        level=level,
     )
     logging.captureWarnings(True)
 
@@ -36,7 +37,8 @@ def get_logger(obj: Any, name: str | None = None) -> logging.Logger:
     Returns a logger using the class name as the logger name.
     If `name` is specifed, then it is appended to the class name: `{self.__class__.__name__}.{name}`
     """
+    logger = logging.getLogger(obj.__class__.__name__)
     if name is None:
-        return logging.getLogger(obj.__class__.__name__)
+        return logger
 
-    return logging.getLogger(f"{obj.__class__.__name__}.{name}")
+    return logger.getChild(name)

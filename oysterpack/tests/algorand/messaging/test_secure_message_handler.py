@@ -3,6 +3,7 @@ import logging
 import unittest
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import timedelta
 from ssl import SSLCertVerificationError
 from typing import Iterable, AsyncIterable, cast, Self, ClassVar
 
@@ -11,6 +12,7 @@ from algosdk.account import generate_account
 from algosdk.transaction import Transaction, Multisig
 from beaker import sandbox
 from beaker.consts import algo
+from websockets.exceptions import ConnectionClosedOK
 from websockets.legacy.client import connect
 
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
@@ -54,44 +56,45 @@ class Request(Serializable):
 
     txns: list[Transaction]
 
+    fail: bool = False
+
+    sleep: timedelta | None = None
+
     @classmethod
     def message_type(cls) -> MessageType:
         return cls.MSG_TYPE
 
     @classmethod
     def unpack(cls, packed: bytes) -> Self:
-        request_id, txns = msgpack.unpackb(packed, use_list=False)
+        request_id, txns, fail, sleep = msgpack.unpackb(packed, use_list=False)
         return cls(
             request_id=MessageId.from_bytes(request_id),
             txns=[Transaction.undictify(txn) for txn in txns],
+            fail=fail,
+            sleep=timedelta(microseconds=sleep) if sleep else None
         )
-
-    @classmethod
-    def from_message(cls, msg: Message) -> Self:
-        if msg.msg_type != Request.MSG_TYPE:
-            raise ValueError("invalid message type")
-
-        return Self.unpackb(msg.data)  # type: ignore
 
     def pack(self) -> bytes:
         return msgpack.packb(
             (
                 self.request_id.bytes,
                 [txn.dictify() for txn in self.txns],
+                self.fail,
+                self.sleep.microseconds if self.sleep is not None else None
             )
-        )
-
-    def to_message(self) -> Message:
-        return Message(
-            msg_id=self.request_id,
-            msg_type=Request.MSG_TYPE,
-            data=self.pack(),
         )
 
 
 async def echo_message_handler(ctx: MessageContext):
     logger.info("echo_message_handler: START")
-    response = await ctx.pack_secure_message(Request.unpack(ctx.msg_data))
+
+    request = Request.unpack(ctx.msg_data)
+    if request.sleep:
+        await asyncio.sleep(float(request.sleep.microseconds) / 10 ** 6)
+    if request.fail:
+        raise Exception("BOOM!")
+
+    response = await ctx.pack_secure_message(request)
     logger.info("echo_message_handler: packed response")
     await ctx.websocket.send(response)
     logger.info("echo_message_handler: sent response")
@@ -108,8 +111,8 @@ class WebsocketMock:
         return msg
 
     async def send(
-        self,
-        message: Data | Iterable[Data] | AsyncIterable[Data],
+            self,
+            message: Data | Iterable[Data] | AsyncIterable[Data],
     ) -> None:
         await self.response_queue.put(cast(Data, message))
 
@@ -567,6 +570,64 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
             SecureMessageHandlerErrorCode.SIGNATURE_VERIFICATION_FAILED, err.err_code
         )
 
+    async def test_unsupported_message(self):
+        # SETUP
+        request = Request(
+            request_id=MessageId(),
+            txns=[
+                payment.transfer_algo(
+                    sender=self.sender_private_key.signing_address,
+                    receiver=self.recipient_private_key.signing_address,
+                    amount=MicroAlgos(1 * algo),
+                    suggested_params=sandbox.get_algod_client().suggested_params(),
+                ),
+                payment.transfer_algo(
+                    sender=self.sender_private_key.signing_address,
+                    receiver=self.recipient_private_key.signing_address,
+                    amount=MicroAlgos(10 * algo),
+                    suggested_params=sandbox.get_algod_client().suggested_params(),
+                ),
+            ],
+        )
+
+        secure_message = create_secure_message(
+            private_key=self.sender_private_key,
+            data=request,
+            recipient=self.recipient_private_key.encryption_address,
+        )
+
+        handle_message = SecureMessageHandler(
+            private_key=self.recipient_private_key,
+            message_handlers=(
+                MessageHandlerMapping(
+                    msg_handler=echo_message_handler,
+                    msg_types={MessageType()},
+                ),
+            ),
+            executor=self.executor,
+        )
+        ws = WebsocketMock()
+
+        # Act
+        await handle_message(secure_message, ws)
+
+        # Assert
+        response_bytes = await ws.response_queue.get()
+        ws.response_queue.task_done()
+        self.assertIsInstance(response_bytes, bytes)
+        logger.info("len(response_bytes)= %s", len(response_bytes))
+
+        # response should be a SecureMessage
+        response_msg = unpack_secure_message(self.sender_private_key, response_bytes)
+        self.assertEqual(
+            SecureMessageHandlerError.message_type(), response_msg.msg_type
+        )
+        err = SecureMessageHandlerError.unpack(response_msg.data)
+        logger.info(err)
+        self.assertEqual(
+            SecureMessageHandlerErrorCode.UNSUPPORTED_MSG_TYPE, err.err_code
+        )
+
 
 class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
     executor: ProcessPoolExecutor
@@ -628,8 +689,8 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         with self.subTest("using ProcessPoolExecutor based SecureMessageClient"):
             async with connect(
-                f"wss://localhost:{ws_server.port}",
-                ssl=client_ssl_context(),
+                    f"wss://localhost:{ws_server.port}",
+                    ssl=client_ssl_context(),
             ) as websocket:
                 with ProcessPoolExecutor() as executor:
                     client = SecureMessageClient(
@@ -647,8 +708,8 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         with self.subTest("using ThreadPoolExecutor based SecureMessageClient"):
             async with connect(
-                f"wss://localhost:{ws_server.port}",
-                ssl=client_ssl_context(),
+                    f"wss://localhost:{ws_server.port}",
+                    ssl=client_ssl_context(),
             ) as websocket:
                 with ThreadPoolExecutor() as executor:
                     client = SecureMessageClient(
@@ -664,10 +725,242 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                     self.assertEqual(request, data)
 
         with self.subTest(
-            "SSLContext with server CA cert is required to connect via TLS"
+                "SSLContext with server CA cert is required to connect via TLS"
         ):
             with self.assertRaises(SSLCertVerificationError):
                 await connect(f"wss://localhost:{ws_server.port}")
+
+        await ws_server.stop()
+        await ws_server.await_stopped()
+
+    async def test_throttling(self):
+        # SETUP
+        request = Request(
+            request_id=MessageId(),
+            txns=[
+                payment.transfer_algo(
+                    sender=self.sender_private_key.signing_address,
+                    receiver=self.recipient_private_key.signing_address,
+                    amount=MicroAlgos(1 * algo),
+                    suggested_params=sandbox.get_algod_client().suggested_params(),
+                ),
+            ],
+            sleep=timedelta(milliseconds=10)
+        )
+
+        secure_message_handler = SecureMessageHandler(
+            private_key=self.recipient_private_key,
+            message_handlers=(
+                MessageHandlerMapping(
+                    echo_message_handler,
+                    {Request.message_type()},
+                ),
+            ),
+            executor=self.executor,
+        )
+
+        websocket_handler = SecureMessageWebsocketHandler(
+            handler=secure_message_handler,
+            max_concurrent_requests=2,
+        )
+
+        ws_server = WebsocketsServer(
+            handler=websocket_handler,
+            ssl_context=server_ssl_context(),
+            port=8009
+        )
+        await ws_server.start()
+        await ws_server.await_running()
+        await asyncio.sleep(0)
+
+        async with connect(
+                f"wss://localhost:{ws_server.port}",
+                ssl=client_ssl_context(),
+        ) as websocket:
+            with ProcessPoolExecutor() as executor:
+                client = SecureMessageClient(
+                    websocket=websocket,
+                    private_key=self.sender_private_key,
+                    executor=executor,
+                )
+                tasks = []
+                for _ in range(10):
+                    task = asyncio.create_task(client.send(
+                        request,
+                        self.recipient_private_key.encryption_address,
+                    ))
+                    tasks.append(task)
+                for _ in range(10):
+                    response = await client.recv()
+                    data = Request.unpack(response.data)
+                    self.assertEqual(request, data)
+                logger.info(websocket_handler.metrics)
+                self.assertTrue(websocket_handler.metrics.throttle_count > 0)
+
+        await ws_server.stop()
+        await ws_server.await_stopped()
+
+    async def test_handler_failure_with_throttling(self):
+        # SETUP
+        request = Request(
+            request_id=MessageId(),
+            txns=[
+                payment.transfer_algo(
+                    sender=self.sender_private_key.signing_address,
+                    receiver=self.recipient_private_key.signing_address,
+                    amount=MicroAlgos(1 * algo),
+                    suggested_params=sandbox.get_algod_client().suggested_params(),
+                ),
+            ],
+            fail=True
+        )
+
+        secure_message_handler = SecureMessageHandler(
+            private_key=self.recipient_private_key,
+            message_handlers=(
+                MessageHandlerMapping(
+                    echo_message_handler,
+                    {Request.message_type()},
+                ),
+            ),
+            executor=self.executor,
+        )
+
+        websocket_handler = SecureMessageWebsocketHandler(
+            handler=secure_message_handler,
+            max_concurrent_requests=1
+        )
+
+        ws_server = WebsocketsServer(
+            handler=websocket_handler,
+            ssl_context=server_ssl_context(),
+            port=8009
+        )
+        await ws_server.start()
+        await ws_server.await_running()
+        await asyncio.sleep(0)
+
+        async with connect(
+                f"wss://localhost:{ws_server.port}",
+                ssl=client_ssl_context(),
+        ) as websocket:
+            with ProcessPoolExecutor() as executor:
+                client = SecureMessageClient(
+                    websocket=websocket,
+                    private_key=self.sender_private_key,
+                    executor=executor,
+                )
+
+                with self.assertRaises(ConnectionClosedOK) as err:
+                    tasks = []
+                    for _ in range(10):
+                        task = asyncio.create_task(client.send(
+                            request,
+                            self.recipient_private_key.encryption_address,
+                        ))
+                        tasks.append(task)
+                    await client.recv()
+                logger.exception(err.exception)
+
+        await ws_server.stop()
+        await ws_server.await_stopped()
+
+    async def test_handler_failure(self):
+        # SETUP
+        request = Request(
+            request_id=MessageId(),
+            txns=[
+                payment.transfer_algo(
+                    sender=self.sender_private_key.signing_address,
+                    receiver=self.recipient_private_key.signing_address,
+                    amount=MicroAlgos(1 * algo),
+                    suggested_params=sandbox.get_algod_client().suggested_params(),
+                ),
+            ],
+            fail=True
+        )
+
+        secure_message_handler = SecureMessageHandler(
+            private_key=self.recipient_private_key,
+            message_handlers=(
+                MessageHandlerMapping(
+                    echo_message_handler,
+                    {Request.message_type()},
+                ),
+            ),
+            executor=self.executor,
+        )
+
+        websocket_handler = SecureMessageWebsocketHandler(
+            handler=secure_message_handler,
+        )
+
+        ws_server = WebsocketsServer(
+            handler=websocket_handler,
+            ssl_context=server_ssl_context(),
+            port=8009
+        )
+        await ws_server.start()
+        await ws_server.await_running()
+        await asyncio.sleep(0)
+
+        async with connect(
+                f"wss://localhost:{ws_server.port}",
+                ssl=client_ssl_context(),
+        ) as websocket:
+            with ProcessPoolExecutor() as executor:
+                client = SecureMessageClient(
+                    websocket=websocket,
+                    private_key=self.sender_private_key,
+                    executor=executor,
+                )
+                await asyncio.create_task(client.send(
+                    request,
+                    self.recipient_private_key.encryption_address,
+                ))
+                with self.assertRaises(ConnectionClosedOK) as err:
+                    await client.recv()
+                logger.exception(err.exception)
+
+        await ws_server.stop()
+        await ws_server.await_stopped()
+
+    async def test_invalid_msg(self):
+        # SETUP
+        request = "msg"
+
+        secure_message_handler = SecureMessageHandler(
+            private_key=self.recipient_private_key,
+            message_handlers=(
+                MessageHandlerMapping(
+                    echo_message_handler,
+                    {Request.message_type()},
+                ),
+            ),
+            executor=self.executor,
+        )
+
+        websocket_handler = SecureMessageWebsocketHandler(
+            handler=secure_message_handler,
+        )
+
+        ws_server = WebsocketsServer(
+            handler=websocket_handler,
+            ssl_context=server_ssl_context(),
+            port=8011
+        )
+        await ws_server.start()
+        await ws_server.await_running()
+        await asyncio.sleep(0)
+
+        async with connect(
+                f"wss://localhost:{ws_server.port}",
+                ssl=client_ssl_context(),
+        ) as websocket:
+            await websocket.send(request)
+            with self.assertRaises(ConnectionClosedOK) as err:
+                await websocket.recv()
+            logger.exception(err.exception)
 
         await ws_server.stop()
         await ws_server.await_stopped()

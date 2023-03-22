@@ -7,7 +7,7 @@ from concurrent.futures import Executor
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from enum import IntEnum, auto
-from typing import Final, Callable, Awaitable, Self, Tuple
+from typing import Final, Callable, Awaitable, Self, Tuple, ClassVar
 
 import msgpack  # type: ignore
 from nacl.exceptions import CryptoError
@@ -110,9 +110,9 @@ class MessageContext:
     signed_msg_data: SignedMessage | MultisigMessage | None = None
 
     async def pack_secure_message(
-        self,
-        data: Serializable,
-        recipient: EncryptionAddress | None = None,
+            self,
+            data: Serializable,
+            recipient: EncryptionAddress | None = None,
     ) -> bytes:
         """
         Wraps the `msg` into a :type:`SecureMessage` and serializes it to bytes
@@ -164,6 +164,7 @@ class MessageHandlerMapping:
 # MessagHandler:MessageType is a 1:N relationship
 MessageHandlers = Tuple[MessageHandlerMapping, ...]
 
+
 # TODO: add logging
 class SecureMessageHandler:
     """
@@ -175,10 +176,10 @@ class SecureMessageHandler:
     """
 
     def __init__(
-        self,
-        private_key: AlgoPrivateKey,
-        message_handlers: MessageHandlers,
-        executor: Executor,
+            self,
+            private_key: AlgoPrivateKey,
+            message_handlers: MessageHandlers,
+            executor: Executor,
     ):
         """
         Notes
@@ -275,10 +276,10 @@ class SecureMessageHandler:
         await handler(ctx)
 
     async def _handle_secure_message_handler_error(
-        self,
-        err: SecureMessageHandlerError,
-        secure_msg: SignedEncryptedMessage,
-        websocket: Websocket,
+            self,
+            err: SecureMessageHandlerError,
+            secure_msg: SignedEncryptedMessage,
+            websocket: Websocket,
     ):
         secure_message = await asyncio.get_event_loop().run_in_executor(
             self.__executor,
@@ -322,6 +323,7 @@ class SecureMessageWebsocketHandlerMetrics:
 
     success_count: int = 0
     failure_count: int = 0
+    throttle_count: int = 0
 
     last_msg_recv_timestamp: datetime = datetime.fromtimestamp(0, UTC)
     last_msg_success_timestamp: datetime = datetime.fromtimestamp(0, UTC)
@@ -337,10 +339,13 @@ class SecureMessageWebsocketHandler:
     - Any exception that is raised while processing a message will result in the websocket connection to be closed.
     """
 
+    # 1001 indicates the connection was closed (going away)
+    MSG_HANDLER_ERR_CODE: ClassVar[int] = 1001
+
     def __init__(
-        self,
-        handler: SecureMessageHandler,
-        max_concurrent_requests: int = 1000,
+            self,
+            handler: SecureMessageHandler,
+            max_concurrent_requests: int = 1000,
     ):
         """
         :param handler: SecureMessageHandler
@@ -358,17 +363,22 @@ class SecureMessageWebsocketHandler:
         def log_msg_recv():
             self.__metrics.total_msgs_received += 1
             self.__metrics.last_msg_recv_timestamp = datetime.now(UTC)
-            self.__logger.debug("message received")
+            self.__logger.debug("message received: %s", self.__metrics)
 
         def log_msg_success():
             self.__metrics.success_count += 1
             self.__metrics.last_msg_success_timestamp = datetime.now(UTC)
-            self.__logger.debug("message handled")
+            self.__logger.debug("message handled: %s", self.__metrics)
 
         def log_msg_failure(err: BaseException):
             self.__metrics.failure_count += 1
             self.__metrics.last_msg_failure_timestamp = datetime.now(UTC)
+            self.__logger.debug("message failure: %s", self.__metrics)
             self.__logger.exception("message failure: %s", err)
+
+        def log_throttled():
+            self.__metrics.throttle_count += 1
+            self.__logger.warning("requests are being throttled - throttle count = %s", self.__metrics.throttle_count)
 
         async for msg in websocket:
             if isinstance(msg, bytes):
@@ -377,8 +387,8 @@ class SecureMessageWebsocketHandler:
                 try:
                     secure_msg = SignedEncryptedMessage.unpack(msg)
                 except BaseException as err:
+                    await websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason=str(err))
                     log_msg_failure(err)
-                    raise
 
                 if self.request_task_count < self.__max_concurrent_requests:
                     # process task concurrently
@@ -391,22 +401,29 @@ class SecureMessageWebsocketHandler:
                         if task_err is None:
                             log_msg_success()
                         else:
+                            close_task = asyncio.create_task(
+                                websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason=str(task_err)))
+                            self.__tasks.add(close_task)
+                            close_task.add_done_callback(self.__tasks.remove)
                             log_msg_failure(task_err)
 
                     task.add_done_callback(on_done)
                 else:
                     # throttle
+                    log_throttled()
                     try:
                         await self.__handler(secure_msg, websocket)
                         log_msg_success()
                     except BaseException as err:
+                        await websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason=str(err))
                         log_msg_failure(err)
                         raise
             else:
                 invalid_msg_err = SecureMessageHandlerError(
                     SecureMessageHandlerErrorCode.INVALID_MSG,
-                    "message must be a SecureMessage serialzed bytes message using MessagePack",
+                    "invalid message",
                 )
+                await websocket.close(code=self.MSG_HANDLER_ERR_CODE, reason=str(invalid_msg_err))
                 log_msg_failure(invalid_msg_err)
 
     @property
@@ -426,8 +443,8 @@ class SecureMessageWebsocketHandler:
 
 
 def unpack_secure_message(
-    recipient_private_key: AlgoPrivateKey,
-    secure_msg: SignedEncryptedMessage,
+        recipient_private_key: AlgoPrivateKey,
+        secure_msg: SignedEncryptedMessage,
 ) -> Message:
     """
     Verifies the message signature and decrypts the message.

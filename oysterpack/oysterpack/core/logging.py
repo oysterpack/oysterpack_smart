@@ -7,7 +7,10 @@ import time
 from typing import Any
 
 
-def configure_logging(level: int = logging.WARNING):
+def configure_logging(
+    level: int = logging.WARNING,
+    handlers: list[logging.Handler] | None = None,
+):
     """
     Configures logging format and log level.
 
@@ -28,6 +31,8 @@ def configure_logging(level: int = logging.WARNING):
     logging.basicConfig(
         format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
         level=level,
+        handlers=handlers,
+        force=True,
     )
     logging.captureWarnings(True)
 

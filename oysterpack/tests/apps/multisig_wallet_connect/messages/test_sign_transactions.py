@@ -11,8 +11,8 @@ from oysterpack.algorand.client.transactions.smart_contract import base64_encode
 from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
     SignTransactionsRequest,
     RequestId,
-    SignTransactionsResult,
-    SignTransactionsError,
+    SignTransactionsSuccess,
+    SignTransactionsFailure,
     ErrCode,
     SignMultisigTransactionsMessage,
 )
@@ -43,7 +43,7 @@ class SignTransactionsTestCase(AlgorandTestCase):
             request_id=RequestId(),
             app_id=AppId(100),
             signer=sender.signing_address,
-            transactions=[txn],
+            transactions=[(txn, "ALGO payment: 1 ALGO")],
             service_fee=service_fee,
             description="ALGO transfer",
         )
@@ -54,19 +54,19 @@ class SignTransactionsTestCase(AlgorandTestCase):
 
     def test_result_pack_unpack(self):
         logger = self.get_logger("test_result_pack_unpack")
-        result = SignTransactionsResult(
+        result = SignTransactionsSuccess(
             request_id=RequestId(),
             transaction_ids=[TxnId(str(ULID()))],
             service_fee_txid=TxnId(str(ULID())),
         )
         packed = result.pack()
         logger.info(f"message length = {len(packed)}")
-        result_2 = SignTransactionsResult.unpack(packed)
+        result_2 = SignTransactionsSuccess.unpack(packed)
         self.assertEqual(result, result_2)
 
     def test_error_pack_unpack(self):
         logger = self.get_logger("test_error_pack_unpack")
-        err = SignTransactionsError(
+        err = SignTransactionsFailure(
             request_id=RequestId(),
             code=ErrCode.AppNotRegistered,
             message="app is not registered",
@@ -74,7 +74,7 @@ class SignTransactionsTestCase(AlgorandTestCase):
 
         packed = err.pack()
         logger.info(f"message length = {len(packed)}")
-        err_2 = SignTransactionsError.unpack(packed)
+        err_2 = SignTransactionsFailure.unpack(packed)
         self.assertEqual(err, err_2)
 
     def test_multisig_msg_pack_unpack(self):
@@ -115,7 +115,7 @@ class SignTransactionsTestCase(AlgorandTestCase):
             app_id=AppId(100),
             signer=sender.signing_address,
             multisig_signer=primary_signer.signing_address,
-            transactions=[multisig_txn],
+            transactions=[(multisig_txn, "ALGO payment: 1 ALGO")],
             service_fee=service_fee,
             description="ALGO transfer",
         )
@@ -134,7 +134,7 @@ class SignTransactionsTestCase(AlgorandTestCase):
                 app_id=AppId(100),
                 signer=sender.signing_address,
                 multisig_signer=primary_signer.signing_address,
-                transactions=[multisig_txn],
+                transactions=[(multisig_txn, "ALGO payment: 1 ALGO")],
                 service_fee=service_fee,
                 description="ALGO transfer",
             )
@@ -154,7 +154,7 @@ class SignTransactionsTestCase(AlgorandTestCase):
                 app_id=AppId(100),
                 signer=sender.signing_address,
                 multisig_signer=primary_signer.signing_address,
-                transactions=[multisig_txn],
+                transactions=[(multisig_txn, "ALGO payment: 1 ALGO")],
                 service_fee=service_fee,
                 description="ALGO transfer",
             )

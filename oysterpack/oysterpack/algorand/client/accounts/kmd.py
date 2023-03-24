@@ -28,6 +28,8 @@ from oysterpack.algorand.client.accounts.error import (
     WalletDoesNotExistError,
     NoMultisigKeysFoundError,
     MutlisigNotFoundError,
+    InvalidMultisigPublicKeyError,
+    KeyNotFoundError,
 )
 from oysterpack.algorand.client.model import Mnemonic, Address, TxnId
 from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
@@ -444,9 +446,13 @@ class WalletSession:
         return self._wallet.export_multisig(address)
 
     def sign_multisig_transaction(
-        self, txn: MultisigTransaction
+        self,
+        txn: MultisigTransaction,
+        account: Address | None = None,
     ) -> MultisigTransaction:
         """
+        :param account: If None, then any multisig public keys contained by the wallet will sign the transaction.
+
         Notes
         -----
         - Rekeyed accounts are not taken into consideration when signing multisig transaction. For example,
@@ -459,6 +465,15 @@ class WalletSession:
         multisig = self.export_multisig(txn.multisig.address())
         if multisig is None:
             raise MutlisigNotFoundError
+
+        if account is not None:
+            if account not in multisig.get_public_keys():
+                raise InvalidMultisigPublicKeyError(
+                    f"multisig ({txn.multisig.address()}) does not contain account {account}"
+                )
+            if not self.contains_key(account):
+                raise KeyNotFoundError(account)
+            return self._wallet.sign_multisig_transaction(account, txn)
 
         for account in multisig.get_public_keys():
             if self.contains_key(account):

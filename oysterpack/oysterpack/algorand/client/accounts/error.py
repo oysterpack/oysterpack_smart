@@ -69,6 +69,12 @@ class MutlisigNotFoundError(WalletSessionError):
     """
 
 
+class InvalidMultisigPublicKeyError(WalletSessionError):
+    """
+    Specified public key is not part of the multisig
+    """
+
+
 class NoMultisigKeysFoundError(WalletSessionError):
     """
     None of the accounts that compose the multisig exist in the wallet.

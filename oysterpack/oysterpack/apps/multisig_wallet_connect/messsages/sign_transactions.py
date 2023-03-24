@@ -140,22 +140,24 @@ class ErrCode(IntEnum):
     """
 
     InvalidMessage = auto()
+    # No service payment was attached
+    NoServicePaymentAttached = auto()
+
     # app is not registered
     AppNotRegistered = auto()
     # signer is not registered
     SignerNotRegistered = auto()
-    # No service payment was attached
-    NoServicePaymentAttached = auto()
 
     # transaction was rejected
-    Rejected = auto()
-    # request timed out
-    Timeout = auto()
+    RejectedBySigner = auto()
+    # signer client is not connected
+    SignerNotConnected = auto()
+
     # invalid signature
     InvalidSignature = auto()
-    # signer not available
-    SignerNotAvailable = auto()
 
+    # request timed out
+    Timeout = auto()
     # request failed for other unexpected reasons
     Failure = auto()
 

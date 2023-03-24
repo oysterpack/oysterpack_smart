@@ -87,7 +87,7 @@ class SignTransactionsHandler:
             raise NotImplementedError
 
         def check_signer_opted_in(app_id: AppId, account: Address):
-            """"
+            """ "
             Check that the signer is opted into the app
             """
             raise NotImplementedError

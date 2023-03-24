@@ -291,7 +291,7 @@ class RekeyTestCase(AlgorandTestCase):
         # fund multisig
         funder = self.get_sandbox_accounts().pop()
         txn = transfer_algo(
-            sender=funder.address,
+            sender=Address(funder.address),
             receiver=multisig.address(),
             amount=MicroAlgos(1 * algo),
             suggested_params=self.algod_client.suggested_params(),
@@ -302,8 +302,8 @@ class RekeyTestCase(AlgorandTestCase):
         multisig_account_info = self.algod_client.account_info(multisig.address())
         print(json.dumps(multisig_account_info, indent=3))
 
-        # create second multisig, which will be using for rekeying
-        auth_accounts = [generate_account() for i in range(3)]
+        # create second multisig, which will be used for rekeying
+        auth_accounts = [generate_account() for _ in range(3)]
         auth_multisig = Multisig(
             version=1,
             threshold=len(accounts),
@@ -313,7 +313,7 @@ class RekeyTestCase(AlgorandTestCase):
         # fund multisig
         funder = self.get_sandbox_accounts().pop()
         txn = transfer_algo(
-            sender=funder.address,
+            sender=Address(funder.address),
             receiver=auth_multisig.address(),
             amount=MicroAlgos(1 * algo),
             suggested_params=self.algod_client.suggested_params(),

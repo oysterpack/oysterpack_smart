@@ -27,9 +27,8 @@ from oysterpack.core.logging import get_logger
 from oysterpack.core.message import (
     Message,
     MessageType,
-    MultisigMessage,
-    SignedMessage,
     Serializable,
+    MessageId,
 )
 
 
@@ -60,17 +59,17 @@ class MessageContext:
     client_signing_address: SigningAddress
     # decrypted message
     msg: Message
-    # If not None, then the msg data was a signed message, which is the actual message to process
-    signed_msg_data: SignedMessage | MultisigMessage | None = None
 
     async def pack_secure_message(
         self,
+        msg_id: MessageId,
         data: Serializable,
         recipient: EncryptionAddress | None = None,
     ) -> bytes:
         """
         Wraps the `data` into a :type:`SecureMessage` and serializes it to bytes
 
+        :param msg_id: unique message ID
         :param data: provides the message to be wrapped in a :type:`SecureMessage`
         :param recipient: if None, then the client is used as the recipient
         :return: serialized :type:`SecureMessage` bytes
@@ -82,16 +81,18 @@ class MessageContext:
             self.server_private_key,
             data,
             recipient if recipient else self.client_encryption_address,
+            msg_id,
         )
+
+    @property
+    def msg_id(self) -> MessageId:
+        return self.msg.msg_id
 
     @property
     def msg_type(self) -> MessageType:
         """
         :return: msg type
         """
-        if self.signed_msg_data is not None:
-            return self.signed_msg_data.msg_type
-
         return self.msg.msg_type
 
     @property
@@ -99,9 +100,6 @@ class MessageContext:
         """
         :return: serialized msg data
         """
-        if self.signed_msg_data is not None:
-            return self.signed_msg_data.data
-
         return self.msg.data
 
 
@@ -180,7 +178,6 @@ class SecureMessageHandler:
         3. lookup message handler
         4. handle message
         """
-        msg: Message | SignedMessage | MultisigMessage
         try:
             msg = unpack_secure_message(self.__private_key, secure_msg)
         except InvalidSecureMessage as err:
@@ -197,27 +194,7 @@ class SecureMessageHandler:
             executor=self.__executor,
         )
 
-        if msg.msg_type == SignedMessage.message_type():
-            ctx.signed_msg_data = SignedMessage.unpack(msg.data)
-            if not ctx.signed_msg_data.verify():
-                await websocket.close(
-                    code=CloseCode.GOING_AWAY, reason="invalid signature"
-                )
-                self.__logger.error("SignedMessage verification failed")
-                return
-            handler = self.get_handler(ctx.signed_msg_data.msg_type)
-        elif msg.msg_type == MultisigMessage.message_type():
-            ctx.signed_msg_data = MultisigMessage.unpack(msg.data)
-            if not ctx.signed_msg_data.verify():
-                await websocket.close(
-                    code=CloseCode.GOING_AWAY, reason="invalid signature"
-                )
-                self.__logger.error("MultisigMessage verification failed")
-                return
-            handler = self.get_handler(ctx.signed_msg_data.msg_type)
-        else:
-            handler = self.get_handler(msg.msg_type)
-
+        handler = self.get_handler(msg.msg_type)
         await handler(ctx)
 
     def get_handler(self, msg_type: MessageType) -> MessageHandler:

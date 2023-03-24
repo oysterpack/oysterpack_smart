@@ -9,7 +9,7 @@ from typing import Iterable, AsyncIterable, cast, Self, ClassVar
 
 import msgpack  # type: ignore
 from algosdk.account import generate_account
-from algosdk.transaction import Transaction, Multisig
+from algosdk.transaction import Transaction
 from beaker import sandbox
 from beaker.consts import algo
 from websockets.exceptions import ConnectionClosedOK
@@ -39,8 +39,6 @@ from oysterpack.core.message import (
     MessageType,
     MessageId,
     Serializable,
-    SignedMessage,
-    MultisigMessage,
 )
 from oysterpack.services.asyncio.websockets_server import WebsocketsServer
 from tests.algorand.messaging import server_ssl_context, client_ssl_context
@@ -97,7 +95,7 @@ async def echo_message_handler(ctx: MessageContext):
     if request.fail:
         raise Exception("BOOM!")
 
-    response = await ctx.pack_secure_message(request)
+    response = await ctx.pack_secure_message(ctx.msg.msg_id, request)
     logger.info("echo_message_handler: packed response")
     await ctx.websocket.send(response)
     logger.info("echo_message_handler: sent response")
@@ -389,272 +387,6 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
                     ),
                     executor=self.executor,
                 )
-
-    async def test_signed_message(self):
-        # SETUP
-        request = Request(
-            request_id=MessageId(),
-            txns=[
-                payment.transfer_algo(
-                    sender=self.sender_private_key.signing_address,
-                    receiver=self.recipient_private_key.signing_address,
-                    amount=MicroAlgos(1 * algo),
-                    suggested_params=sandbox.get_algod_client().suggested_params(),
-                ),
-                payment.transfer_algo(
-                    sender=self.sender_private_key.signing_address,
-                    receiver=self.recipient_private_key.signing_address,
-                    amount=MicroAlgos(10 * algo),
-                    suggested_params=sandbox.get_algod_client().suggested_params(),
-                ),
-            ],
-        )
-
-        signed_request = SignedMessage.sign(
-            self.sender_private_key,
-            request,
-        )
-
-        secure_message = create_secure_message(
-            private_key=self.sender_private_key,
-            data=signed_request,
-            recipient=self.recipient_private_key.encryption_address,
-        )
-
-        handle_message = SecureMessageHandler(
-            private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    msg_handler=echo_message_handler,
-                    msg_types={Request.message_type()},
-                ),
-            ),
-            executor=self.executor,
-        )
-        ws = WebsocketMock()
-
-        # Act
-        await handle_message(secure_message, ws)
-
-        # Assert
-        response_bytes = await ws.response_queue.get()
-        ws.response_queue.task_done()
-        self.assertIsInstance(response_bytes, bytes)
-        logger.info("len(response_bytes)= %s", len(response_bytes))
-
-        # response should be a SecureMessage
-        response = SignedEncryptedMessage.unpack(response_bytes)
-        logger.info(response)
-        self.assertTrue(
-            response.verify(), "SecureMessage signature verification failed"
-        )
-        self.assertEqual(self.recipient_private_key.signing_address, response.sender)
-        decrypted_response_msg_bytes = response.encrypted_msg.decrypt(
-            self.sender_private_key
-        )
-        # request should have been echoed back
-        decrypted_response_msg = Message.unpack(decrypted_response_msg_bytes)
-        request_2 = Request.unpack(decrypted_response_msg.data)
-        self.assertEqual(request, request_2)
-
-    async def test_signed_message_with_wrong_private_key(self):
-        # SETUP
-        request = Request(
-            request_id=MessageId(),
-            txns=[
-                payment.transfer_algo(
-                    sender=self.sender_private_key.signing_address,
-                    receiver=self.recipient_private_key.signing_address,
-                    amount=MicroAlgos(1 * algo),
-                    suggested_params=sandbox.get_algod_client().suggested_params(),
-                ),
-                payment.transfer_algo(
-                    sender=self.sender_private_key.signing_address,
-                    receiver=self.recipient_private_key.signing_address,
-                    amount=MicroAlgos(10 * algo),
-                    suggested_params=sandbox.get_algod_client().suggested_params(),
-                ),
-            ],
-        )
-
-        signed_request = SignedMessage.sign(
-            AlgoPrivateKey(),
-            request,
-        )
-        # change the signer address to cause signature verification to fail
-        signed_request.signer = AlgoPrivateKey().signing_address
-
-        secure_message = create_secure_message(
-            private_key=self.sender_private_key,
-            data=signed_request,
-            recipient=self.recipient_private_key.encryption_address,
-        )
-
-        handle_message = SecureMessageHandler(
-            private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    msg_handler=echo_message_handler,
-                    msg_types={Request.message_type()},
-                ),
-            ),
-            executor=self.executor,
-        )
-        ws = WebsocketMock()
-
-        # Act
-        await handle_message(secure_message, ws)
-
-        # Assert
-        self.assertTrue(ws.closed)
-        self.assertEqual(CloseCode.GOING_AWAY, ws.close_code)
-        self.assertEqual("invalid signature", ws.close_reason)
-
-    async def test_multisig_message(self):
-        # SETUP
-        request = Request(
-            request_id=MessageId(),
-            txns=[
-                payment.transfer_algo(
-                    sender=self.sender_private_key.signing_address,
-                    receiver=self.recipient_private_key.signing_address,
-                    amount=MicroAlgos(1 * algo),
-                    suggested_params=sandbox.get_algod_client().suggested_params(),
-                ),
-                payment.transfer_algo(
-                    sender=self.sender_private_key.signing_address,
-                    receiver=self.recipient_private_key.signing_address,
-                    amount=MicroAlgos(10 * algo),
-                    suggested_params=sandbox.get_algod_client().suggested_params(),
-                ),
-            ],
-        )
-
-        signer_1 = AlgoPrivateKey()
-        signer_2 = AlgoPrivateKey()
-        multisig = Multisig(
-            version=1,
-            threshold=2,
-            addresses=[
-                signer_1.signing_address,
-                signer_2.signing_address,
-            ],
-        )
-        signed_request = MultisigMessage.create(
-            multisig,
-            request,
-        )
-        signed_request.sign(signer_1)
-        signed_request.sign(signer_2)
-
-        secure_message = create_secure_message(
-            private_key=self.sender_private_key,
-            data=signed_request,
-            recipient=self.recipient_private_key.encryption_address,
-        )
-
-        handle_message = SecureMessageHandler(
-            private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    msg_handler=echo_message_handler,
-                    msg_types={Request.message_type()},
-                ),
-            ),
-            executor=self.executor,
-        )
-        ws = WebsocketMock()
-
-        # Act
-        await handle_message(secure_message, ws)
-
-        # Assert
-        response_bytes = await ws.response_queue.get()
-        ws.response_queue.task_done()
-        self.assertIsInstance(response_bytes, bytes)
-        logger.info("len(response_bytes)= %s", len(response_bytes))
-
-        # response should be a SecureMessage
-        response = SignedEncryptedMessage.unpack(response_bytes)
-        logger.info(response)
-        self.assertTrue(
-            response.verify(), "SecureMessage signature verification failed"
-        )
-        self.assertEqual(self.recipient_private_key.signing_address, response.sender)
-        decrypted_response_msg_bytes = response.encrypted_msg.decrypt(
-            self.sender_private_key
-        )
-        # request should have been echoed back
-        decrypted_response_msg = Message.unpack(decrypted_response_msg_bytes)
-        request_2 = Request.unpack(decrypted_response_msg.data)
-        self.assertEqual(request, request_2)
-
-    async def test_multisig_message_with_wrong_private_key(self):
-        # SETUP
-        request = Request(
-            request_id=MessageId(),
-            txns=[
-                payment.transfer_algo(
-                    sender=self.sender_private_key.signing_address,
-                    receiver=self.recipient_private_key.signing_address,
-                    amount=MicroAlgos(1 * algo),
-                    suggested_params=sandbox.get_algod_client().suggested_params(),
-                ),
-                payment.transfer_algo(
-                    sender=self.sender_private_key.signing_address,
-                    receiver=self.recipient_private_key.signing_address,
-                    amount=MicroAlgos(10 * algo),
-                    suggested_params=sandbox.get_algod_client().suggested_params(),
-                ),
-            ],
-        )
-
-        signer_1 = AlgoPrivateKey()
-        signer_2 = AlgoPrivateKey()
-        multisig = Multisig(
-            version=1,
-            threshold=2,
-            addresses=[
-                signer_1.signing_address,
-                signer_2.signing_address,
-            ],
-        )
-        signed_request = MultisigMessage.create(
-            multisig,
-            request,
-        )
-        signed_request.sign(signer_1)
-        signed_request.sign(signer_2)
-        # change the signer address to cause signature verification to fail
-        signed_request.multisig.subsigs[0].public_key = bytes(
-            AlgoPrivateKey().public_key
-        )
-
-        secure_message = create_secure_message(
-            private_key=self.sender_private_key,
-            data=signed_request,
-            recipient=self.recipient_private_key.encryption_address,
-        )
-
-        handle_message = SecureMessageHandler(
-            private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    msg_handler=echo_message_handler,
-                    msg_types={Request.message_type()},
-                ),
-            ),
-            executor=self.executor,
-        )
-        ws = WebsocketMock()
-
-        # Act
-        await handle_message(secure_message, ws)
-
-        # Assert
-        self.assertTrue(ws.closed)
-        self.assertEqual(CloseCode.GOING_AWAY, ws.close_code)
-        self.assertEqual("invalid signature", ws.close_reason)
 
     async def test_unsupported_message(self):
         # SETUP

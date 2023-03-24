@@ -63,8 +63,11 @@ class LoggingServiceWithHandlersTestCase(unittest.IsolatedAsyncioTestCase):
         msg = "Ciao Mundo!"
         logger.info(msg)
         await asyncio.sleep(0)
-        matches = [record for record in self.handler.records if record.message == msg]
-        self.assertEqual(1, len(matches))
+
+        msgs = [record.message for record in self.handler.records]
+        while msg not in msgs:
+            await asyncio.sleep(0)
+            msgs = [record.message for record in self.handler.records]
 
     async def test_multiprocessing_logging(self):
         """

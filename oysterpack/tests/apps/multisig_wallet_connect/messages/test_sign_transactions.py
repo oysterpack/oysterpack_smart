@@ -10,7 +10,6 @@ from oysterpack.algorand.client.transactions.payment import transfer_algo
 from oysterpack.algorand.client.transactions.smart_contract import base64_encode
 from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
     SignTransactionsRequest,
-    RequestId,
     SignTransactionsSuccess,
     SignTransactionsFailure,
     ErrCode,
@@ -40,7 +39,6 @@ class SignTransactionsTestCase(AlgorandTestCase):
         )
 
         request = SignTransactionsRequest(
-            request_id=RequestId(),
             app_id=AppId(100),
             signer=sender.signing_address,
             transactions=[(txn, "ALGO payment: 1 ALGO")],
@@ -55,7 +53,6 @@ class SignTransactionsTestCase(AlgorandTestCase):
     def test_result_pack_unpack(self):
         logger = self.get_logger("test_result_pack_unpack")
         result = SignTransactionsSuccess(
-            request_id=RequestId(),
             transaction_ids=[TxnId(str(ULID()))],
             service_fee_txid=TxnId(str(ULID())),
         )
@@ -67,7 +64,6 @@ class SignTransactionsTestCase(AlgorandTestCase):
     def test_error_pack_unpack(self):
         logger = self.get_logger("test_error_pack_unpack")
         err = SignTransactionsFailure(
-            request_id=RequestId(),
             code=ErrCode.AppNotRegistered,
             message="app is not registered",
         )
@@ -111,7 +107,6 @@ class SignTransactionsTestCase(AlgorandTestCase):
         )
 
         request = SignMultisigTransactionsMessage(
-            request_id=RequestId(),
             app_id=AppId(100),
             signer=sender.signing_address,
             multisig_signer=primary_signer.signing_address,
@@ -130,7 +125,6 @@ class SignTransactionsTestCase(AlgorandTestCase):
             )
 
             request = SignMultisigTransactionsMessage(
-                request_id=RequestId(),
                 app_id=AppId(100),
                 signer=sender.signing_address,
                 multisig_signer=primary_signer.signing_address,
@@ -150,7 +144,6 @@ class SignTransactionsTestCase(AlgorandTestCase):
             )
 
             request = SignMultisigTransactionsMessage(
-                request_id=RequestId(),
                 app_id=AppId(100),
                 signer=sender.signing_address,
                 multisig_signer=primary_signer.signing_address,

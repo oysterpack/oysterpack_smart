@@ -25,11 +25,6 @@ class SignTransactionsRequest(Serializable):
     App is requesting transactions to be signed.
     """
 
-    # unique request ID - used to correlate with response messages:
-    # - SignTransactionsResult
-    # - SignTransactionsError
-    request_id: RequestId
-
     # app that has submitted the request
     #
     # Notes
@@ -65,7 +60,6 @@ class SignTransactionsRequest(Serializable):
     @classmethod
     def unpack(cls, packed: bytes) -> Self:
         (
-            request_id,
             app_id,
             signer,
             txns,
@@ -74,7 +68,6 @@ class SignTransactionsRequest(Serializable):
         ) = msgpack.unpackb(packed)
 
         return cls(
-            request_id=RequestId.from_bytes(request_id),
             app_id=app_id,
             signer=signer,
             transactions=[(Transaction.undictify(txn), desc) for (txn, desc) in txns],
@@ -88,7 +81,6 @@ class SignTransactionsRequest(Serializable):
         """
         return msgpack.packb(
             (
-                self.request_id.bytes,
                 self.app_id,
                 self.signer,
                 [(txn.dictify(), desc) for (txn, desc) in self.transactions],
@@ -103,9 +95,6 @@ class SignTransactionsSuccess(Serializable):
     """
     Transactions were successfully signed and submitted to the Algorand network.
     """
-
-    # correlates back to the SignTransactionsRequest message
-    request_id: RequestId
 
     transaction_ids: list[TxnId]
     service_fee_txid: TxnId
@@ -123,13 +112,11 @@ class SignTransactionsSuccess(Serializable):
     @classmethod
     def unpack(cls, packed: bytes) -> Self:
         (
-            request_id,
             transaction_ids,
             service_fee_txid,
         ) = msgpack.unpackb(packed)
 
         return cls(
-            request_id=RequestId.from_bytes(request_id),
             transaction_ids=transaction_ids,
             service_fee_txid=service_fee_txid,
         )
@@ -140,7 +127,10 @@ class SignTransactionsSuccess(Serializable):
         """
 
         return msgpack.packb(
-            (self.request_id.bytes, self.transaction_ids, self.service_fee_txid)
+            (
+                self.transaction_ids,
+                self.service_fee_txid,
+            )
         )
 
 
@@ -149,6 +139,7 @@ class ErrCode(IntEnum):
     Error codes
     """
 
+    InvalidMessage = auto()
     # app is not registered
     AppNotRegistered = auto()
     # signer is not registered
@@ -175,8 +166,6 @@ class SignTransactionsFailure(Exception, Serializable):
     SignTransactionsFailure
     """
 
-    # correlates back to the SignTransactionsRequest message
-    request_id: RequestId
     code: ErrCode
     message: str
 
@@ -192,13 +181,9 @@ class SignTransactionsFailure(Exception, Serializable):
 
     @classmethod
     def unpack(cls, packed: bytes) -> Self:
-        (request_id, code, message) = msgpack.unpackb(packed)
+        (code, message) = msgpack.unpackb(packed)
 
-        return cls(
-            request_id=RequestId.from_bytes(request_id),
-            code=code,
-            message=message,
-        )
+        return cls(code=code, message=message)
 
     def pack(self) -> bytes:
         """
@@ -207,7 +192,6 @@ class SignTransactionsFailure(Exception, Serializable):
 
         return msgpack.packb(
             (
-                self.request_id.bytes,
                 self.code,
                 self.message,
             )
@@ -222,7 +206,6 @@ class SignMultisigTransactionsMessage(Serializable):
     (request_id, multisig_signer) form the unique message identifier.
     """
 
-    request_id: RequestId
     app_id: AppId
 
     # maps to the signer from the original request
@@ -248,7 +231,6 @@ class SignMultisigTransactionsMessage(Serializable):
     @classmethod
     def unpack(cls, packed: bytes) -> Self:
         (
-            request_id,
             app_id,
             signer,
             multisig_signer,
@@ -258,7 +240,6 @@ class SignMultisigTransactionsMessage(Serializable):
         ) = msgpack.unpackb(packed)
 
         return cls(
-            request_id=RequestId.from_bytes(request_id),
             app_id=app_id,
             signer=signer,
             multisig_signer=multisig_signer,
@@ -275,7 +256,6 @@ class SignMultisigTransactionsMessage(Serializable):
         """
         return msgpack.packb(
             (
-                self.request_id.bytes,
                 self.app_id,
                 self.signer,
                 self.multisig_signer,

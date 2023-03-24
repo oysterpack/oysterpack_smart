@@ -13,7 +13,7 @@ from oysterpack.algorand.client.accounts.private_key import (
     AlgoPrivateKey,
     verify_message,
 )
-from oysterpack.core.message import Serializable, Message
+from oysterpack.core.message import Serializable, Message, MessageId
 
 
 @dataclass(slots=True)
@@ -122,11 +122,16 @@ def create_secure_message(
     private_key: AlgoPrivateKey,
     data: Serializable,
     recipient: EncryptionAddress,
+    msg_id: MessageId | None = None,
 ) -> SignedEncryptedMessage:
     """
     Constructs a SignedEncryptedMessage and serializes it
     """
-    msg = Message.create(data.message_type(), data.pack())
+    msg = Message(
+        msg_id=MessageId() if msg_id is None else msg_id,
+        msg_type=data.message_type(),
+        data=data.pack(),
+    )
     secret_message = EncryptedMessage.encrypt(
         sender_private_key=private_key,
         recipient=recipient,
@@ -142,6 +147,7 @@ def pack_secure_message(
     private_key: AlgoPrivateKey,
     data: Serializable,
     recipient: EncryptionAddress,
+    msg_id: MessageId | None = None,
 ) -> bytes:
     """
     Constructs a SignedEncryptedMessage and serializes it
@@ -150,6 +156,7 @@ def pack_secure_message(
         private_key=private_key,
         data=data,
         recipient=recipient,
+        msg_id=msg_id,
     ).pack()
 
 

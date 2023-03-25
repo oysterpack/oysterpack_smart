@@ -40,7 +40,7 @@ from oysterpack.algorand.client.accounts.kmd import (
     create_kmd_client,
 )
 from oysterpack.algorand.client.model import Mnemonic, Address, MicroAlgos
-from oysterpack.algorand.client.transactions import payment
+from oysterpack.algorand.client.transactions import payment, suggested_params_with_flat_flee
 from oysterpack.algorand.client.transactions.payment import transfer_algo
 from oysterpack.algorand.client.transactions.rekey import rekey
 from tests.algorand.test_support import AlgorandTestCase
@@ -553,6 +553,17 @@ class WalletSessionTests(AlgorandTestCase):
         )
         self.assertEqual(multisig_1_address, multisig_1_auth_address)
 
+        # fund multisig_1 account
+        txn = payment.transfer_algo(
+            sender=account_1,
+            receiver=multisig_1_address,
+            amount=MicroAlgos(1 * algo),
+            suggested_params=self.algod_client.suggested_params()
+        )
+        signed_txn = sandbox_default_wallet_session.sign_transaction(txn)
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
         multisig_2 = Multisig(
             version=1,
             threshold=2,
@@ -563,6 +574,44 @@ class WalletSessionTests(AlgorandTestCase):
         )
 
         multisig_2_address = sandbox_default_wallet_session.import_multisig(multisig_2)
+
+        print("multisig_1_address", multisig_1_address)
+        print("multisig_2_address", multisig_2_address)
+
+        txn = rekey(
+            account=multisig_1_address,
+            rekey_to=multisig_2_address,
+            suggested_params=suggested_params_with_flat_flee(self.algod_client),
+        )
+
+        multisig_txn = MultisigTransaction(txn, multisig_1)
+        signed_txn = sandbox_default_wallet_session.sign_multisig_transaction(multisig_txn)
+
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        multisig_1_auth_address = get_auth_address(
+            multisig_1_address, self.algod_client
+        )
+        self.assertEqual(multisig_2_address, multisig_1_auth_address)
+
+        # rekey back
+        txn = rekey(
+            account=multisig_1_address,
+            rekey_to=multisig_1_address,
+            suggested_params=suggested_params_with_flat_flee(self.algod_client),
+        )
+        multisig_txn = MultisigTransaction(txn, multisig_2)
+        signed_txn = sandbox_default_wallet_session.sign_multisig_transaction_2(multisig_txn)
+
+        txid = self.algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(self.algod_client, txid)
+
+        multisig_1_auth_address = get_auth_address(
+            multisig_1_address, self.algod_client
+        )
+        self.assertEqual(multisig_1_address, multisig_1_auth_address)
+
 
     def test_multisig(self):
         sandbox_default_wallet = self.sandbox_default_wallet

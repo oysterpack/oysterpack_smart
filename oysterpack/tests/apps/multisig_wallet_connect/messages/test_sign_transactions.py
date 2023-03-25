@@ -1,5 +1,6 @@
 import unittest
 
+import msgpack
 from algosdk.transaction import Multisig, MultisigTransaction
 from beaker.consts import algo
 from ulid import ULID
@@ -42,13 +43,103 @@ class SignTransactionsTestCase(AlgorandTestCase):
             app_id=AppId(100),
             signer=sender.signing_address,
             transactions=[(txn, "ALGO payment: 1 ALGO")],
-            service_fee=service_fee,
             description="ALGO transfer",
         )
         packed = request.pack()
         logger.info(f"message length = {len(packed)}")
         request_2 = SignTransactionsRequest.unpack(packed)
         self.assertEqual(request, request_2)
+
+    def test_post_create_validations(self):
+        sender = AlgoPrivateKey()
+        receiver = AlgoPrivateKey()
+
+        txn = transfer_algo(
+            sender=sender.signing_address,
+            receiver=receiver.signing_address,
+            amount=MicroAlgos(1 * algo),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+
+        service_fee = transfer_algo(
+            sender=sender.signing_address,
+            receiver=receiver.signing_address,
+            amount=MicroAlgos(1 * algo),
+            suggested_params=self.algod_client.suggested_params(),
+        )
+
+        request = SignTransactionsRequest(
+            app_id=AppId(100),
+            signer=sender.signing_address,
+            transactions=[(txn, "ALGO payment: 1 ALGO")],
+            description="ALGO transfer",
+        )
+        (
+            app_id,
+            signer,
+            txns,
+            description,
+        ) = msgpack.unpackb(request.pack())
+        with self.assertRaises(SignTransactionsFailure) as err:
+            SignTransactionsRequest.unpack(
+                msgpack.packb(
+                    (
+                        None,
+                        signer,
+                        txns,
+                        description,
+                    )
+                )
+            )
+        self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
+        with self.assertRaises(SignTransactionsFailure) as err:
+            SignTransactionsRequest.unpack(
+                msgpack.packb(
+                    (
+                        app_id,
+                        None,
+                        txns,
+                        description,
+                    )
+                )
+            )
+        self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
+        with self.assertRaises(SignTransactionsFailure) as err:
+            SignTransactionsRequest.unpack(
+                msgpack.packb(
+                    (
+                        app_id,
+                        signer,
+                        [],
+                        description,
+                    )
+                )
+            )
+        self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
+        with self.assertRaises(SignTransactionsFailure) as err:
+            SignTransactionsRequest.unpack(
+                msgpack.packb(
+                    (
+                        app_id,
+                        signer,
+                        txns,
+                        None,
+                    )
+                )
+            )
+        self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
+        with self.assertRaises(SignTransactionsFailure) as err:
+            SignTransactionsRequest.unpack(
+                msgpack.packb(
+                    (
+                        app_id,
+                        "invalid_address",
+                        txns,
+                        description,
+                    )
+                )
+            )
+        self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
 
     def test_result_pack_unpack(self):
         logger = self.get_logger("test_result_pack_unpack")

@@ -2,10 +2,11 @@
 Messages for signing Algorand transactions
 """
 from dataclasses import dataclass, field
-from enum import IntEnum, auto
+from enum import auto, StrEnum
 from typing import ClassVar, Self, cast, Tuple
 
 import msgpack  # type: ignore
+from algosdk.encoding import is_valid_address
 from algosdk.transaction import Transaction, MultisigTransaction, PaymentTxn
 from ulid import ULID
 
@@ -44,14 +45,44 @@ class SignTransactionsRequest(Serializable):
     # high-level description that describes the overall purpose for these transactions
     description: Description
 
-    # service fee payment
-    service_fee: PaymentTxn
-
     MSG_TYPE: ClassVar[MessageType] = field(
         default=MessageType.from_str("01GVXV7CQQY4Q0SSW6GBJCN192"),
         init=False,
         repr=False,
     )
+
+    def __post_init__(self):
+        """
+        Performs basic validation
+
+        :raise SignTransactionsFailure: with ode=ErrCode.InvalidMessage
+        """
+        required_fields = (
+            (self.app_id, "app_id"),
+            (self.signer, "signer"),
+            (self.description, "description"),
+        )
+        for required_field, name in required_fields:
+            if required_field is None:
+                raise SignTransactionsFailure(
+                    code=ErrCode.InvalidMessage, message=f"{name} is required"
+                )
+
+        if not is_valid_address(self.signer):
+            raise SignTransactionsFailure(
+                code=ErrCode.InvalidMessage, message="signer address is invalid"
+            )
+
+        if len(self.transactions) == 0:
+            raise SignTransactionsFailure(
+                code=ErrCode.InvalidMessage,
+                message="at least 1 transaction is required",
+            )
+
+        if len(self.description.strip()) == 0:
+            raise SignTransactionsFailure(
+                code=ErrCode.InvalidMessage, message="description cannot be blank"
+            )
 
     @classmethod
     def message_type(cls) -> MessageType:
@@ -59,21 +90,29 @@ class SignTransactionsRequest(Serializable):
 
     @classmethod
     def unpack(cls, packed: bytes) -> Self:
+        """
+        :raise SignTransactionsFailure: with code=ErrCode.InvalidMessage if unpacking the message fails
+        """
         (
             app_id,
             signer,
             txns,
             description,
-            service_fee,
         ) = msgpack.unpackb(packed)
 
-        return cls(
-            app_id=app_id,
-            signer=signer,
-            transactions=[(Transaction.undictify(txn), desc) for (txn, desc) in txns],
-            description=description,
-            service_fee=cast(PaymentTxn, PaymentTxn.undictify(service_fee)),
-        )
+        try:
+            return cls(
+                app_id=app_id,
+                signer=signer,
+                transactions=[
+                    (Transaction.undictify(txn), desc) for (txn, desc) in txns
+                ],
+                description=description,
+            )
+        except Exception as err:
+            raise SignTransactionsFailure(
+                code=ErrCode.InvalidMessage, message=f"failed to unpack message: {err}"
+            )
 
     def pack(self) -> bytes:
         """
@@ -85,7 +124,6 @@ class SignTransactionsRequest(Serializable):
                 self.signer,
                 [(txn.dictify(), desc) for (txn, desc) in self.transactions],
                 self.description,
-                self.service_fee.dictify(),
             )
         )
 
@@ -134,14 +172,14 @@ class SignTransactionsSuccess(Serializable):
         )
 
 
-class ErrCode(IntEnum):
+class ErrCode(StrEnum):
     """
     Error codes
     """
 
     InvalidMessage = auto()
-    # No service payment was attached
-    NoServicePaymentAttached = auto()
+    # indicates account has insufficient ALGO funds to pay for service and transaction fees
+    InsufficientAlgoBalance = auto()
 
     # app is not registered
     AppNotRegistered = auto()

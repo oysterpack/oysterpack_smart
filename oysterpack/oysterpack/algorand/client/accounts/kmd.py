@@ -56,7 +56,7 @@ def _to_wallet(data: dict[str, Any]) -> Wallet:
 
 
 def create_kmd_client(
-    url: str, token: str, check_connection: bool = True
+        url: str, token: str, check_connection: bool = True
 ) -> kmd.KMDClient:
     """
     Creates a KMD client instance that is configured to connect to the specified URL using the specified API token.
@@ -109,7 +109,7 @@ def get_wallet(kmd_client: kmd.KMDClient, name: WalletName) -> Wallet | None:
 
 
 def create_wallet(
-    kmd_client: kmd.KMDClient, name: WalletName, password: WalletPassword
+        kmd_client: kmd.KMDClient, name: WalletName, password: WalletPassword
 ) -> Wallet:
     """
     Creates a new wallet using the specified name and password.
@@ -125,10 +125,10 @@ def create_wallet(
 
 
 def recover_wallet(
-    kmd_client: kmd.KMDClient,
-    name: WalletName,
-    password: WalletPassword,
-    master_derivation_key: Mnemonic,
+        kmd_client: kmd.KMDClient,
+        name: WalletName,
+        password: WalletPassword,
+        master_derivation_key: Mnemonic,
 ) -> Wallet:
     """
     Tries to recover a wallet using the specified master derivation key mnemonic.
@@ -162,11 +162,11 @@ class WalletSession:
 
     @handle_kmd_client_errors
     def __init__(
-        self,
-        kmd_client: kmd.KMDClient,
-        name: WalletName,
-        password: WalletPassword,
-        get_auth_addr: Callable[[Address], Address],
+            self,
+            kmd_client: kmd.KMDClient,
+            name: WalletName,
+            password: WalletPassword,
+            get_auth_addr: Callable[[Address], Address],
     ):
         """
 
@@ -194,9 +194,9 @@ class WalletSession:
 
     @classmethod
     def from_wallet(
-        cls,
-        wallet: KmdWallet,
-        get_auth_addr: Callable[[Address], Address],
+            cls,
+            wallet: KmdWallet,
+            get_auth_addr: Callable[[Address], Address],
     ) -> "WalletSession":
         """
         Constructs a WalletSession from an existing authenticated wallet
@@ -446,9 +446,9 @@ class WalletSession:
         return self._wallet.export_multisig(address)
 
     def sign_multisig_transaction(
-        self,
-        txn: MultisigTransaction,
-        account: Address | None = None,
+            self,
+            txn: MultisigTransaction,
+            account: Address | None = None,
     ) -> MultisigTransaction:
         """
         :param account: If None, then any multisig public keys contained by the wallet will sign the transaction.
@@ -481,6 +481,44 @@ class WalletSession:
 
         return txn
 
+    # TODO: submit Algorand bug
+    def sign_multisig_transaction_2(
+            self,
+            txn: MultisigTransaction,
+            account: Address | None = None,
+    ) -> MultisigTransaction:
+        """
+        :param account: If None, then any multisig public keys contained by the wallet will sign the transaction.
+
+        Notes
+        -----
+        - Rekeyed accounts are not taken into consideration when signing multisig transaction. For example,
+          if a multisig contains an account that has been rekeyed, the account is still required to sign the
+          multisig txn, i.e., not the account that it has been rekeyed to.
+
+
+        :return: multisig txn with added signatures
+        """
+        multisig = self.export_multisig(txn.multisig.address())
+        if multisig is None:
+            raise MutlisigNotFoundError
+
+        if account is not None:
+            if account not in multisig.get_public_keys():
+                raise InvalidMultisigPublicKeyError(
+                    f"multisig ({txn.multisig.address()}) does not contain account {account}"
+                )
+            if not self.contains_key(account):
+                raise KeyNotFoundError(account)
+            return self._wallet.sign_multisig_transaction(account, txn)
+
+        for account in multisig.get_public_keys():
+            if self.contains_key(account):
+                private_key = self.export_key(account).to_private_key()
+                txn.sign(private_key)
+
+        return txn
+
 
 class WalletTransactionSigner(TransactionSigner):
     """
@@ -491,9 +529,9 @@ class WalletTransactionSigner(TransactionSigner):
         self.__wallet = wallet
 
     def sign_transactions(
-        self,
-        txn_group: list[Transaction],
-        indexes: list[int],
+            self,
+            txn_group: list[Transaction],
+            indexes: list[int],
     ) -> list[SignedTransaction | LogicSigTransaction | MultisigTransaction]:
         """
 

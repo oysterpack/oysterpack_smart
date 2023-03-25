@@ -10,6 +10,7 @@ from beaker.consts import algo
 from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.apps.kmd_shell.app import App
 from tests.algorand.test_support import AlgorandTestCase
+from tests.algorand.test_support import sort_accounts_by_algo_balance
 
 
 class AppTestCase(AlgorandTestCase):
@@ -61,7 +62,7 @@ url="{sandbox.kmd.DEFAULT_KMD_ADDRESS}"
                 self.assertIn("assets", account_info)
 
         with self.subTest("rekeying"):
-            accounts = app.list_wallet_accounts()
+            accounts = sort_accounts_by_algo_balance(app.list_wallet_accounts())
             account_1 = accounts.pop()
             account_2 = accounts.pop()
 

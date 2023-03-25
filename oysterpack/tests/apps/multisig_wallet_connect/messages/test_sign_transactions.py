@@ -1,6 +1,6 @@
 import unittest
 
-import msgpack
+import msgpack  # type: ignore
 from algosdk.transaction import Multisig, MultisigTransaction
 from beaker.consts import algo
 from ulid import ULID
@@ -32,13 +32,6 @@ class SignTransactionsTestCase(AlgorandTestCase):
             suggested_params=self.algod_client.suggested_params(),
         )
 
-        service_fee = transfer_algo(
-            sender=sender.signing_address,
-            receiver=receiver.signing_address,
-            amount=MicroAlgos(1 * algo),
-            suggested_params=self.algod_client.suggested_params(),
-        )
-
         request = SignTransactionsRequest(
             app_id=AppId(100),
             signer=sender.signing_address,
@@ -55,13 +48,6 @@ class SignTransactionsTestCase(AlgorandTestCase):
         receiver = AlgoPrivateKey()
 
         txn = transfer_algo(
-            sender=sender.signing_address,
-            receiver=receiver.signing_address,
-            amount=MicroAlgos(1 * algo),
-            suggested_params=self.algod_client.suggested_params(),
-        )
-
-        service_fee = transfer_algo(
             sender=sender.signing_address,
             receiver=receiver.signing_address,
             amount=MicroAlgos(1 * algo),

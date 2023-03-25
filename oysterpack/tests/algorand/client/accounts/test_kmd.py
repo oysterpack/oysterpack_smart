@@ -40,7 +40,10 @@ from oysterpack.algorand.client.accounts.kmd import (
     create_kmd_client,
 )
 from oysterpack.algorand.client.model import Mnemonic, Address, MicroAlgos
-from oysterpack.algorand.client.transactions import payment, suggested_params_with_flat_flee
+from oysterpack.algorand.client.transactions import (
+    payment,
+    suggested_params_with_flat_flee,
+)
 from oysterpack.algorand.client.transactions.payment import transfer_algo
 from oysterpack.algorand.client.transactions.rekey import rekey
 from tests.algorand.test_support import AlgorandTestCase
@@ -558,7 +561,7 @@ class WalletSessionTests(AlgorandTestCase):
             sender=account_1,
             receiver=multisig_1_address,
             amount=MicroAlgos(1 * algo),
-            suggested_params=self.algod_client.suggested_params()
+            suggested_params=self.algod_client.suggested_params(),
         )
         signed_txn = sandbox_default_wallet_session.sign_transaction(txn)
         txid = self.algod_client.send_transaction(signed_txn)
@@ -585,7 +588,9 @@ class WalletSessionTests(AlgorandTestCase):
         )
 
         multisig_txn = MultisigTransaction(txn, multisig_1)
-        signed_txn = sandbox_default_wallet_session.sign_multisig_transaction(multisig_txn)
+        signed_txn = sandbox_default_wallet_session.sign_multisig_transaction(
+            multisig_txn
+        )
 
         txid = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txid)
@@ -602,7 +607,9 @@ class WalletSessionTests(AlgorandTestCase):
             suggested_params=suggested_params_with_flat_flee(self.algod_client),
         )
         multisig_txn = MultisigTransaction(txn, multisig_2)
-        signed_txn = sandbox_default_wallet_session.sign_multisig_transaction_2(multisig_txn)
+        signed_txn = sandbox_default_wallet_session.sign_multisig_transaction(
+            multisig_txn
+        )
 
         txid = self.algod_client.send_transaction(signed_txn)
         wait_for_confirmation(self.algod_client, txid)
@@ -611,7 +618,6 @@ class WalletSessionTests(AlgorandTestCase):
             multisig_1_address, self.algod_client
         )
         self.assertEqual(multisig_1_address, multisig_1_auth_address)
-
 
     def test_multisig(self):
         sandbox_default_wallet = self.sandbox_default_wallet

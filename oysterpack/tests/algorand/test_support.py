@@ -39,6 +39,13 @@ class WalletAccount:
     account: Address
 
 
+def sort_accounts_by_algo_balance(accounts: list[Address]) -> list[Address]:
+    def key(account: Address) -> int:
+        return get_algo_balance(account, sandbox.get_algod_client())
+
+    return sorted(accounts, key=key)
+
+
 def get_sandbox_accounts() -> list[SandboxAccount]:
     def key(account: SandboxAccount) -> int:
         return get_algo_balance(Address(account.address), sandbox.get_algod_client())

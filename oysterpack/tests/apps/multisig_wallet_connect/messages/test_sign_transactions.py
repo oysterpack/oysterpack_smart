@@ -9,6 +9,10 @@ from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import AppId, MicroAlgos, TxnId
 from oysterpack.algorand.client.transactions.payment import transfer_algo
 from oysterpack.algorand.client.transactions.smart_contract import base64_encode
+from oysterpack.apps.multisig_wallet_connect.domain.activity import (
+    TxnActivityId,
+    AppActivityId,
+)
 from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
     SignTransactionsRequest,
     SignTransactionsSuccess,
@@ -35,8 +39,8 @@ class SignTransactionsTestCase(AlgorandTestCase):
         request = SignTransactionsRequest(
             app_id=AppId(100),
             signer=sender.signing_address,
-            transactions=[(txn, "ALGO payment: 1 ALGO")],
-            description="ALGO transfer",
+            transactions=[(txn, TxnActivityId())],
+            app_activity_id=AppActivityId(),
         )
         packed = request.pack()
         logger.info(f"message length = {len(packed)}")
@@ -57,14 +61,14 @@ class SignTransactionsTestCase(AlgorandTestCase):
         request = SignTransactionsRequest(
             app_id=AppId(100),
             signer=sender.signing_address,
-            transactions=[(txn, "ALGO payment: 1 ALGO")],
-            description="ALGO transfer",
+            transactions=[(txn, TxnActivityId())],
+            app_activity_id=AppActivityId(),
         )
         (
             app_id,
             signer,
             txns,
-            description,
+            app_activity_id,
         ) = msgpack.unpackb(request.pack())
         with self.assertRaises(SignTransactionsFailure) as err:
             SignTransactionsRequest.unpack(
@@ -73,7 +77,7 @@ class SignTransactionsTestCase(AlgorandTestCase):
                         None,
                         signer,
                         txns,
-                        description,
+                        app_activity_id,
                     )
                 )
             )
@@ -85,7 +89,7 @@ class SignTransactionsTestCase(AlgorandTestCase):
                         app_id,
                         None,
                         txns,
-                        description,
+                        app_activity_id,
                     )
                 )
             )
@@ -97,7 +101,7 @@ class SignTransactionsTestCase(AlgorandTestCase):
                         app_id,
                         signer,
                         [],
-                        description,
+                        app_activity_id,
                     )
                 )
             )
@@ -121,7 +125,7 @@ class SignTransactionsTestCase(AlgorandTestCase):
                         app_id,
                         "invalid_address",
                         txns,
-                        description,
+                        app_activity_id,
                     )
                 )
             )
@@ -176,20 +180,12 @@ class SignTransactionsTestCase(AlgorandTestCase):
 
         multisig_txn = MultisigTransaction(transaction=txn, multisig=multisig)
 
-        service_fee = transfer_algo(
-            sender=sender.signing_address,
-            receiver=receiver.signing_address,
-            amount=MicroAlgos(1 * algo),
-            suggested_params=self.algod_client.suggested_params(),
-        )
-
         request = SignMultisigTransactionsMessage(
             app_id=AppId(100),
             signer=sender.signing_address,
             multisig_signer=primary_signer.signing_address,
-            transactions=[(multisig_txn, "ALGO payment: 1 ALGO")],
-            service_fee=service_fee,
-            description="ALGO transfer",
+            transactions=[(multisig_txn, TxnActivityId())],
+            app_activity_id=AppActivityId(),
         )
         packed = request.pack()
         logger.info(f"message length = {len(packed)}")
@@ -205,9 +201,8 @@ class SignTransactionsTestCase(AlgorandTestCase):
                 app_id=AppId(100),
                 signer=sender.signing_address,
                 multisig_signer=primary_signer.signing_address,
-                transactions=[(multisig_txn, "ALGO payment: 1 ALGO")],
-                service_fee=service_fee,
-                description="ALGO transfer",
+                transactions=[(multisig_txn, TxnActivityId())],
+                app_activity_id=AppActivityId(),
             )
             self.assertFalse(request.verify_signatures())
             packed = request.pack()
@@ -224,9 +219,8 @@ class SignTransactionsTestCase(AlgorandTestCase):
                 app_id=AppId(100),
                 signer=sender.signing_address,
                 multisig_signer=primary_signer.signing_address,
-                transactions=[(multisig_txn, "ALGO payment: 1 ALGO")],
-                service_fee=service_fee,
-                description="ALGO transfer",
+                transactions=[(multisig_txn, TxnActivityId())],
+                app_activity_id=AppActivityId(),
             )
             self.assertTrue(request.verify_signatures())
 

@@ -3,21 +3,20 @@ Messages for signing Algorand transactions
 """
 from dataclasses import dataclass, field
 from enum import auto, StrEnum
-from typing import ClassVar, Self, cast, Tuple
+from typing import ClassVar, Self, Tuple
 
 import msgpack  # type: ignore
 from algosdk.encoding import is_valid_address
-from algosdk.transaction import Transaction, MultisigTransaction, PaymentTxn
-from ulid import ULID
+from algosdk.transaction import Transaction, MultisigTransaction
 
 from oysterpack.algorand.client.accounts.private_key import SigningAddress
 from oysterpack.algorand.client.model import AppId, TxnId
 from oysterpack.algorand.client.transactions import transaction_message_for_signing
+from oysterpack.apps.multisig_wallet_connect.domain.activity import (
+    TxnActivityId,
+    AppActivityId,
+)
 from oysterpack.core.message import Serializable, MessageType
-
-RequestId = ULID
-Signature = bytes
-Description = str
 
 
 @dataclass(slots=True)
@@ -39,11 +38,11 @@ class SignTransactionsRequest(Serializable):
     signer: SigningAddress
 
     # list of transactions to be signed
-    # - each transaction should have a description that clearly explains what the transaction is doing
-    transactions: list[Tuple[Transaction, Description]]
+    # - each transaction is linked to an ActivityId
+    transactions: list[Tuple[Transaction, TxnActivityId]]
 
-    # high-level description that describes the overall purpose for these transactions
-    description: Description
+    # Activity that is assigned to the set of transactions
+    app_activity_id: AppActivityId
 
     MSG_TYPE: ClassVar[MessageType] = field(
         default=MessageType.from_str("01GVXV7CQQY4Q0SSW6GBJCN192"),
@@ -60,7 +59,7 @@ class SignTransactionsRequest(Serializable):
         required_fields = (
             (self.app_id, "app_id"),
             (self.signer, "signer"),
-            (self.description, "description"),
+            (self.app_activity_id, "app_activity_id"),
         )
         for required_field, name in required_fields:
             if required_field is None:
@@ -79,11 +78,6 @@ class SignTransactionsRequest(Serializable):
                 message="at least 1 transaction is required",
             )
 
-        if len(self.description.strip()) == 0:
-            raise SignTransactionsFailure(
-                code=ErrCode.InvalidMessage, message="description cannot be blank"
-            )
-
     @classmethod
     def message_type(cls) -> MessageType:
         return cls.MSG_TYPE
@@ -97,7 +91,7 @@ class SignTransactionsRequest(Serializable):
             app_id,
             signer,
             txns,
-            description,
+            app_activity_id,
         ) = msgpack.unpackb(packed)
 
         try:
@@ -105,9 +99,13 @@ class SignTransactionsRequest(Serializable):
                 app_id=app_id,
                 signer=signer,
                 transactions=[
-                    (Transaction.undictify(txn), desc) for (txn, desc) in txns
+                    (
+                        Transaction.undictify(txn),
+                        TxnActivityId.from_bytes(txn_activity_id),
+                    )
+                    for (txn, txn_activity_id) in txns
                 ],
-                description=description,
+                app_activity_id=AppActivityId.from_bytes(app_activity_id),
             )
         except Exception as err:
             raise SignTransactionsFailure(
@@ -122,8 +120,11 @@ class SignTransactionsRequest(Serializable):
             (
                 self.app_id,
                 self.signer,
-                [(txn.dictify(), desc) for (txn, desc) in self.transactions],
-                self.description,
+                [
+                    (txn.dictify(), txn_activity_id.bytes)
+                    for (txn, txn_activity_id) in self.transactions
+                ],
+                self.app_activity_id.bytes,
             )
         )
 
@@ -185,6 +186,12 @@ class ErrCode(StrEnum):
     AppNotRegistered = auto()
     # signer is not registered
     SignerNotRegistered = auto()
+
+    InvalidAppActivityId = auto()
+    InvalidTxnActivityId = auto()
+    AppActivityNotRegistered = auto()
+    InvalidTxnActivity = auto()
+    InvalidAppActivity = auto()
 
     # transaction was rejected
     RejectedBySigner = auto()
@@ -252,11 +259,8 @@ class SignMultisigTransactionsMessage(Serializable):
     signer: SigningAddress
     # refers to one of the underlying multisig accounts that is required to sign the transaction
     multisig_signer: SigningAddress
-    transactions: list[Tuple[MultisigTransaction, Description]]
-    description: Description
-
-    # service fee payment
-    service_fee: PaymentTxn
+    transactions: list[Tuple[MultisigTransaction, TxnActivityId]]
+    app_activity_id: AppActivityId
 
     MSG_TYPE: ClassVar[MessageType] = field(
         default=MessageType.from_str("01GVZNHQYJD650JVEJV7DZPNC9"),
@@ -275,8 +279,7 @@ class SignMultisigTransactionsMessage(Serializable):
             signer,
             multisig_signer,
             txns,
-            description,
-            service_fee,
+            app_activity_id,
         ) = msgpack.unpackb(packed)
 
         return cls(
@@ -284,10 +287,13 @@ class SignMultisigTransactionsMessage(Serializable):
             signer=signer,
             multisig_signer=multisig_signer,
             transactions=[
-                (MultisigTransaction.undictify(txn), desc) for (txn, desc) in txns
+                (
+                    MultisigTransaction.undictify(txn),
+                    TxnActivityId.from_bytes(txn_activity_id),
+                )
+                for (txn, txn_activity_id) in txns
             ],
-            description=description,
-            service_fee=cast(PaymentTxn, PaymentTxn.undictify(service_fee)),
+            app_activity_id=AppActivityId.from_bytes(app_activity_id),
         )
 
     def pack(self) -> bytes:
@@ -299,9 +305,11 @@ class SignMultisigTransactionsMessage(Serializable):
                 self.app_id,
                 self.signer,
                 self.multisig_signer,
-                [(txn.dictify(), desc) for (txn, desc) in self.transactions],
-                self.description,
-                self.service_fee.dictify(),
+                [
+                    (txn.dictify(), txn_activity_id.bytes)
+                    for (txn, txn_activity_id) in self.transactions
+                ],
+                self.app_activity_id.bytes,
             )
         )
 

@@ -6,6 +6,10 @@ import asyncio
 from oysterpack.algorand.client.model import AppId, Address
 from oysterpack.algorand.client.transactions import payment
 from oysterpack.algorand.messaging.secure_message_handler import MessageContext
+from oysterpack.apps.multisig_wallet_connect.domain.activity import (
+    InvalidTxnActivity,
+    InvalidAppActivity,
+)
 from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
     SignTransactionsRequest,
     SignTransactionsFailure,
@@ -16,6 +20,7 @@ from oysterpack.apps.multisig_wallet_connect.protocols.algorand_service import (
 )
 from oysterpack.apps.multisig_wallet_connect.protocols.multisig_service import (
     MultisigService,
+    ServiceFee,
 )
 
 
@@ -83,21 +88,76 @@ class SignTransactionsHandler:
                 )
             return SignTransactionsRequest.unpack(ctx.msg_data)
 
-        def check_app_registration(app_id: AppId):
+        async def check_app_registration(app_id: AppId):
             """
             Check that the app is registered with the service
             """
-            raise NotImplementedError
+            if not await self.__multisig_service.is_app_registered(app_id):
+                raise SignTransactionsFailure(
+                    code=ErrCode.AppNotRegistered, message="app is not registered"
+                )
 
-        def check_signer_opted_in(app_id: AppId, account: Address):
+        async def check_signer_registration(account: Address, app_id: AppId):
             """ "
-            Check that the signer is opted into the app
+            Check that the signer is opted into the multisig service and the app
             """
-            raise NotImplementedError
+            if not await self.__multisig_service.is_account_registered(
+                account=account,
+                app_id=app_id,
+            ):
+                raise SignTransactionsFailure(
+                    code=ErrCode.SignerNotRegistered, message="signer is not registered"
+                )
+
+        async def check_activity(request: SignTransactionsRequest):
+            app_activity_spec = self.__multisig_service.get_app_activity_spec(
+                request.app_activity_id
+            )
+            if app_activity_spec is None:
+                raise SignTransactionsFailure(
+                    code=ErrCode.InvalidAppActivityId, message="invalid app activity ID"
+                )
+            if not await self.__multisig_service.is_app_activity_registered(
+                app_id=request.app_id,
+                app_activity_id=request.app_activity_id,
+            ):
+                raise SignTransactionsFailure(
+                    code=ErrCode.SignerNotRegistered,
+                    message="activity is not registered for the app",
+                )
+
+            # validate individual transactions
+            # remove the last txn, which is the multisig service fee
+            txns = request.transactions[:-1]
+            for (txn, activity_id) in txns:
+                txn_activity_spec = self.__multisig_service.get_txn_activity_spec(
+                    activity_id
+                )
+                if txn_activity_spec is None:
+                    raise SignTransactionsFailure(
+                        code=ErrCode.InvalidTxnActivityId,
+                        message=f"invalid transaction activity ID: {activity_id}",
+                    )
+                try:
+                    txn_activity_spec.validate(txn)
+                except InvalidTxnActivity as err:
+                    raise SignTransactionsFailure(
+                        code=ErrCode.InvalidTxnActivity,
+                        message=f"invalid transaction activity: {activity_id} : {err.message}",
+                    )
+
+            try:
+                app_activity_spec.validate(txns)
+            except InvalidAppActivity as err:
+                raise SignTransactionsFailure(
+                    code=ErrCode.InvalidAppActivity,
+                    message=f"invalid app activity: {err.activity_id} : {err.message}",
+                )
 
         request = unpack_request()
-        check_app_registration(request.app_id)
-        check_signer_opted_in(request.app_id, request.signer)
+        await check_app_registration(request.app_id)
+        await check_signer_registration(account=request.signer, app_id=request.app_id)
+        await check_activity(request)
 
         return request
 
@@ -134,7 +194,7 @@ class SignTransactionsHandler:
         request.transactions.append(
             (
                 service_fee_payment,
-                service_fee.description,
+                ServiceFee.TXN_ACTIVITY_ID,
             )
         )
 

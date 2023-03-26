@@ -9,31 +9,25 @@ from typing import Self, Protocol, ClassVar, cast
 import msgpack  # type: ignore
 from algosdk import encoding
 from algosdk.transaction import Multisig
-from ulid import ULID
 
 from oysterpack.algorand.client.accounts.private_key import (
     SigningAddress,
     AlgoPrivateKey,
     verify_message,
 )
+from oysterpack.core.ulid import HashableULID
 
 
-class MessageId(ULID):
+class MessageId(HashableULID):
     """
     Unique message ID
     """
 
-    def __hash__(self):
-        return self.bytes.__hash__()
 
-
-class MessageType(ULID):
+class MessageType(HashableULID):
     """
     Message type ID
     """
-
-    def __hash__(self):
-        return self.bytes.__hash__()
 
 
 MessageData = bytes

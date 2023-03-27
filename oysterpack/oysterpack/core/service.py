@@ -248,13 +248,17 @@ class Service(ABC):
             def run_healthcheck(healthcheck: HealthCheck):
                 self._healthchecks_subject.on_next(healthcheck())
                 self._healthcheck_timer = Timer(
-                    healthcheck.run_interval.seconds, run_healthcheck, (healthcheck,)
+                    healthcheck.run_interval.total_seconds(),
+                    run_healthcheck,
+                    (healthcheck,),
                 )
                 self._healthcheck_timer.daemon = True
                 self._healthcheck_timer.start()
 
             self._healthcheck_timer = Timer(
-                healthcheck.run_interval.seconds, run_healthcheck, (healthcheck,)
+                healthcheck.run_interval.total_seconds(),
+                run_healthcheck,
+                (healthcheck,),
             )
             self._healthcheck_timer.daemon = True
             self._healthcheck_timer.start()

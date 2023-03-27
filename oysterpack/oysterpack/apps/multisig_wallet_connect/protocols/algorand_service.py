@@ -10,7 +10,8 @@ from oysterpack.algorand.client.model import Address, MicroAlgos
 
 class AlgorandService(Protocol):
     async def suggested_params_with_flat_flee(
-        self, txn_count: int = 1
+        self,
+        txn_count: int = 1,
     ) -> SuggestedParams:
         """
         :param txn_count:

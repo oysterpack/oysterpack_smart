@@ -2,6 +2,7 @@
 Websockets Server
 """
 import asyncio
+from contextlib import asynccontextmanager
 from ssl import SSLContext
 from typing import Callable, Awaitable, Any
 
@@ -52,3 +53,14 @@ class WebsocketsServer(AsyncService):
     async def _stop(self):
         self.__ws_server_stop_signal.set_result(True)
         await self.__ws_server_task
+
+    @asynccontextmanager
+    async def running_server(self):
+        await self.start()
+        await self.await_running()
+        await asyncio.sleep(0)
+        try:
+            yield self
+        finally:
+            await self.stop()
+            await self.await_stopped()

@@ -1,27 +1,70 @@
+import asyncio
+import pickle
 import unittest
+from asyncio import FIRST_EXCEPTION
+from datetime import timedelta
 
-from beaker import sandbox
+from ulid import ULID
+
+from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
+    ErrCode,
+    SignTransactionsError,
+)
+from tests.algorand.test_support import AlgorandTestCase
+from tests.test_support import OysterPackIsolatedAsyncioTestCase
 
 
-class MyTestCase(unittest.TestCase):
-    def test_get_account_info_with_exclude_bool(self):
-        super().skipTest(
-            """
-        Waiting on Algorand fix:        
-        https://github.com/algorand/py-algorand-sdk/issues/448
-        """
+class MyTestCase(AlgorandTestCase, OysterPackIsolatedAsyncioTestCase):
+    async def test_asyncio_wait(self):
+        async def foo(
+            msg: str, err: Exception | None = None, sleep: timedelta | None = None
+        ):
+            if err is not None:
+                raise err
+
+            if sleep is not None:
+                print(f"sleeping for: {sleep.total_seconds()}")
+                await asyncio.sleep(sleep.total_seconds())
+
+            return msg
+
+        task1 = asyncio.create_task(foo("1"))
+        task2 = asyncio.create_task(foo("2"))
+        task3 = asyncio.create_task(foo("3", err=Exception("BOOM!")))
+        task4 = asyncio.create_task(foo("4", sleep=timedelta(hours=1)))
+
+        (done, pending) = await asyncio.wait(
+            [
+                task1,
+                task2,
+                task3,
+                task4,
+            ],
+            return_when=FIRST_EXCEPTION,
+        )
+        print(f"len(done) = {len(done)}")
+        print(f"len(pending) = {len(pending)}")
+        self.assertGreaterEqual(len(pending), 1)
+        for task in done:
+            print(
+                f"done={task.done()}, cancelled={task.cancelled()}, exception={task.exception()}"
+            )
+        self.assertEqual(
+            1, len([task for task in done if task.exception() is not None])
         )
 
-        account = sandbox.get_accounts().pop()
-        algod_client = sandbox.get_algod_client()
+        for task in pending:
+            task.cancel()
 
-        algod_client.account_info(account.address, exclude=True)
+    def test_quick(self):
+        err = SignTransactionsError(
+            code=ErrCode.InvalidTxnActivityId,
+            message=f"invalid transaction activity ID: {ULID()}",
+        )
 
-    def test_get_account_info_with_exclude_all(self):
-        account = sandbox.get_accounts().pop()
-        algod_client = sandbox.get_algod_client()
-
-        algod_client.account_info(account.address, exclude="all")
+        err_bytes = pickle.dumps(err.to_failure())
+        failure = pickle.loads(err_bytes)
+        self.assertEqual(err.to_failure(), failure)
 
 
 if __name__ == "__main__":

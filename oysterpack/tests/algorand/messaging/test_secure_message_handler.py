@@ -5,7 +5,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import timedelta
 from ssl import SSLCertVerificationError
-from typing import Iterable, AsyncIterable, cast, Self, ClassVar
+from typing import Self, ClassVar
 
 import msgpack  # type: ignore
 from algosdk.account import generate_account
@@ -31,17 +31,17 @@ from oysterpack.algorand.messaging.secure_message_handler import (
     SecureMessageHandler,
     MessageContext,
     SecureMessageWebsocketHandler,
-    MessageHandlerMapping,
+    MessageHandler,
 )
-from oysterpack.algorand.messaging.websocket import Data, Websocket, CloseCode
+from oysterpack.algorand.messaging.websocket import CloseCode
 from oysterpack.core.message import (
     Message,
     MessageType,
     MessageId,
     Serializable,
 )
-from oysterpack.services.asyncio.websockets_server import WebsocketsServer
 from tests.algorand.messaging import server_ssl_context, client_ssl_context
+from tests.support.websockets import WebsocketMock, create_websocket_server
 from tests.test_support import OysterPackIsolatedAsyncioTestCase
 
 logger = logging.getLogger("SecureMessageHandlerTestCase")
@@ -84,44 +84,30 @@ class Request(Serializable):
         )
 
 
-async def echo_message_handler(ctx: MessageContext):
-    logger.info("echo_message_handler: received message type: %s", ctx.msg_type)
+class EchoMessageHandler(MessageHandler):
+    def __init__(self, supported_msg_type: MessageType | None = None):
+        self._supported_msg_type = (
+            supported_msg_type if supported_msg_type else Request.message_type()
+        )
 
-    assert Request.message_type() == ctx.msg_type
+    async def __call__(self, ctx: MessageContext):
+        logger.info("echo_message_handler: received message type: %s", ctx.msg_type)
 
-    request = Request.unpack(ctx.msg_data)
-    if request.sleep:
-        await asyncio.sleep(float(request.sleep.microseconds) / 10**6)
-    if request.fail:
-        raise Exception("BOOM!")
+        assert Request.message_type() == ctx.msg_type
 
-    response = await ctx.pack_secure_message(ctx.msg.msg_id, request)
-    logger.info("echo_message_handler: packed response")
-    await ctx.websocket.send(response)
-    logger.info("echo_message_handler: sent response")
+        request = Request.unpack(ctx.msg_data)
+        if request.sleep:
+            await asyncio.sleep(float(request.sleep.microseconds) / 10**6)
+        if request.fail:
+            raise Exception("BOOM!")
 
+        response = await ctx.pack_secure_message(ctx.msg.msg_id, request)
+        logger.info("echo_message_handler: packed response")
+        await ctx.websocket.send(response)
+        logger.info("echo_message_handler: sent response")
 
-class WebsocketMock(Websocket):
-    def __init__(self) -> None:
-        self.request_queue: asyncio.Queue[Data] = asyncio.Queue()
-        self.response_queue: asyncio.Queue[Data] = asyncio.Queue()
-        self.closed = False
-
-    async def recv(self) -> Data:
-        msg = await self.request_queue.get()
-        self.request_queue.task_done()
-        return msg
-
-    async def send(
-        self,
-        message: Data | Iterable[Data] | AsyncIterable[Data],
-    ) -> None:
-        await self.response_queue.put(cast(Data, message))
-
-    async def close(self, code: int = 1000, reason: str = "") -> None:
-        self.closed = True
-        self.close_code = code
-        self.close_reason = reason
+    def supported_msg_types(self) -> set[MessageType]:
+        return {self._supported_msg_type}
 
 
 class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
@@ -167,12 +153,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         handle_message = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    msg_handler=echo_message_handler,
-                    msg_types={Request.message_type()},
-                ),
-            ),
+            message_handlers=[EchoMessageHandler()],
             executor=self.executor,
         )
         ws = WebsocketMock()
@@ -229,12 +210,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         handle_message = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    msg_handler=echo_message_handler,
-                    msg_types={Request.message_type()},
-                ),
-            ),
+            message_handlers=[EchoMessageHandler()],
             executor=self.executor,
         )
         ws = WebsocketMock()
@@ -288,12 +264,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         handle_message = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    msg_handler=echo_message_handler,
-                    msg_types={Request.message_type()},
-                ),
-            ),
+            message_handlers=[EchoMessageHandler()],
             executor=self.executor,
         )
         ws = WebsocketMock()
@@ -344,12 +315,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         handle_message = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    msg_handler=echo_message_handler,
-                    msg_types={Request.message_type()},
-                ),
-            ),
+            message_handlers=[EchoMessageHandler()],
             executor=self.executor,
         )
         ws = WebsocketMock()
@@ -367,7 +333,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 SecureMessageHandler(
                     private_key=self.recipient_private_key,
-                    message_handlers=(),
+                    message_handlers=[],
                     executor=self.executor,
                 )
 
@@ -375,16 +341,7 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 SecureMessageHandler(
                     private_key=self.recipient_private_key,
-                    message_handlers=(
-                        MessageHandlerMapping(
-                            msg_handler=echo_message_handler,
-                            msg_types={Request.message_type()},
-                        ),
-                        MessageHandlerMapping(
-                            msg_handler=echo_message_handler,
-                            msg_types={Request.message_type()},
-                        ),
-                    ),
+                    message_handlers=[EchoMessageHandler(), EchoMessageHandler()],
                     executor=self.executor,
                 )
 
@@ -416,18 +373,14 @@ class SecureMessageHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         handle_message = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    msg_handler=echo_message_handler,
-                    msg_types={MessageType()},
-                ),
-            ),
+            message_handlers=[EchoMessageHandler(supported_msg_type=MessageType())],
             executor=self.executor,
         )
         ws = WebsocketMock()
 
         # Act
         await handle_message(secure_message, ws)
+        await asyncio.sleep(0)
 
         # Assert
         self.assertTrue(ws.closed)
@@ -472,12 +425,7 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         secure_message_handler = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    echo_message_handler,
-                    {Request.message_type()},
-                ),
-            ),
+            message_handlers=[EchoMessageHandler()],
             executor=self.executor,
         )
 
@@ -485,7 +433,7 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
             handler=secure_message_handler
         )
 
-        ws_server = WebsocketsServer(
+        ws_server = create_websocket_server(
             handler=websocket_handler,
             ssl_context=server_ssl_context(),
         )
@@ -558,12 +506,7 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         secure_message_handler = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    echo_message_handler,
-                    {Request.message_type()},
-                ),
-            ),
+            message_handlers=[EchoMessageHandler()],
             executor=self.executor,
         )
 
@@ -573,8 +516,8 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         )
         self.assertEqual(1, websocket_handler.max_concurrent_requests)
 
-        ws_server = WebsocketsServer(
-            handler=websocket_handler, ssl_context=server_ssl_context(), port=8009
+        ws_server = create_websocket_server(
+            handler=websocket_handler, ssl_context=server_ssl_context()
         )
         await ws_server.start()
         await ws_server.await_running()
@@ -626,12 +569,7 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         secure_message_handler = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    echo_message_handler,
-                    {Request.message_type()},
-                ),
-            ),
+            message_handlers=[EchoMessageHandler()],
             executor=self.executor,
         )
 
@@ -639,8 +577,9 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
             handler=secure_message_handler, max_concurrent_requests=1
         )
 
-        ws_server = WebsocketsServer(
-            handler=websocket_handler, ssl_context=server_ssl_context(), port=8009
+        ws_server = create_websocket_server(
+            handler=websocket_handler,
+            ssl_context=server_ssl_context(),
         )
         await ws_server.start()
         await ws_server.await_running()
@@ -690,12 +629,7 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
 
         secure_message_handler = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    echo_message_handler,
-                    {Request.message_type()},
-                ),
-            ),
+            message_handlers=[EchoMessageHandler()],
             executor=self.executor,
         )
 
@@ -703,8 +637,9 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
             handler=secure_message_handler,
         )
 
-        ws_server = WebsocketsServer(
-            handler=websocket_handler, ssl_context=server_ssl_context(), port=8009
+        ws_server = create_websocket_server(
+            handler=websocket_handler,
+            ssl_context=server_ssl_context(),
         )
         await ws_server.start()
         await ws_server.await_running()
@@ -737,12 +672,7 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
         # SETUP
         secure_message_handler = SecureMessageHandler(
             private_key=self.recipient_private_key,
-            message_handlers=(
-                MessageHandlerMapping(
-                    echo_message_handler,
-                    {Request.message_type()},
-                ),
-            ),
+            message_handlers=[EchoMessageHandler()],
             executor=self.executor,
         )
 
@@ -750,8 +680,9 @@ class SecureMessageWebsocketHandlerTestCase(OysterPackIsolatedAsyncioTestCase):
             handler=secure_message_handler,
         )
 
-        ws_server = WebsocketsServer(
-            handler=websocket_handler, ssl_context=server_ssl_context(), port=8011
+        ws_server = create_websocket_server(
+            handler=websocket_handler,
+            ssl_context=server_ssl_context(),
         )
         await ws_server.start()
         await ws_server.await_running()

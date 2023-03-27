@@ -2,11 +2,12 @@
 SecureMessage handler
 """
 import asyncio
+from abc import ABC, abstractmethod
 from asyncio import Task
 from concurrent.futures import Executor
 from dataclasses import dataclass
 from datetime import datetime, UTC
-from typing import Callable, Awaitable, Tuple, ClassVar
+from typing import ClassVar
 
 from ulid import ULID
 from websockets.legacy.server import WebSocketServerProtocol
@@ -104,17 +105,36 @@ class MessageContext:
 
 
 # async message handler
-MessageHandler = Callable[[MessageContext], Awaitable[None]]
+class MessageHandler(ABC):
+    # Callable[[MessageContext], Awaitable[None]]
+
+    @abstractmethod
+    async def __call__(self, ctx: MessageContext):
+        """
+        handle message
+        """
+        ...
+
+    @abstractmethod
+    def supported_msg_types(self) -> set[MessageType]:
+        """
+        :return: MessageHandlerMapping
+        """
+        ...
 
 
-@dataclass(slots=True)
-class MessageHandlerMapping:
-    msg_handler: MessageHandler
-    msg_types: set[MessageType]
+class _UnsupportedMessageHandler(MessageHandler):
+    """
+    When a message is received with an unsupported message type, then close the websocket
+    """
 
+    async def __call__(self, ctx: MessageContext):
+        await ctx.websocket.close(
+            code=CloseCode.GOING_AWAY, reason="unsupported msg type"
+        )
 
-# MessagHandler:MessageType is a 1:N relationship
-MessageHandlers = Tuple[MessageHandlerMapping, ...]
+    def supported_msg_types(self) -> set[MessageType]:
+        return set()
 
 
 # TODO: add logging
@@ -130,7 +150,7 @@ class SecureMessageHandler:
     def __init__(
         self,
         private_key: AlgoPrivateKey,
-        message_handlers: MessageHandlers,
+        message_handlers: list[MessageHandler],
         executor: Executor,
     ):
         """
@@ -144,10 +164,6 @@ class SecureMessageHandler:
         :param message_handlers: at least 1 message handler mapping needs to be defined.
         :param executor: executor used for non-blocking code
         """
-
-        if len(message_handlers) == 0:
-            raise ValueError("at least 1 MessageHandler must be defined")
-
         self.__validate_message_handlers(message_handlers)
 
         self.__private_key = private_key
@@ -156,13 +172,16 @@ class SecureMessageHandler:
         self.__logger = get_logger(self)
 
     @staticmethod
-    def __validate_message_handlers(message_handlers: MessageHandlers):
+    def __validate_message_handlers(message_handlers: list[MessageHandler]):
         """
         Message type IDs across all handlers must be unique
         """
+        if len(message_handlers) == 0:
+            raise ValueError("at least 1 MessageHandler must be defined")
+
         ids: set[ULID] = set()
-        for mapping in message_handlers:
-            for msg_type in mapping.msg_types:
+        for handler in message_handlers:
+            for msg_type in handler.supported_msg_types():
                 if msg_type in ids:
                     raise ValueError(
                         f"Message type IDs must be unique. Found duplicate: {msg_type}"
@@ -207,18 +226,12 @@ class SecureMessageHandler:
           - When there is no handler registered for the message type
           - SecureMessageHandlerError
         """
+        for handler in self.__message_handlers:
+            if msg_type in handler.supported_msg_types():
+                return handler
 
-        async def handle_unsupported_message(ctx: MessageContext):
-            await ctx.websocket.close(
-                code=CloseCode.GOING_AWAY, reason="unsupported msg type"
-            )
-            self.__logger.error("unsupported message type: %s", ctx.msg.msg_type)
-
-        for mapping in self.__message_handlers:
-            if msg_type in mapping.msg_types:
-                return mapping.msg_handler
-
-        return handle_unsupported_message
+        self.__logger.error("unsupported message type: %s", msg_type)
+        return _UnsupportedMessageHandler()
 
 
 @dataclass(slots=True)

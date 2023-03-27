@@ -35,6 +35,9 @@ class InvalidTxnActivity(Exception):
     activity_id: TxnActivityId
     message: str
 
+    def __str__(self):
+        return f"Invalid transaction activity [{self.activity_id}] {self.message}"
+
 
 @dataclass(slots=True)
 class TxnActivitySpec(ABC):
@@ -45,7 +48,7 @@ class TxnActivitySpec(ABC):
     description: str
 
     @abstractmethod
-    def validate(self, txn: Transaction):
+    async def validate(self, txn: Transaction):
         """
         :raises InvalidTxnActivity: if the transaction is not valid per the activity
         """
@@ -60,6 +63,9 @@ class InvalidAppActivity(Exception):
     activity_id: AppActivityId
     message: str
 
+    def __str__(self):
+        return f"Invalid application activity [{self.activity_id}] {self.message}"
+
 
 @dataclass(slots=True)
 class AppActivitySpec(ABC):
@@ -70,7 +76,7 @@ class AppActivitySpec(ABC):
     description: str
 
     @abstractmethod
-    def validate(self, txns: list[Tuple[Transaction, TxnActivityId]]):
+    async def validate(self, txns: list[Tuple[Transaction, TxnActivityId]]):
         """
         :raises InvalidAppActivity: if the set of transactions as a group are not valid per the activity
         """

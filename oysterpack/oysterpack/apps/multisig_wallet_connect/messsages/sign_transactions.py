@@ -6,6 +6,7 @@ from enum import auto, StrEnum
 from typing import ClassVar, Self, Tuple
 
 import msgpack  # type: ignore
+from algosdk import transaction, constants
 from algosdk.encoding import is_valid_address
 from algosdk.transaction import Transaction, MultisigTransaction
 
@@ -39,6 +40,8 @@ class SignTransactionsRequest(Serializable):
 
     # list of transactions to be signed
     # - each transaction is linked to an ActivityId
+    # - all transactions must be contained with a single atomic transaction group,
+    #   which limits the max number of transactions to 16
     transactions: list[Tuple[Transaction, TxnActivityId]]
 
     # Activity that is assigned to the set of transactions
@@ -56,27 +59,69 @@ class SignTransactionsRequest(Serializable):
 
         :raise SignTransactionsFailure: with ode=ErrCode.InvalidMessage
         """
-        required_fields = (
-            (self.app_id, "app_id"),
-            (self.signer, "signer"),
-            (self.app_activity_id, "app_activity_id"),
-        )
-        for required_field, name in required_fields:
-            if required_field is None:
-                raise SignTransactionsFailure(
-                    code=ErrCode.InvalidMessage, message=f"{name} is required"
+
+        def check_required_fields():
+            required_fields = (
+                (self.app_id, "app_id"),
+                (self.signer, "signer"),
+                (self.app_activity_id, "app_activity_id"),
+            )
+            for required_field, name in required_fields:
+                if required_field is None:
+                    raise SignTransactionsError(
+                        code=ErrCode.InvalidMessage, message=f"{name} is required"
+                    )
+
+        def check_signer_address():
+            if not is_valid_address(self.signer):
+                raise SignTransactionsError(
+                    code=ErrCode.InvalidMessage, message="signer address is invalid"
                 )
 
-        if not is_valid_address(self.signer):
-            raise SignTransactionsFailure(
-                code=ErrCode.InvalidMessage, message="signer address is invalid"
-            )
+        def check_transaction_count():
+            if not 1 <= len(self.transactions) <= constants.tx_group_limit:
+                raise SignTransactionsError(
+                    code=ErrCode.InvalidMessage,
+                    message=f"Number of transactions must be 1-{constants.tx_group_limit}",
+                )
 
-        if len(self.transactions) == 0:
-            raise SignTransactionsFailure(
-                code=ErrCode.InvalidMessage,
-                message="at least 1 transaction is required",
-            )
+        def check_transaction_group_id():
+            if len(self.transactions) == 1:
+                # if there is only 1 transaction, then a group ID is not required
+                return
+
+            for tx, _activity_id in self.transactions:
+                if tx.group is None:
+                    raise SignTransactionsError(
+                        code=ErrCode.InvalidMessage,
+                        message="all transactions must have a group ID",
+                    )
+
+            group_ids = {txn.group for (txn, _activity_id) in self.transactions}
+            if len(group_ids) > 1:
+                raise SignTransactionsError(
+                    code=ErrCode.InvalidMessage,
+                    message="all transactions must have the same group ID, i.e., executed atomically",
+                )
+
+            txns = [txn for txn, _ in self.transactions]
+            # strip group ID in order to recalculate it
+            for txn in txns:
+                txn.group = None
+            group_id = transaction.calculate_group_id(txns)
+            if group_id not in group_ids:
+                raise SignTransactionsError(
+                    code=ErrCode.InvalidMessage,
+                    message="computed group ID does not match assigned group ID",
+                )
+            # reassign the group ID
+            for txn in txns:
+                txn.group = group_id
+
+        check_required_fields()
+        check_signer_address()
+        check_transaction_count()
+        check_transaction_group_id()
 
     @classmethod
     def message_type(cls) -> MessageType:
@@ -85,7 +130,7 @@ class SignTransactionsRequest(Serializable):
     @classmethod
     def unpack(cls, packed: bytes) -> Self:
         """
-        :raise SignTransactionsFailure: with code=ErrCode.InvalidMessage if unpacking the message fails
+        :raise SignTransactionsError: with code=ErrCode.InvalidMessage if unpacking the message fails
         """
         (
             app_id,
@@ -108,14 +153,11 @@ class SignTransactionsRequest(Serializable):
                 app_activity_id=AppActivityId.from_bytes(app_activity_id),
             )
         except Exception as err:
-            raise SignTransactionsFailure(
+            raise SignTransactionsError(
                 code=ErrCode.InvalidMessage, message=f"failed to unpack message: {err}"
             )
 
     def pack(self) -> bytes:
-        """
-        serialize the message
-        """
         return msgpack.packb(
             (
                 self.app_id,
@@ -127,6 +169,32 @@ class SignTransactionsRequest(Serializable):
                 self.app_activity_id.bytes,
             )
         )
+
+
+@dataclass(slots=True)
+class SignTransactionsRequestAccepted(Serializable):
+    """
+    Used to reply back to the app to acknowledge that the request has been accepted.
+
+    This means the request passed the validation phase.
+    """
+
+    MSG_TYPE: ClassVar[MessageType] = field(
+        default=MessageType.from_str("01GWHFWY29F1PYBXFVECKK480K"),
+        init=False,
+        repr=False,
+    )
+
+    @classmethod
+    def message_type(cls) -> MessageType:
+        return cls.MSG_TYPE
+
+    @classmethod
+    def unpack(cls, packed: bytes) -> Self:
+        return cls()
+
+    def pack(self) -> bytes:
+        return msgpack.packb(None)
 
 
 @dataclass(slots=True)
@@ -161,10 +229,6 @@ class SignTransactionsSuccess(Serializable):
         )
 
     def pack(self) -> bytes:
-        """
-        serialize the message
-        """
-
         return msgpack.packb(
             (
                 self.transaction_ids,
@@ -208,7 +272,7 @@ class ErrCode(StrEnum):
 
 
 @dataclass(slots=True)
-class SignTransactionsFailure(Exception, Serializable):
+class SignTransactionsFailure(Serializable):
     """
     SignTransactionsFailure
     """
@@ -243,6 +307,28 @@ class SignTransactionsFailure(Exception, Serializable):
                 self.message,
             )
         )
+
+    def __str__(self):
+        return f"SignTransactionFailure [{self.code}] {self.message}"
+
+
+@dataclass(slots=True)
+class SignTransactionsError(Exception):
+    """
+    SignTransactionsFailure
+
+    Notes
+    -----
+    - This class purposely does not extend Exception because it causes pickling to fail (reason unknown).
+      - pickling is required because it all messages are packed and encrypted in a separate process to offload the
+        CPU work and not block the vent loop
+    """
+
+    code: ErrCode
+    message: str
+
+    def to_failure(self) -> SignTransactionsFailure:
+        return SignTransactionsFailure(code=self.code, message=self.message)
 
 
 @dataclass(slots=True)

@@ -2,29 +2,34 @@
 SignTransactionsRequest message handler
 """
 import asyncio
+import logging
+from asyncio import Task
+from typing import Coroutine, Any, TypeVar
 
 from oysterpack.algorand.client.model import AppId, Address
-from oysterpack.algorand.client.transactions import payment
-from oysterpack.algorand.messaging.secure_message_handler import MessageContext
+from oysterpack.algorand.messaging.secure_message_handler import (
+    MessageContext,
+    MessageHandler,
+)
 from oysterpack.apps.multisig_wallet_connect.domain.activity import (
-    InvalidTxnActivity,
     InvalidAppActivity,
 )
 from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
     SignTransactionsRequest,
     SignTransactionsFailure,
     ErrCode,
-)
-from oysterpack.apps.multisig_wallet_connect.protocols.algorand_service import (
-    AlgorandService,
+    SignTransactionsRequestAccepted,
+    SignTransactionsError,
 )
 from oysterpack.apps.multisig_wallet_connect.protocols.multisig_service import (
     MultisigService,
-    ServiceFee,
 )
+from oysterpack.core.message import MessageType
+
+_T = TypeVar("_T")
 
 
-class SignTransactionsHandler:
+class SignTransactionsHandler(MessageHandler):
     """
     Routes transactions from apps to user accounts for signing.
 
@@ -59,41 +64,74 @@ class SignTransactionsHandler:
     def __init__(
         self,
         multisig_service: MultisigService,
-        algorand_service: AlgorandService,
     ):
         self.__multisig_service = multisig_service
-        self.__algorand_service = algorand_service
+
+        self.__tasks: dict[Task, str] = {}
+        self.__logger = logging.getLogger(__name__)
+
+    def supported_msg_types(self) -> set[MessageType]:
+        return {SignTransactionsRequest.message_type()}
 
     async def __call__(self, ctx: MessageContext):
         try:
-            request = await self.__validate_request(ctx)
-            await self.__add_service_fee_payment_txn(ctx, request)
-        except SignTransactionsFailure as err:
-            response = await ctx.pack_secure_message(
-                ctx.msg_id, err  # correlate back to request message
+            request = await self.__unpack_request(ctx)
+            await self.__validate_request(request)
+            self._create_task(self._request_accepted(ctx), "request_accepted")
+        except SignTransactionsError as err:
+            self._create_task(
+                self._handle_failure(ctx, err.to_failure()), "handle_failure"
             )
-            await ctx.websocket.send(response)
 
-    async def __validate_request(self, ctx: MessageContext) -> SignTransactionsRequest:
-        """
-        Unpacks the message into a SignTransactionsRequest and validate the request.
-        """
+    def __task_done(self, task: Task):
+        name = self.__tasks[task]
+        del self.__tasks[task]
+        self.__logger.debug("task done [%s]", name)
+        if task.exception() is not None:
+            self.__logger.error("task failed [%s] %s", name, task.exception())
 
-        def unpack_request() -> SignTransactionsRequest:
-            # check message type
-            if ctx.msg_type != SignTransactionsRequest.message_type():
-                raise SignTransactionsFailure(
-                    code=ErrCode.InvalidMessage,
-                    message=f"invalid message type: {ctx.msg_type}",
-                )
-            return SignTransactionsRequest.unpack(ctx.msg_data)
+    def _create_task(self, coro: Coroutine[Any, Any, _T], name: str) -> Task[_T]:
+        task = asyncio.create_task(coro)
+        self.__tasks[task] = name
+        task.add_done_callback(self.__task_done)
+        return task
 
+    async def _request_accepted(self, ctx: MessageContext):
+        msg = await ctx.pack_secure_message(
+            ctx.msg_id,  # correlate back to request message
+            SignTransactionsRequestAccepted(),
+        )
+        await ctx.websocket.send(msg)
+
+    async def _handle_failure(self, ctx: MessageContext, err: SignTransactionsFailure):
+        self.__logger.error(err)
+        msg = await ctx.pack_secure_message(
+            ctx.msg_id,  # correlate back to request message
+            err,
+        )
+        await ctx.websocket.send(msg)
+
+    async def __unpack_request(self, ctx: MessageContext) -> SignTransactionsRequest:
+        # check message type
+        if ctx.msg_type != SignTransactionsRequest.message_type():
+            raise SignTransactionsError(
+                code=ErrCode.InvalidMessage,
+                message=f"invalid message type: {ctx.msg_type}",
+            )
+
+        return await asyncio.get_event_loop().run_in_executor(
+            ctx.executor, SignTransactionsRequest.unpack, ctx.msg_data
+        )
+
+    async def __validate_request(
+        self, request: SignTransactionsRequest
+    ) -> SignTransactionsRequest:
         async def check_app_registration(app_id: AppId):
             """
             Check that the app is registered with the service
             """
             if not await self.__multisig_service.is_app_registered(app_id):
-                raise SignTransactionsFailure(
+                raise SignTransactionsError(
                     code=ErrCode.AppNotRegistered, message="app is not registered"
                 )
 
@@ -105,104 +143,66 @@ class SignTransactionsHandler:
                 account=account,
                 app_id=app_id,
             ):
-                raise SignTransactionsFailure(
+                raise SignTransactionsError(
                     code=ErrCode.SignerNotRegistered, message="signer is not registered"
                 )
 
-        async def check_activity(request: SignTransactionsRequest):
+        async def check_activity(request: SignTransactionsRequest) -> None:
             app_activity_spec = self.__multisig_service.get_app_activity_spec(
                 request.app_activity_id
             )
             if app_activity_spec is None:
-                raise SignTransactionsFailure(
+                raise SignTransactionsError(
                     code=ErrCode.InvalidAppActivityId, message="invalid app activity ID"
                 )
             if not await self.__multisig_service.is_app_activity_registered(
                 app_id=request.app_id,
                 app_activity_id=request.app_activity_id,
             ):
-                raise SignTransactionsFailure(
+                raise SignTransactionsError(
                     code=ErrCode.SignerNotRegistered,
                     message="activity is not registered for the app",
                 )
 
             # validate individual transactions
-            # remove the last txn, which is the multisig service fee
-            txns = request.transactions[:-1]
-            for (txn, activity_id) in txns:
+            txn_activity_validation_tasks = []
+            for (txn, activity_id) in request.transactions:
                 txn_activity_spec = self.__multisig_service.get_txn_activity_spec(
                     activity_id
                 )
                 if txn_activity_spec is None:
-                    raise SignTransactionsFailure(
+                    raise SignTransactionsError(
                         code=ErrCode.InvalidTxnActivityId,
                         message=f"invalid transaction activity ID: {activity_id}",
                     )
-                try:
-                    txn_activity_spec.validate(txn)
-                except InvalidTxnActivity as err:
-                    raise SignTransactionsFailure(
+
+                txn_activity_validation_tasks.append(
+                    asyncio.create_task(txn_activity_spec.validate(txn))
+                )
+            (done, pending) = await asyncio.wait(
+                txn_activity_validation_tasks,
+                return_when=asyncio.FIRST_EXCEPTION,
+            )
+            for task in pending:
+                task.cancel()
+            # check if any validations failed
+            for task in done:
+                if task.exception() is not None:
+                    raise SignTransactionsError(
                         code=ErrCode.InvalidTxnActivity,
-                        message=f"invalid transaction activity: {activity_id} : {err.message}",
+                        message=f"invalid transaction activity: {task.exception()}",
                     )
 
             try:
-                app_activity_spec.validate(txns)
+                await app_activity_spec.validate(request.transactions)
             except InvalidAppActivity as err:
-                raise SignTransactionsFailure(
+                raise SignTransactionsError(
                     code=ErrCode.InvalidAppActivity,
                     message=f"invalid app activity: {err.activity_id} : {err.message}",
                 )
 
-        request = unpack_request()
         await check_app_registration(request.app_id)
         await check_signer_registration(account=request.signer, app_id=request.app_id)
         await check_activity(request)
 
         return request
-
-    async def __add_service_fee_payment_txn(
-        self,
-        ctx: MessageContext,
-        request: SignTransactionsRequest,
-    ):
-        """
-        1. Add service fee payment transaction to the request
-        2. Assert that the request signer account is able to pay for service and transaction fees
-        """
-
-        # add service fee payment transaction
-        async with asyncio.TaskGroup() as tg:
-            service_fee_task = tg.create_task(self.__multisig_service.service_fee())
-            suggested_params_task = tg.create_task(
-                self.__algorand_service.suggested_params_with_flat_flee()
-            )
-            available_algo_balance_task = tg.create_task(
-                self.__algorand_service.get_algo_available_balance(request.signer)
-            )
-        service_fee = service_fee_task.result()
-        suggested_params = suggested_params_task.result()
-        available_algo_balance = available_algo_balance_task.result()
-
-        service_fee_payment = payment.transfer_algo(
-            sender=request.signer,
-            receiver=service_fee.pay_to,
-            amount=service_fee.amount,
-            suggested_params=suggested_params,
-            note=str(ctx.msg_id),
-        )
-        request.transactions.append(
-            (
-                service_fee_payment,
-                ServiceFee.TXN_ACTIVITY_ID,
-            )
-        )
-
-        # verify signer account has sufficient ALGO funds to pay for service and transaction fees
-        total_txn_fees = sum(txn.fee for txn, _desc in request.transactions)
-        min_required_algo_balance = service_fee.amount + total_txn_fees
-        if available_algo_balance < min_required_algo_balance:
-            raise SignTransactionsFailure(
-                code=ErrCode.InsufficientAlgoBalance,
-                message=f"available ALGO balance is insufficient to pay for service and transaction fees: {available_algo_balance} < {min_required_algo_balance}",
-            )

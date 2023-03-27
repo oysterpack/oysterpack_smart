@@ -55,7 +55,7 @@ class WebsocketsServer(AsyncService):
         await self.__ws_server_task
 
     @asynccontextmanager
-    async def running_server(self):
+    async def start_server(self):
         await self.start()
         await self.await_running()
         await asyncio.sleep(0)

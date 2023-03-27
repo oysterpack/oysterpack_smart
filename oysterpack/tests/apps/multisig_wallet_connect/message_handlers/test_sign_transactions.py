@@ -1,6 +1,8 @@
 import asyncio
+import time
 import unittest
 from concurrent.futures import ProcessPoolExecutor
+from datetime import timedelta
 from typing import ClassVar
 
 from algosdk.account import generate_account
@@ -163,6 +165,8 @@ class SignTransactionsMessageHandlerTestCase(
         self.recipient_private_key = AlgoPrivateKey(generate_account()[0])
 
     async def test_single_transaction(self):
+        logger = super().get_logger("test_single_transaction")
+
         # SETUP
         secure_message_handler = SecureMessageHandler(
             private_key=self.recipient_private_key,
@@ -192,26 +196,48 @@ class SignTransactionsMessageHandlerTestCase(
             ssl_context=server_ssl_context(),
         )
 
-        async with server.running_server() as server:
+        async with server.start_server() as server:
             async with connect(
                 f"wss://localhost:{server.port}",
                 ssl=client_ssl_context(),
             ) as websocket:
-                client = SecureMessageClient(
+                async with SecureMessageClient(
                     websocket=websocket,
                     private_key=self.sender_private_key,
                     executor=self.executor,
-                )
-                await client.send(
-                    request,
-                    self.recipient_private_key.encryption_address,
-                )
-                msg = await asyncio.wait_for(client.recv(), 0.1)
-                await client.close()
-                self.assertEqual(
-                    SignTransactionsRequestAccepted.message_type(), msg.msg_type
-                )
-                SignTransactionsRequestAccepted.unpack(msg.data)
+                ).context() as client:
+                    for _ in range(100):
+                        start = time.perf_counter_ns()
+                        await client.send(
+                            request,
+                            self.recipient_private_key.encryption_address,
+                        )
+                        sent = time.perf_counter_ns()
+                        msg = await asyncio.wait_for(client.recv(), 0.1)
+                        end = time.perf_counter_ns()
+                        logger.info(
+                            "message sent time: %s",
+                            timedelta(
+                                microseconds=(sent - start) / 1_000
+                            ).total_seconds(),
+                        )
+                        logger.info(
+                            "message processing time: %s",
+                            timedelta(
+                                microseconds=(end - sent) / 1_000
+                            ).total_seconds(),
+                        )
+                        logger.info(
+                            "total message send/recv time: %s",
+                            timedelta(
+                                microseconds=(end - start) / 1_000
+                            ).total_seconds(),
+                        )
+
+                        self.assertEqual(
+                            SignTransactionsRequestAccepted.message_type(), msg.msg_type
+                        )
+                        SignTransactionsRequestAccepted.unpack(msg.data)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ SecureMessage Client
 """
 import asyncio
 from concurrent.futures import Executor
+from contextlib import asynccontextmanager
 from typing import cast
 
 from websockets.legacy.client import WebSocketClientProtocol
@@ -78,3 +79,10 @@ class SecureMessageClient:
 
     async def close(self):
         await self.__websocket.close()
+
+    @asynccontextmanager
+    async def context(self):
+        try:
+            yield self
+        finally:
+            await self.close()

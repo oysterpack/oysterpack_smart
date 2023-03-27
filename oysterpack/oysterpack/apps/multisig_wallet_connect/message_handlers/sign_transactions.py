@@ -43,6 +43,11 @@ class SignTransactionsHandler(MessageHandler):
     SignedEncryptedMessage
         EncryptedMessage
             Message
+                SignTransactionsRequestAccepted
+
+    SignedEncryptedMessage
+        EncryptedMessage
+            Message
                 SignTransactionsSuccess
 
     SignedEncryptedMessage

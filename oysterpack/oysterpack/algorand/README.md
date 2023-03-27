@@ -26,5 +26,12 @@ sudo -u algorand goal -d $ALGORAND_DATA kmd start
 sudo -u algorand goal -d $ALGORAND_DATA kmd stop
 ```
 
+### Simulate API
+- https://medium.com/algorand/try-before-you-buy-on-algorand-5acd1b9617d1
+- https://developer.algorand.org/articles/whats-new-in-algorand-3150/#new-simulate-endpoint
+
+### Conduit
+- https://github.com/algorand/conduit/blob/master/docs/tutorials/WritingBlocksToFile.md
+
 ## R&D
 - [Runtime Verification Brings Formal Verification to Algorand](https://runtimeverification.com/blog/runtime-verification-brings-formal-verification-to-algorand)

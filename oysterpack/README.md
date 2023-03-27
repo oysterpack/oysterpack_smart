@@ -35,6 +35,10 @@ Cryptography
 - https://pypi.org/project/cryptography/
 - https://www.pycryptodome.org/
 
+Database
+--------
+- [EdgeDB](https://www.edgedb.com/)
+
 Local Secret Storage
 --------------------
 - https://secretstorage.readthedocs.io/en/latest/index.html

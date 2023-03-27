@@ -19,7 +19,8 @@ from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import 
     SignTransactionsSuccess,
     SignTransactionsError,
     ErrCode,
-    SignMultisigTransactionsMessage, SignTransactionsFailure,
+    SignMultisigTransactionsMessage,
+    SignTransactionsFailure,
 )
 from tests.algorand.test_support import AlgorandTestCase
 

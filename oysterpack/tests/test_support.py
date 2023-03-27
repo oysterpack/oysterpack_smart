@@ -2,7 +2,11 @@ import logging
 import unittest
 from logging import Logger
 
+import uvloop
+
 from oysterpack.services.asyncio.logging_sevice import AsyncLoggingService
+
+uvloop.install()
 
 logging_service = AsyncLoggingService(
     level=logging.DEBUG, multiprocessing_logging_enabled=False

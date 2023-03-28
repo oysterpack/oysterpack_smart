@@ -204,7 +204,6 @@ class SignTransactionsSuccess(Serializable):
     """
 
     transaction_ids: list[TxnId]
-    service_fee_txid: TxnId
 
     MSG_TYPE: ClassVar[MessageType] = field(
         default=MessageType.from_str("01GVY34DVXW4RBZ75DSDZTXCTX"),
@@ -218,23 +217,11 @@ class SignTransactionsSuccess(Serializable):
 
     @classmethod
     def unpack(cls, packed: bytes) -> Self:
-        (
-            transaction_ids,
-            service_fee_txid,
-        ) = msgpack.unpackb(packed)
-
-        return cls(
-            transaction_ids=transaction_ids,
-            service_fee_txid=service_fee_txid,
-        )
+        transaction_ids = msgpack.unpackb(packed)
+        return cls(transaction_ids)
 
     def pack(self) -> bytes:
-        return msgpack.packb(
-            (
-                self.transaction_ids,
-                self.service_fee_txid,
-            )
-        )
+        return msgpack.packb(self.transaction_ids)
 
 
 class ErrCode(StrEnum):
@@ -250,6 +237,9 @@ class ErrCode(StrEnum):
     AppNotRegistered = auto()
     # signer is not registered
     SignerNotRegistered = auto()
+
+    SignerNotSubscribed = auto()
+    SignerSubscriptionExpired = auto()
 
     InvalidAppActivityId = auto()
     InvalidTxnActivityId = auto()
@@ -405,7 +395,7 @@ class SignMultisigTransactionsMessage(Serializable):
         """
         for (txn, desc) in self.transactions:
             if not txn.multisig.verify(
-                transaction_message_for_signing(txn.transaction)
+                    transaction_message_for_signing(txn.transaction)
             ):
                 return False
         return True

@@ -25,20 +25,6 @@ class AppActivityId(HashableULID):
     Application activity applies to a set of transactions.
     """
 
-
-@dataclass(slots=True)
-class InvalidTxnActivity(Exception):
-    """
-    Indicates transaction was invalid per the activity spec
-    """
-
-    activity_id: TxnActivityId
-    message: str
-
-    def __str__(self):
-        return f"Invalid transaction activity [{self.activity_id}] {self.message}"
-
-
 @dataclass(slots=True)
 class TxnActivitySpec(ABC):
     "Defines a transaction activity specification"
@@ -52,20 +38,6 @@ class TxnActivitySpec(ABC):
         """
         :raises InvalidTxnActivity: if the transaction is not valid per the activity
         """
-
-
-@dataclass(slots=True)
-class InvalidAppActivity(Exception):
-    """
-    Indicates the set of transactions as a whole were invalid per the activity
-    """
-
-    activity_id: AppActivityId
-    message: str
-
-    def __str__(self):
-        return f"Invalid application activity [{self.activity_id}] {self.message}"
-
 
 @dataclass(slots=True)
 class AppActivitySpec(ABC):

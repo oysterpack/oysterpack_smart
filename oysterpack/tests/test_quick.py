@@ -61,6 +61,15 @@ class MyTestCase(AlgorandTestCase, OysterPackIsolatedAsyncioTestCase):
         path2 = pickle.loads(path_bytes)
         self.assertEqual(path, path2)
 
+    def test_exception_group(self):
+        err = ExceptionGroup(
+            "BOOM",
+            (Exception("ERR1"),
+            Exception("ERR2"))
+        )
+
+        print(err.exceptions[0])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,9 +2,10 @@
 MultisigService Protocol
 """
 from dataclasses import dataclass
-from typing import Protocol, ClassVar
+from datetime import datetime
+from typing import Protocol
 
-from oysterpack.algorand.client.model import MicroAlgos, Address, AppId
+from oysterpack.algorand.client.model import Address, AppId
 from oysterpack.apps.multisig_wallet_connect.domain.activity import (
     AppActivityId,
     AppActivitySpec,
@@ -13,20 +14,6 @@ from oysterpack.apps.multisig_wallet_connect.domain.activity import (
 from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
     TxnActivityId,
 )
-
-
-@dataclass(slots=True, frozen=True)
-class ServiceFee:
-    """
-    ServiceFee PaymentTxn settings
-    """
-
-    TXN_ACTIVITY_ID: ClassVar[TxnActivityId] = TxnActivityId.from_str(
-        "01GWF2ZYJDDJN85GE2GT36G9Q3"
-    )
-
-    amount: MicroAlgos
-    pay_to: Address
 
 
 @dataclass(slots=True, frozen=True)
@@ -41,17 +28,28 @@ class App:
     # discovered.
     enabled: bool
 
+@dataclass(slots=True, frozen=True)
+class AccountSubscription:
+    """
+    Account Subscription
+    """
+
+    # multisig address
+    account: Address
+
+    # blockchain timestamp - which differs from wall clock time
+    expiration: datetime
+    blockchain_timestamp: datetime
+
+    @property
+    def expired(self) -> bool:
+        return self.expiration < self.blockchain_timestamp
+
 
 class MultisigService(Protocol):
     """
     MultisigService
     """
-
-    async def service_fee(self) -> ServiceFee:
-        """
-        :return: ServiceFee
-        """
-        ...
 
     async def is_app_registered(self, app_id: AppId) -> bool:
         """
@@ -74,8 +72,18 @@ class MultisigService(Protocol):
         """
         ...
 
+    async def get_account_subscription(self, account: Address) -> AccountSubscription | None:
+        """
+        Note
+        ----
+        Even if the account has a subscription, it may have expired.
+
+        :return: None if the account has no subscription.
+        """
+        ...
+
     async def is_app_activity_registered(
-        self, app_id: AppId, app_activity_id: AppActivityId
+            self, app_id: AppId, app_activity_id: AppActivityId
     ) -> bool:
         """
         Returns false if the app activity is not registered.
@@ -83,7 +91,7 @@ class MultisigService(Protocol):
         ...
 
     def get_app_activity_spec(
-        self, app_activity_id: AppActivityId
+            self, app_activity_id: AppActivityId
     ) -> AppActivitySpec | None:
         """
         Looks up the AppActivitySpec for the specified AppActivityId
@@ -91,7 +99,7 @@ class MultisigService(Protocol):
         ...
 
     def get_txn_activity_spec(
-        self, txn_activity_id: TxnActivityId
+            self, txn_activity_id: TxnActivityId
     ) -> TxnActivitySpec | None:
         """
         Looks up the TxnActivitySpec for the specified TxnActivityId

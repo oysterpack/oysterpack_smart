@@ -232,10 +232,7 @@ class SignTransactionsTestCase(AlgorandTestCase):
 
     def test_result_pack_unpack(self):
         logger = self.get_logger("test_result_pack_unpack")
-        result = SignTransactionsSuccess(
-            transaction_ids=[TxnId(str(ULID()))],
-            service_fee_txid=TxnId(str(ULID())),
-        )
+        result = SignTransactionsSuccess([TxnId(str(ULID()))])
         packed = result.pack()
         logger.info(f"message length = {len(packed)}")
         result_2 = SignTransactionsSuccess.unpack(packed)

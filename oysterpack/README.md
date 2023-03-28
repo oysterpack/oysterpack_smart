@@ -46,4 +46,5 @@ Local Secret Storage
 
 Server Hosting
 --------------
+- https://www.runonflux.io/index.html
 - https://ngrok.com/

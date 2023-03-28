@@ -1,7 +1,7 @@
 import unittest
 
 from oysterpack.algorand.client.transactions.note import AppTxnNote
-from oysterpack.apps.auction_app.contracts import auction
+from oysterpack.apps.auction.contracts import auction
 
 
 class AppTxnNoteCase(unittest.TestCase):

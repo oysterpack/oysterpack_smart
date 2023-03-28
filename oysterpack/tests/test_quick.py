@@ -3,13 +3,10 @@ import pickle
 import unittest
 from asyncio import FIRST_EXCEPTION
 from datetime import timedelta
+from pathlib import PurePath
 
 from ulid import ULID
 
-from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
-    ErrCode,
-    SignTransactionsError,
-)
 from tests.algorand.test_support import AlgorandTestCase
 from tests.test_support import OysterPackIsolatedAsyncioTestCase
 
@@ -57,14 +54,12 @@ class MyTestCase(AlgorandTestCase, OysterPackIsolatedAsyncioTestCase):
             task.cancel()
 
     def test_quick(self):
-        err = SignTransactionsError(
-            code=ErrCode.InvalidTxnActivityId,
-            message=f"invalid transaction activity ID: {ULID()}",
-        )
+        path = PurePath("oysterpack", "wallet", str(ULID()))
+        print(path.as_posix())
 
-        err_bytes = pickle.dumps(err.to_failure())
-        failure = pickle.loads(err_bytes)
-        self.assertEqual(err.to_failure(), failure)
+        path_bytes = pickle.dumps(path)
+        path2 = pickle.loads(path_bytes)
+        self.assertEqual(path, path2)
 
 
 if __name__ == "__main__":

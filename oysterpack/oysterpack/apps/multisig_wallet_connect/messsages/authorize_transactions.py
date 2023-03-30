@@ -33,8 +33,6 @@ class AuthorizeTransactionsRequest(Serializable):
     app_id: AppId
 
     # account that is being requested to authorize the transactions
-    # - the signer account must be rekeyed to a multisig account that is registered with the
-    #   OysterPack Multisig Wallet Connect service
     authorizer: SigningAddress
 
     # list of transactions to be signed
@@ -250,9 +248,9 @@ class AuthorizeTransactionsErrCode(StrEnum):
     InvalidAppActivity = auto()
 
     # transaction was rejected
-    RejectedBySigner = auto()
+    Rejected = auto()
     # signer client is not connected
-    SignerNotConnected = auto()
+    AuthorizerNotConnected = auto()
 
     # invalid signature
     InvalidSignature = auto()

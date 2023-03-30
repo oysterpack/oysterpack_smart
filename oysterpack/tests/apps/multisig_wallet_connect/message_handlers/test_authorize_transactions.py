@@ -34,6 +34,7 @@ from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions im
     AuthorizeTransactionsRequestAccepted,
     AuthorizeTransactionsFailure,
     AuthorizeTransactionsErrCode,
+    AuthorizeTransactionsSuccess,
 )
 from oysterpack.apps.multisig_wallet_connect.protocols.multisig_service import (
     MultisigService,
@@ -95,16 +96,20 @@ class MultisigServiceMock(MultisigService):
     app_activity_registered_: bool = True
     app_activity_spec: Callable[[AppActivityId], AppActivitySpec] | None = None
     txn_activity_spec: Callable[[TxnActivityId], TxnActivitySpec] | None = None
+    authorize_transactions_: bool = True
 
     async def app_registered(self, app_id: AppId) -> bool:
+        await asyncio.sleep(0)
         return self.app_registered_
 
     async def account_registered(self, account: Address, app_id: AppId) -> bool:
+        await asyncio.sleep(0)
         return self.account_registered_
 
     async def get_account_subscription(
         self, account: Address
     ) -> AccountSubscription | None:
+        await asyncio.sleep(0)
         if not self.account_has_subscription:
             return None
 
@@ -123,6 +128,7 @@ class MultisigServiceMock(MultisigService):
     async def app_activity_registered(
         self, app_id: AppId, app_activity_id: AppActivityId
     ) -> bool:
+        await asyncio.sleep(0)
         return self.app_activity_registered_
 
     def get_app_activity_spec(
@@ -147,8 +153,11 @@ class MultisigServiceMock(MultisigService):
             activity_id=txn_activity_id, name="name", description="description"
         )
 
-    async def get_signer_authorization(self, request: AuthorizeTransactionsRequest):
-        pass
+    async def authorize_transactions(
+        self, request: AuthorizeTransactionsRequest
+    ) -> bool:
+        await asyncio.sleep(0)
+        return self.authorize_transactions_
 
 
 class SignTransactionsMessageHandlerTestCase(
@@ -210,7 +219,7 @@ class SignTransactionsMessageHandlerTestCase(
                     private_key=self.sender_private_key,
                     executor=self.executor,
                 ).context() as client:
-                    for _ in range(10):
+                    for i in range(1,11):
                         start = time.perf_counter_ns()
                         await client.send(
                             request,
@@ -220,24 +229,23 @@ class SignTransactionsMessageHandlerTestCase(
                         msg = await asyncio.wait_for(client.recv(), 0.1)
                         end = time.perf_counter_ns()
                         logger.info(
-                            "message sent time: %s",
+                            f"message #{i} sent time: %s",
                             timedelta(
                                 microseconds=(sent - start) / 1_000
                             ).total_seconds(),
                         )
                         logger.info(
-                            "message processing time: %s",
+                            f"message #{i} processing time: %s",
                             timedelta(
                                 microseconds=(end - sent) / 1_000
                             ).total_seconds(),
                         )
                         logger.info(
-                            "total message send/recv time: %s",
+                            f"total message #{i} send/recv time: %s",
                             timedelta(
                                 microseconds=(end - start) / 1_000
                             ).total_seconds(),
                         )
-
                         if msg.msg_type == AuthorizeTransactionsFailure.message_type():
                             failure = AuthorizeTransactionsFailure.unpack(msg.data)
                             self.fail(failure)
@@ -247,6 +255,12 @@ class SignTransactionsMessageHandlerTestCase(
                             msg.msg_type,
                         )
                         AuthorizeTransactionsRequestAccepted.unpack(msg.data)
+
+                        msg = await asyncio.wait_for(client.recv(), 0.1)
+                        self.assertEqual(
+                            AuthorizeTransactionsSuccess.message_type(),
+                            msg.msg_type,
+                        )
 
     async def test_failure_scenarios(self):
         # SETUP

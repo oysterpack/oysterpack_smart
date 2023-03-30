@@ -6,7 +6,7 @@ import logging
 from asyncio import Task, TaskGroup
 from typing import Coroutine, Any, TypeVar
 
-from oysterpack.algorand.client.model import AppId, Address
+from oysterpack.algorand.client.model import AppId, Address, TxnId
 from oysterpack.algorand.messaging.secure_message_handler import (
     MessageContext,
     MessageHandler,
@@ -17,6 +17,7 @@ from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions im
     AuthorizeTransactionsErrCode,
     AuthorizeTransactionsRequestAccepted,
     AuthorizeTransactionsError,
+    AuthorizeTransactionsSuccess,
 )
 from oysterpack.apps.multisig_wallet_connect.protocols.multisig_service import (
     MultisigService,
@@ -75,11 +76,19 @@ class AuthorizeTransactionsHandler(MessageHandler):
             request = await self.__unpack_request(ctx)
             await self.__validate_request(request)
             self._create_task(self._request_accepted(ctx), "request_accepted")
-            await self.__get_authorizer_authorization(request)
+            await self.__authorize_transactions(request)
+            txnids = await self.__multisig_service.sign_transactions(request)
+            await self._send_success_message(ctx, txnids)
         except AuthorizeTransactionsError as err:
             self._create_task(
                 self._handle_failure(ctx, err.to_failure()), "handle_failure"
             )
+        except Exception as err:
+            failure = AuthorizeTransactionsFailure(
+                code=AuthorizeTransactionsErrCode.Failure,
+                message=f"server error: {err}",
+            )
+            self._create_task(self._handle_failure(ctx, failure), "handle_failure")
 
     def __task_done(self, task: Task):
         self.__tasks.remove(task)
@@ -105,12 +114,25 @@ class AuthorizeTransactionsHandler(MessageHandler):
         await ctx.websocket.send(msg)
 
     async def _handle_failure(
-        self, ctx: MessageContext, err: AuthorizeTransactionsFailure
+        self,
+        ctx: MessageContext,
+        err: AuthorizeTransactionsFailure,
     ):
         self.__logger.error(err)
         msg = await ctx.pack_secure_message(
             ctx.msg_id,  # correlate back to request message
             err,
+        )
+        await ctx.websocket.send(msg)
+
+    async def _send_success_message(
+        self,
+        ctx: MessageContext,
+        txnids: list[TxnId],
+    ):
+        msg = await ctx.pack_secure_message(
+            ctx.msg_id,  # correlate back to request message
+            AuthorizeTransactionsSuccess(txnids),
         )
         await ctx.websocket.send(msg)
 
@@ -239,7 +261,11 @@ class AuthorizeTransactionsHandler(MessageHandler):
 
         return request
 
-    async def __get_authorizer_authorization(
-        self, request: AuthorizeTransactionsRequest
-    ):
-        pass
+    async def __authorize_transactions(self, request: AuthorizeTransactionsRequest):
+        approved = await self.__multisig_service.authorize_transactions(request)
+
+        if not approved:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.Rejected,
+                message="authorizer rejected the transactions",
+            )

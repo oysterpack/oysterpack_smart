@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
-from oysterpack.algorand.client.model import Address, AppId
+from oysterpack.algorand.client.model import Address, AppId, TxnId
 from oysterpack.apps.multisig_wallet_connect.domain.activity import (
     AppActivityId,
     AppActivitySpec,
@@ -125,8 +125,22 @@ class MultisigService(Protocol):
         """
         ...
 
-    async def get_signer_authorization(self, request: AuthorizeTransactionsRequest):
+    async def authorize_transactions(
+        self, request: AuthorizeTransactionsRequest
+    ) -> bool:
         """
-        Transactions are sent to user to request approval to sign.
+        Transactions are sent to the user for authorization, i.e., either approve or reject
+
+        :return: True is the transactions are approved. False indicates the transactions are rejected.
+        """
+        ...
+
+    async def sign_transactions(
+        self, request: AuthorizeTransactionsRequest
+    ) -> list[TxnId]:
+        """
+        Signs the transactions and submits them to Algorand.
+
+        :return: list of Algorand transaction IDs that can be used to track transaction status
         """
         ...

@@ -26,12 +26,14 @@ from oysterpack.apps.multisig_wallet_connect.domain.activity import (
     AppActivitySpec,
     TxnActivitySpec,
 )
-from oysterpack.apps.multisig_wallet_connect.message_handlers.sign_transactions import (
-    SignTransactionsHandler,
+from oysterpack.apps.multisig_wallet_connect.message_handlers.authorize_transactions import (
+    AuthorizeTransactionsHandler,
 )
-from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
-    SignTransactionsRequest,
-    SignTransactionsRequestAccepted, SignTransactionsFailure, ErrCode,
+from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions import (
+    AuthorizeTransactionsRequest,
+    AuthorizeTransactionsRequestAccepted,
+    AuthorizeTransactionsFailure,
+    AuthorizeTransactionsErrCode,
 )
 from oysterpack.apps.multisig_wallet_connect.protocols.multisig_service import (
     MultisigService,
@@ -45,11 +47,11 @@ from tests.test_support import OysterPackIsolatedAsyncioTestCase
 
 class AppActivitySpecMock(AppActivitySpec):
     def __init__(
-            self,
-            activity_id: AppActivityId,
-            name: str,
-            description: str,
-            validation_exception: Exception | None = None,
+        self,
+        activity_id: AppActivityId,
+        name: str,
+        description: str,
+        validation_exception: Exception | None = None,
     ):
         super().__init__(
             activity_id=activity_id,
@@ -65,11 +67,11 @@ class AppActivitySpecMock(AppActivitySpec):
 
 class TxnActivitySpecMock(TxnActivitySpec):
     def __init__(
-            self,
-            activity_id: TxnActivityId,
-            name: str,
-            description: str,
-            validation_exception: Exception | None = None,
+        self,
+        activity_id: TxnActivityId,
+        name: str,
+        description: str,
+        validation_exception: Exception | None = None,
     ):
         super().__init__(
             activity_id=activity_id,
@@ -88,19 +90,21 @@ class MultisigServiceMock(MultisigService):
     account_has_subscription: bool = True
     account_subscription_expired: bool = False
 
-    app_registered: bool = True
-    account_registered: bool = True
-    app_activity_registered: bool = True
+    app_registered_: bool = True
+    account_registered_: bool = True
+    app_activity_registered_: bool = True
     app_activity_spec: Callable[[AppActivityId], AppActivitySpec] | None = None
     txn_activity_spec: Callable[[TxnActivityId], TxnActivitySpec] | None = None
 
-    async def is_app_registered(self, app_id: AppId) -> bool:
-        return self.app_registered
+    async def app_registered(self, app_id: AppId) -> bool:
+        return self.app_registered_
 
-    async def is_account_registered(self, account: Address, app_id: AppId) -> bool:
-        return self.account_registered
+    async def account_registered(self, account: Address, app_id: AppId) -> bool:
+        return self.account_registered_
 
-    async def get_account_subscription(self, account: Address) -> AccountSubscription | None:
+    async def get_account_subscription(
+        self, account: Address
+    ) -> AccountSubscription | None:
         if not self.account_has_subscription:
             return None
 
@@ -108,21 +112,21 @@ class MultisigServiceMock(MultisigService):
             return AccountSubscription(
                 account=account,
                 expiration=datetime.now(UTC) - timedelta(days=1),
-                blockchain_timestamp=datetime.now(UTC)
+                blockchain_timestamp=datetime.now(UTC),
             )
         return AccountSubscription(
             account=account,
             expiration=datetime.now(UTC) + timedelta(days=7),
-            blockchain_timestamp=datetime.now(UTC)
+            blockchain_timestamp=datetime.now(UTC),
         )
 
-    async def is_app_activity_registered(
-            self, app_id: AppId, app_activity_id: AppActivityId
+    async def app_activity_registered(
+        self, app_id: AppId, app_activity_id: AppActivityId
     ) -> bool:
-        return self.app_activity_registered
+        return self.app_activity_registered_
 
     def get_app_activity_spec(
-            self, app_activity_id: AppActivityId
+        self, app_activity_id: AppActivityId
     ) -> AppActivitySpec | None:
         if self.app_activity_spec:
             return self.app_activity_spec(app_activity_id)
@@ -134,7 +138,7 @@ class MultisigServiceMock(MultisigService):
         )
 
     def get_txn_activity_spec(
-            self, txn_activity_id: TxnActivityId
+        self, txn_activity_id: TxnActivityId
     ) -> TxnActivitySpec | None:
         if self.txn_activity_spec:
             return self.txn_activity_spec(txn_activity_id)
@@ -142,6 +146,9 @@ class MultisigServiceMock(MultisigService):
         return TxnActivitySpecMock(
             activity_id=txn_activity_id, name="name", description="description"
         )
+
+    async def get_signer_authorization(self, request: AuthorizeTransactionsRequest):
+        pass
 
 
 class SignTransactionsMessageHandlerTestCase(
@@ -168,7 +175,7 @@ class SignTransactionsMessageHandlerTestCase(
         secure_message_handler = SecureMessageHandler(
             private_key=self.recipient_private_key,
             message_handlers=[
-                SignTransactionsHandler(
+                AuthorizeTransactionsHandler(
                     multisig_service=MultisigServiceMock(),
                 )
             ],
@@ -181,9 +188,9 @@ class SignTransactionsMessageHandlerTestCase(
             amount=MicroAlgos(1 * algo),
             suggested_params=self.algod_client.suggested_params(),
         )
-        request = SignTransactionsRequest(
+        request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
-            signer=self.sender_private_key.signing_address,
+            authorizer=self.sender_private_key.signing_address,
             transactions=[(txn, TxnActivityId())],
             app_activity_id=AppActivityId(),
         )
@@ -195,13 +202,13 @@ class SignTransactionsMessageHandlerTestCase(
 
         async with server.start_server() as server:
             async with connect(
-                    f"wss://localhost:{server.port}",
-                    ssl=client_ssl_context(),
+                f"wss://localhost:{server.port}",
+                ssl=client_ssl_context(),
             ) as websocket:
                 async with SecureMessageClient(
-                        websocket=websocket,
-                        private_key=self.sender_private_key,
-                        executor=self.executor,
+                    websocket=websocket,
+                    private_key=self.sender_private_key,
+                    executor=self.executor,
                 ).context() as client:
                     for _ in range(10):
                         start = time.perf_counter_ns()
@@ -231,14 +238,15 @@ class SignTransactionsMessageHandlerTestCase(
                             ).total_seconds(),
                         )
 
-                        if msg.msg_type == SignTransactionsFailure.message_type():
-                            failure = SignTransactionsFailure.unpack(msg.data)
+                        if msg.msg_type == AuthorizeTransactionsFailure.message_type():
+                            failure = AuthorizeTransactionsFailure.unpack(msg.data)
                             self.fail(failure)
 
                         self.assertEqual(
-                            SignTransactionsRequestAccepted.message_type(), msg.msg_type
+                            AuthorizeTransactionsRequestAccepted.message_type(),
+                            msg.msg_type,
                         )
-                        SignTransactionsRequestAccepted.unpack(msg.data)
+                        AuthorizeTransactionsRequestAccepted.unpack(msg.data)
 
     async def test_failure_scenarios(self):
         # SETUP
@@ -248,21 +256,22 @@ class SignTransactionsMessageHandlerTestCase(
             amount=MicroAlgos(1 * algo),
             suggested_params=self.algod_client.suggested_params(),
         )
-        request = SignTransactionsRequest(
+        request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
-            signer=self.sender_private_key.signing_address,
+            authorizer=self.sender_private_key.signing_address,
             transactions=[(txn, TxnActivityId())],
             app_activity_id=AppActivityId(),
         )
 
         async def run_test(
-                name: str,
-                multisig_service: MultisigService,
-                expected_err_code: ErrCode):
+            name: str,
+            multisig_service: MultisigService,
+            expected_err_code: AuthorizeTransactionsErrCode,
+        ):
             secure_message_handler = SecureMessageHandler(
                 private_key=self.recipient_private_key,
                 message_handlers=[
-                    SignTransactionsHandler(multisig_service=multisig_service)
+                    AuthorizeTransactionsHandler(multisig_service=multisig_service)
                 ],
                 executor=self.executor,
             )
@@ -273,13 +282,13 @@ class SignTransactionsMessageHandlerTestCase(
 
             async with server.start_server() as server:
                 async with connect(
-                        f"wss://localhost:{server.port}",
-                        ssl=client_ssl_context(),
+                    f"wss://localhost:{server.port}",
+                    ssl=client_ssl_context(),
                 ) as websocket:
                     async with SecureMessageClient(
-                            websocket=websocket,
-                            private_key=self.sender_private_key,
-                            executor=self.executor,
+                        websocket=websocket,
+                        private_key=self.sender_private_key,
+                        executor=self.executor,
                     ).context() as client:
                         with self.subTest(name):
                             for _ in range(2):
@@ -289,8 +298,11 @@ class SignTransactionsMessageHandlerTestCase(
                                 )
                                 msg = await asyncio.wait_for(client.recv(), 0.1)
 
-                                self.assertEqual(SignTransactionsFailure.message_type(), msg.msg_type)
-                                failure = SignTransactionsFailure.unpack(msg.data)
+                                self.assertEqual(
+                                    AuthorizeTransactionsFailure.message_type(),
+                                    msg.msg_type,
+                                )
+                                failure = AuthorizeTransactionsFailure.unpack(msg.data)
                                 self.assertEqual(expected_err_code, failure.code)
 
                                 await asyncio.sleep(0)
@@ -300,7 +312,7 @@ class SignTransactionsMessageHandlerTestCase(
             multisig_service=MultisigServiceMock(
                 account_has_subscription=False,
             ),
-            expected_err_code=ErrCode.SignerNotSubscribed,
+            expected_err_code=AuthorizeTransactionsErrCode.UnknownAuthorizer,
         )
 
         await run_test(
@@ -308,21 +320,21 @@ class SignTransactionsMessageHandlerTestCase(
             multisig_service=MultisigServiceMock(
                 account_subscription_expired=True,
             ),
-            expected_err_code=ErrCode.SignerSubscriptionExpired,
+            expected_err_code=AuthorizeTransactionsErrCode.AuthorizerSubscriptionExpired,
         )
         await run_test(
             name="account has no subscription",
             multisig_service=MultisigServiceMock(
                 account_has_subscription=False,
             ),
-            expected_err_code=ErrCode.SignerNotSubscribed,
+            expected_err_code=AuthorizeTransactionsErrCode.UnknownAuthorizer,
         )
         await run_test(
             name="app activity not registered",
             multisig_service=MultisigServiceMock(
-                app_activity_registered=False,
+                app_activity_registered_=False,
             ),
-            expected_err_code=ErrCode.AppActivityNotRegistered,
+            expected_err_code=AuthorizeTransactionsErrCode.AppActivityNotRegistered,
         )
         await run_test(
             name="app activity validation failed",
@@ -331,10 +343,10 @@ class SignTransactionsMessageHandlerTestCase(
                     activity_id=app_activity_id,
                     name="name",
                     description="description",
-                    validation_exception=Exception("app activity validation failed")
+                    validation_exception=Exception("app activity validation failed"),
                 ),
             ),
-            expected_err_code=ErrCode.InvalidAppActivity,
+            expected_err_code=AuthorizeTransactionsErrCode.InvalidAppActivity,
         )
 
 

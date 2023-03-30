@@ -11,8 +11,9 @@ from oysterpack.apps.multisig_wallet_connect.domain.activity import (
     AppActivitySpec,
     TxnActivitySpec,
 )
-from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
+from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions import (
     TxnActivityId,
+    AuthorizeTransactionsRequest,
 )
 
 
@@ -28,13 +29,13 @@ class App:
     # discovered.
     enabled: bool
 
+
 @dataclass(slots=True, frozen=True)
 class AccountSubscription:
     """
     Account Subscription
     """
 
-    # multisig address
     account: Address
 
     # blockchain timestamp - which differs from wall clock time
@@ -46,19 +47,31 @@ class AccountSubscription:
         return self.expiration < self.blockchain_timestamp
 
 
+class MultisigServiceError(Exception):
+    """
+    MultisigService base exception
+    """
+
+
+class AuthorizerOffline(MultisigServiceError):
+    """
+    Authorizer is currently offline
+    """
+
+
 class MultisigService(Protocol):
     """
     MultisigService
     """
 
-    async def is_app_registered(self, app_id: AppId) -> bool:
+    async def app_registered(self, app_id: AppId) -> bool:
         """
         :param app_id: AppId
         :return: True if the app is registered with the service
         """
         ...
 
-    async def is_account_registered(self, account: Address, app_id: AppId) -> bool:
+    async def account_registered(self, account: Address, app_id: AppId) -> bool:
         """
         In order for an account to receive transactions through the multisig service, the account must be opted into
         the multisig service and the app.
@@ -72,7 +85,9 @@ class MultisigService(Protocol):
         """
         ...
 
-    async def get_account_subscription(self, account: Address) -> AccountSubscription | None:
+    async def get_account_subscription(
+        self, account: Address
+    ) -> AccountSubscription | None:
         """
         Note
         ----
@@ -82,8 +97,10 @@ class MultisigService(Protocol):
         """
         ...
 
-    async def is_app_activity_registered(
-            self, app_id: AppId, app_activity_id: AppActivityId
+    async def app_activity_registered(
+        self,
+        app_id: AppId,
+        app_activity_id: AppActivityId,
     ) -> bool:
         """
         Returns false if the app activity is not registered.
@@ -91,7 +108,8 @@ class MultisigService(Protocol):
         ...
 
     def get_app_activity_spec(
-            self, app_activity_id: AppActivityId
+        self,
+        app_activity_id: AppActivityId,
     ) -> AppActivitySpec | None:
         """
         Looks up the AppActivitySpec for the specified AppActivityId
@@ -99,9 +117,16 @@ class MultisigService(Protocol):
         ...
 
     def get_txn_activity_spec(
-            self, txn_activity_id: TxnActivityId
+        self,
+        txn_activity_id: TxnActivityId,
     ) -> TxnActivitySpec | None:
         """
         Looks up the TxnActivitySpec for the specified TxnActivityId
+        """
+        ...
+
+    async def get_signer_authorization(self, request: AuthorizeTransactionsRequest):
+        """
+        Transactions are sent to user to request approval to sign.
         """
         ...

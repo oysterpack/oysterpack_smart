@@ -25,6 +25,7 @@ class AppActivityId(HashableULID):
     Application activity applies to a set of transactions.
     """
 
+
 @dataclass(slots=True)
 class TxnActivitySpec(ABC):
     "Defines a transaction activity specification"
@@ -38,6 +39,7 @@ class TxnActivitySpec(ABC):
         """
         :raises InvalidTxnActivity: if the transaction is not valid per the activity
         """
+
 
 @dataclass(slots=True)
 class AppActivitySpec(ABC):

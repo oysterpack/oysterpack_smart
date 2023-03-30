@@ -2,30 +2,27 @@ import unittest
 
 import msgpack  # type: ignore
 from algosdk import transaction
-from algosdk.transaction import Multisig, MultisigTransaction
 from beaker.consts import algo
 from ulid import ULID
 
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import AppId, MicroAlgos, TxnId
 from oysterpack.algorand.client.transactions.payment import transfer_algo
-from oysterpack.algorand.client.transactions.smart_contract import base64_encode
 from oysterpack.apps.multisig_wallet_connect.domain.activity import (
     TxnActivityId,
     AppActivityId,
 )
-from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
-    SignTransactionsRequest,
-    SignTransactionsSuccess,
-    SignTransactionsError,
-    ErrCode,
-    SignMultisigTransactionsMessage,
-    SignTransactionsFailure,
+from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions import (
+    AuthorizeTransactionsRequest,
+    AuthorizeTransactionsSuccess,
+    AuthorizeTransactionsError,
+    AuthorizeTransactionsErrCode,
+    AuthorizeTransactionsFailure,
 )
 from tests.algorand.test_support import AlgorandTestCase
 
 
-class SignTransactionsTestCase(AlgorandTestCase):
+class AuthorizeTransactionsTestCase(AlgorandTestCase):
     def test_request_pack_unpack(self):
         logger = self.get_logger("test_request_pack_unpack")
         sender = AlgoPrivateKey()
@@ -39,15 +36,15 @@ class SignTransactionsTestCase(AlgorandTestCase):
                 suggested_params=self.algod_client.suggested_params(),
             )
 
-            request = SignTransactionsRequest(
+            request = AuthorizeTransactionsRequest(
                 app_id=AppId(100),
-                signer=sender.signing_address,
+                authorizer=sender.signing_address,
                 transactions=[(txn1, TxnActivityId())],
                 app_activity_id=AppActivityId(),
             )
             packed = request.pack()
             logger.info(f"message length = {len(packed)}")
-            request_2 = SignTransactionsRequest.unpack(packed)
+            request_2 = AuthorizeTransactionsRequest.unpack(packed)
             self.assertEqual(request, request_2)
 
         with self.subTest("multiple transactions"):
@@ -58,14 +55,16 @@ class SignTransactionsTestCase(AlgorandTestCase):
                 suggested_params=self.algod_client.suggested_params(),
             )
             with self.subTest("txns are not assigned group ids"):
-                with self.assertRaises(SignTransactionsError) as err:
-                    SignTransactionsRequest(
+                with self.assertRaises(AuthorizeTransactionsError) as err:
+                    AuthorizeTransactionsRequest(
                         app_id=AppId(100),
-                        signer=sender.signing_address,
+                        authorizer=sender.signing_address,
                         transactions=[(txn1, TxnActivityId()), (txn2, TxnActivityId())],
                         app_activity_id=AppActivityId(),
                     )
-                self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
+                self.assertEqual(
+                    AuthorizeTransactionsErrCode.InvalidMessage, err.exception.code
+                )
 
             with self.subTest("there is more than 1 group ID"):
                 txn3 = transfer_algo(
@@ -82,10 +81,10 @@ class SignTransactionsTestCase(AlgorandTestCase):
                 )
                 transaction.assign_group_id([txn1, txn2])
                 transaction.assign_group_id([txn3, txn4])
-                with self.assertRaises(SignTransactionsError) as err:
-                    SignTransactionsRequest(
+                with self.assertRaises(AuthorizeTransactionsError) as err:
+                    AuthorizeTransactionsRequest(
                         app_id=AppId(100),
-                        signer=sender.signing_address,
+                        authorizer=sender.signing_address,
                         transactions=[
                             (txn1, TxnActivityId()),
                             (txn2, TxnActivityId()),
@@ -94,7 +93,9 @@ class SignTransactionsTestCase(AlgorandTestCase):
                         ],
                         app_activity_id=AppActivityId(),
                     )
-                self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
+                self.assertEqual(
+                    AuthorizeTransactionsErrCode.InvalidMessage, err.exception.code
+                )
 
             with self.subTest("there is more than 1 group ID"):
                 txn3 = transfer_algo(
@@ -111,10 +112,10 @@ class SignTransactionsTestCase(AlgorandTestCase):
                 )
                 transaction.assign_group_id([txn1, txn2])
                 transaction.assign_group_id([txn3, txn4])
-                with self.assertRaises(SignTransactionsError) as err:
-                    SignTransactionsRequest(
+                with self.assertRaises(AuthorizeTransactionsError) as err:
+                    AuthorizeTransactionsRequest(
                         app_id=AppId(100),
-                        signer=sender.signing_address,
+                        authorizer=sender.signing_address,
                         transactions=[
                             (txn1, TxnActivityId()),
                             (txn2, TxnActivityId()),
@@ -123,7 +124,9 @@ class SignTransactionsTestCase(AlgorandTestCase):
                         ],
                         app_activity_id=AppActivityId(),
                     )
-                self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
+                self.assertEqual(
+                    AuthorizeTransactionsErrCode.InvalidMessage, err.exception.code
+                )
 
         with self.subTest("multiple transactions"):
             txns = [
@@ -139,9 +142,9 @@ class SignTransactionsTestCase(AlgorandTestCase):
                 for _ in range(3)
             ]
             transaction.assign_group_id([txn for txn, _ in txns])
-            SignTransactionsRequest(
+            AuthorizeTransactionsRequest(
                 app_id=AppId(100),
-                signer=sender.signing_address,
+                authorizer=sender.signing_address,
                 transactions=txns,
                 app_activity_id=AppActivityId(),
             )
@@ -157,9 +160,9 @@ class SignTransactionsTestCase(AlgorandTestCase):
             suggested_params=self.algod_client.suggested_params(),
         )
 
-        request = SignTransactionsRequest(
+        request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
-            signer=sender.signing_address,
+            authorizer=sender.signing_address,
             transactions=[(txn, TxnActivityId())],
             app_activity_id=AppActivityId(),
         )
@@ -169,8 +172,8 @@ class SignTransactionsTestCase(AlgorandTestCase):
             txns,
             app_activity_id,
         ) = msgpack.unpackb(request.pack())
-        with self.assertRaises(SignTransactionsError) as err:
-            SignTransactionsRequest.unpack(
+        with self.assertRaises(AuthorizeTransactionsError) as err:
+            AuthorizeTransactionsRequest.unpack(
                 msgpack.packb(
                     (
                         None,
@@ -180,9 +183,11 @@ class SignTransactionsTestCase(AlgorandTestCase):
                     )
                 )
             )
-        self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
-        with self.assertRaises(SignTransactionsError) as err:
-            SignTransactionsRequest.unpack(
+        self.assertEqual(
+            AuthorizeTransactionsErrCode.InvalidMessage, err.exception.code
+        )
+        with self.assertRaises(AuthorizeTransactionsError) as err:
+            AuthorizeTransactionsRequest.unpack(
                 msgpack.packb(
                     (
                         app_id,
@@ -192,9 +197,11 @@ class SignTransactionsTestCase(AlgorandTestCase):
                     )
                 )
             )
-        self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
-        with self.assertRaises(SignTransactionsError) as err:
-            SignTransactionsRequest.unpack(
+        self.assertEqual(
+            AuthorizeTransactionsErrCode.InvalidMessage, err.exception.code
+        )
+        with self.assertRaises(AuthorizeTransactionsError) as err:
+            AuthorizeTransactionsRequest.unpack(
                 msgpack.packb(
                     (
                         app_id,
@@ -204,9 +211,11 @@ class SignTransactionsTestCase(AlgorandTestCase):
                     )
                 )
             )
-        self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
-        with self.assertRaises(SignTransactionsError) as err:
-            SignTransactionsRequest.unpack(
+        self.assertEqual(
+            AuthorizeTransactionsErrCode.InvalidMessage, err.exception.code
+        )
+        with self.assertRaises(AuthorizeTransactionsError) as err:
+            AuthorizeTransactionsRequest.unpack(
                 msgpack.packb(
                     (
                         app_id,
@@ -216,9 +225,11 @@ class SignTransactionsTestCase(AlgorandTestCase):
                     )
                 )
             )
-        self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
-        with self.assertRaises(SignTransactionsError) as err:
-            SignTransactionsRequest.unpack(
+        self.assertEqual(
+            AuthorizeTransactionsErrCode.InvalidMessage, err.exception.code
+        )
+        with self.assertRaises(AuthorizeTransactionsError) as err:
+            AuthorizeTransactionsRequest.unpack(
                 msgpack.packb(
                     (
                         app_id,
@@ -228,102 +239,29 @@ class SignTransactionsTestCase(AlgorandTestCase):
                     )
                 )
             )
-        self.assertEqual(ErrCode.InvalidMessage, err.exception.code)
+        self.assertEqual(
+            AuthorizeTransactionsErrCode.InvalidMessage, err.exception.code
+        )
 
     def test_result_pack_unpack(self):
         logger = self.get_logger("test_result_pack_unpack")
-        result = SignTransactionsSuccess([TxnId(str(ULID()))])
+        result = AuthorizeTransactionsSuccess([TxnId(str(ULID()))])
         packed = result.pack()
         logger.info(f"message length = {len(packed)}")
-        result_2 = SignTransactionsSuccess.unpack(packed)
+        result_2 = AuthorizeTransactionsSuccess.unpack(packed)
         self.assertEqual(result, result_2)
 
     def test_error_pack_unpack(self):
         logger = self.get_logger("test_error_pack_unpack")
-        err = SignTransactionsFailure(
-            code=ErrCode.AppNotRegistered,
+        err = AuthorizeTransactionsFailure(
+            code=AuthorizeTransactionsErrCode.AppNotRegistered,
             message="app is not registered",
         )
 
         packed = err.pack()
         logger.info(f"message length = {len(packed)}")
-        err_2 = SignTransactionsFailure.unpack(packed)
+        err_2 = AuthorizeTransactionsFailure.unpack(packed)
         self.assertEqual(err, err_2)
-
-    def test_multisig_msg_pack_unpack(self):
-        logger = self.get_logger("test_request_pack_unpack")
-        sender = AlgoPrivateKey()
-        receiver = AlgoPrivateKey()
-
-        txn = transfer_algo(
-            sender=sender.signing_address,
-            receiver=receiver.signing_address,
-            amount=MicroAlgos(1 * algo),
-            suggested_params=self.algod_client.suggested_params(),
-        )
-
-        primary_signer = AlgoPrivateKey()
-        secondary_signer = AlgoPrivateKey()
-
-        multisig = Multisig(
-            version=1,
-            threshold=2,
-            addresses=[
-                primary_signer.signing_address,
-                secondary_signer.signing_address,
-            ],
-        )
-
-        multisig_txn = MultisigTransaction(transaction=txn, multisig=multisig)
-
-        request = SignMultisigTransactionsMessage(
-            app_id=AppId(100),
-            signer=sender.signing_address,
-            multisig_signer=primary_signer.signing_address,
-            transactions=[(multisig_txn, TxnActivityId())],
-            app_activity_id=AppActivityId(),
-        )
-        packed = request.pack()
-        logger.info(f"message length = {len(packed)}")
-        request_2 = SignMultisigTransactionsMessage.unpack(packed)
-        self.assertEqual(request, request_2)
-
-        with self.subTest("with 1 signature"):
-            multisig_txn.sign(
-                base64_encode(primary_signer.signing_key._signing_key).decode()
-            )
-
-            request = SignMultisigTransactionsMessage(
-                app_id=AppId(100),
-                signer=sender.signing_address,
-                multisig_signer=primary_signer.signing_address,
-                transactions=[(multisig_txn, TxnActivityId())],
-                app_activity_id=AppActivityId(),
-            )
-            self.assertFalse(request.verify_signatures())
-            packed = request.pack()
-            logger.info(f"message length = {len(packed)}")
-            request_2 = SignMultisigTransactionsMessage.unpack(packed)
-            self.assertEqual(request, request_2)
-
-        with self.subTest("with 2 signature2"):
-            multisig_txn.sign(
-                base64_encode(secondary_signer.signing_key._signing_key).decode()
-            )
-
-            request = SignMultisigTransactionsMessage(
-                app_id=AppId(100),
-                signer=sender.signing_address,
-                multisig_signer=primary_signer.signing_address,
-                transactions=[(multisig_txn, TxnActivityId())],
-                app_activity_id=AppActivityId(),
-            )
-            self.assertTrue(request.verify_signatures())
-
-            packed = request.pack()
-            logger.info(f"message length = {len(packed)}")
-            request_2 = SignMultisigTransactionsMessage.unpack(packed)
-            self.assertEqual(request, request_2)
 
 
 if __name__ == "__main__":

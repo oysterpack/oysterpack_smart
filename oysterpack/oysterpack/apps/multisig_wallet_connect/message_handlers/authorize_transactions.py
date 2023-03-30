@@ -11,12 +11,12 @@ from oysterpack.algorand.messaging.secure_message_handler import (
     MessageContext,
     MessageHandler,
 )
-from oysterpack.apps.multisig_wallet_connect.messsages.sign_transactions import (
-    SignTransactionsRequest,
-    SignTransactionsFailure,
-    ErrCode,
-    SignTransactionsRequestAccepted,
-    SignTransactionsError,
+from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions import (
+    AuthorizeTransactionsRequest,
+    AuthorizeTransactionsFailure,
+    AuthorizeTransactionsErrCode,
+    AuthorizeTransactionsRequestAccepted,
+    AuthorizeTransactionsError,
 )
 from oysterpack.apps.multisig_wallet_connect.protocols.multisig_service import (
     MultisigService,
@@ -26,7 +26,7 @@ from oysterpack.core.message import MessageType
 _T = TypeVar("_T")
 
 
-class SignTransactionsHandler(MessageHandler):
+class AuthorizeTransactionsHandler(MessageHandler):
     """
     Routes transactions from apps to user accounts for signing.
 
@@ -35,27 +35,22 @@ class SignTransactionsHandler(MessageHandler):
     SignedEncryptedMessage
         EncryptedMessage
             Message
-                SignTransactionsRequest
+                AuthorizeTransactionsRequest
 
     SignedEncryptedMessage
         EncryptedMessage
             Message
-                SignTransactionsRequestAccepted
+                AuthorizeTransactionsRequestAccepted
 
     SignedEncryptedMessage
         EncryptedMessage
             Message
-                SignTransactionsSuccess
+                AuthorizeTransactionsSuccess
 
     SignedEncryptedMessage
         EncryptedMessage
             Message
-                SignTransactionsFailure
-
-    SignedEncryptedMessage
-        EncryptedMessage
-            Message
-                SignMultisigTransactionsMessage
+                AuthorizeTransactionsFailure
 
 
     Notes
@@ -64,8 +59,8 @@ class SignTransactionsHandler(MessageHandler):
     """
 
     def __init__(
-            self,
-            multisig_service: MultisigService,
+        self,
+        multisig_service: MultisigService,
     ):
         self.__multisig_service = multisig_service
 
@@ -73,15 +68,15 @@ class SignTransactionsHandler(MessageHandler):
         self.__logger = logging.getLogger(__name__)
 
     def supported_msg_types(self) -> set[MessageType]:
-        return {SignTransactionsRequest.message_type()}
+        return {AuthorizeTransactionsRequest.message_type()}
 
     async def __call__(self, ctx: MessageContext):
         try:
             request = await self.__unpack_request(ctx)
             await self.__validate_request(request)
             self._create_task(self._request_accepted(ctx), "request_accepted")
-            await self.__get_signer_authorization(request)
-        except SignTransactionsError as err:
+            await self.__get_authorizer_authorization(request)
+        except AuthorizeTransactionsError as err:
             self._create_task(
                 self._handle_failure(ctx, err.to_failure()), "handle_failure"
             )
@@ -105,11 +100,13 @@ class SignTransactionsHandler(MessageHandler):
         """
         msg = await ctx.pack_secure_message(
             ctx.msg_id,  # correlate back to request message
-            SignTransactionsRequestAccepted(),
+            AuthorizeTransactionsRequestAccepted(),
         )
         await ctx.websocket.send(msg)
 
-    async def _handle_failure(self, ctx: MessageContext, err: SignTransactionsFailure):
+    async def _handle_failure(
+        self, ctx: MessageContext, err: AuthorizeTransactionsFailure
+    ):
         self.__logger.error(err)
         msg = await ctx.pack_secure_message(
             ctx.msg_id,  # correlate back to request message
@@ -117,73 +114,77 @@ class SignTransactionsHandler(MessageHandler):
         )
         await ctx.websocket.send(msg)
 
-    async def __unpack_request(self, ctx: MessageContext) -> SignTransactionsRequest:
+    async def __unpack_request(
+        self, ctx: MessageContext
+    ) -> AuthorizeTransactionsRequest:
         # check message type
-        if ctx.msg_type != SignTransactionsRequest.message_type():
-            raise SignTransactionsError(
-                code=ErrCode.InvalidMessage,
+        if ctx.msg_type != AuthorizeTransactionsRequest.message_type():
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.InvalidMessage,
                 message=f"invalid message type: {ctx.msg_type}",
             )
 
         return await asyncio.get_event_loop().run_in_executor(
-            ctx.executor, SignTransactionsRequest.unpack, ctx.msg_data
+            ctx.executor, AuthorizeTransactionsRequest.unpack, ctx.msg_data
         )
 
     async def __validate_request(
-            self, request: SignTransactionsRequest
-    ) -> SignTransactionsRequest:
+        self, request: AuthorizeTransactionsRequest
+    ) -> AuthorizeTransactionsRequest:
         async def check_app_registration(app_id: AppId):
             """
-            Check that the app is registered with the service
+            Check that the app is registered with the service, i.e., opted in the service
             """
-            if not await self.__multisig_service.is_app_registered(app_id):
-                raise SignTransactionsError(
-                    code=ErrCode.AppNotRegistered,
+            if not await self.__multisig_service.app_registered(app_id):
+                raise AuthorizeTransactionsError(
+                    code=AuthorizeTransactionsErrCode.AppNotRegistered,
                     message="app is not registered",
                 )
 
-        async def check_signer_registration(account: Address, app_id: AppId):
+        async def check_authorizer_registration(account: Address, app_id: AppId):
             """ "
-            Check that the signer is opted into the multisig service and the app
+            Check that the authorizer is opted into the app
             """
-            if not await self.__multisig_service.is_account_registered(
-                    account=account,
-                    app_id=app_id,
+            if not await self.__multisig_service.account_registered(
+                account=account,
+                app_id=app_id,
             ):
-                raise SignTransactionsError(
-                    code=ErrCode.SignerNotRegistered,
-                    message="signer is not registered",
+                raise AuthorizeTransactionsError(
+                    code=AuthorizeTransactionsErrCode.AuthorizerNotRegistered,
+                    message="authorizer is not registered",
                 )
 
-        async def check_signer_subscription(account: Address):
-            subscription = await self.__multisig_service.get_account_subscription(account)
+        async def check_authorizer_subscription(account: Address):
+            subscription = await self.__multisig_service.get_account_subscription(
+                account
+            )
             if subscription is None:
-                raise SignTransactionsError(
-                    code=ErrCode.SignerNotSubscribed,
-                    message="signer has no subscription",
+                raise AuthorizeTransactionsError(
+                    code=AuthorizeTransactionsErrCode.UnknownAuthorizer,
+                    message="unknown authorizer",
                 )
 
             if subscription.expired:
-                raise SignTransactionsError(
-                    code=ErrCode.SignerSubscriptionExpired,
-                    message="signer subscription is expired",
+                raise AuthorizeTransactionsError(
+                    code=AuthorizeTransactionsErrCode.AuthorizerSubscriptionExpired,
+                    message="authorizer subscription is expired",
                 )
 
-        async def check_activity(request: SignTransactionsRequest) -> None:
+        async def check_activity(request: AuthorizeTransactionsRequest) -> None:
             app_activity_spec = self.__multisig_service.get_app_activity_spec(
                 request.app_activity_id
             )
             if app_activity_spec is None:
-                raise SignTransactionsError(
-                    code=ErrCode.InvalidAppActivityId,
+                raise AuthorizeTransactionsError(
+                    code=AuthorizeTransactionsErrCode.InvalidAppActivityId,
                     message="invalid app activity ID",
                 )
-            if not await self.__multisig_service.is_app_activity_registered(
-                    app_id=request.app_id,
-                    app_activity_id=request.app_activity_id,
+            if not await self.__multisig_service.app_activity_registered(
+                app_id=request.app_id,
+                app_activity_id=request.app_activity_id,
             ):
-                raise SignTransactionsError(
-                    code=ErrCode.AppActivityNotRegistered,
+                raise AuthorizeTransactionsError(
+                    code=AuthorizeTransactionsErrCode.AppActivityNotRegistered,
                     message="activity is not registered for the app",
                 )
 
@@ -191,42 +192,45 @@ class SignTransactionsHandler(MessageHandler):
                 # validate individual transactions
                 async with TaskGroup() as tg:
                     for (txn, activity_id) in request.transactions:
-                        txn_activity_spec = self.__multisig_service.get_txn_activity_spec(
-                            activity_id
+                        txn_activity_spec = (
+                            self.__multisig_service.get_txn_activity_spec(activity_id)
                         )
                         if txn_activity_spec is None:
-                            raise SignTransactionsError(
-                                code=ErrCode.InvalidTxnActivityId,
+                            raise AuthorizeTransactionsError(
+                                code=AuthorizeTransactionsErrCode.InvalidTxnActivityId,
                                 message=f"invalid transaction activity ID: {activity_id}",
                             )
                         tg.create_task(txn_activity_spec.validate(txn))
             except ExceptionGroup as err:
                 self.__logger.error(f"invalid transaction: {err}")
                 exception = err.exceptions[0]
-                if isinstance(exception, SignTransactionsError):
+                if isinstance(exception, AuthorizeTransactionsError):
                     raise exception
-                raise SignTransactionsError(
-                    code=ErrCode.InvalidTxnActivity,
-                    message=str(exception)
+                raise AuthorizeTransactionsError(
+                    code=AuthorizeTransactionsErrCode.InvalidTxnActivity,
+                    message=str(exception),
                 )
-
 
             try:
                 await app_activity_spec.validate(request.transactions)
             except Exception as err:
-                raise SignTransactionsError(
-                    code=ErrCode.InvalidAppActivity,
+                raise AuthorizeTransactionsError(
+                    code=AuthorizeTransactionsErrCode.InvalidAppActivity,
                     message=f"invalid app activity: {request.app_activity_id} : {err}",
                 )
 
         try:
             async with TaskGroup() as tg:
                 tg.create_task(check_app_registration(request.app_id))
-                tg.create_task(check_signer_registration(
-                    account=request.signer,
-                    app_id=request.app_id,
-                ))
-                tg.create_task(check_signer_subscription(account=request.signer))
+                tg.create_task(
+                    check_authorizer_registration(
+                        account=request.authorizer,
+                        app_id=request.app_id,
+                    )
+                )
+                tg.create_task(
+                    check_authorizer_subscription(account=request.authorizer)
+                )
         except ExceptionGroup as err:
             self.__logger.error(err)
             raise err.exceptions[0]
@@ -235,5 +239,7 @@ class SignTransactionsHandler(MessageHandler):
 
         return request
 
-    async def __get_signer_authorization(self, request: SignTransactionsRequest):
-        raise NotImplementedError()
+    async def __get_authorizer_authorization(
+        self, request: AuthorizeTransactionsRequest
+    ):
+        pass

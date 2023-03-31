@@ -75,7 +75,7 @@ class AuthorizeTransactionsHandler(MessageHandler):
         try:
             request = await self.__unpack_request(ctx)
             await self.__validate_request(request)
-            self._create_task(self._request_accepted(ctx), "request_accepted")
+            await self._request_accepted(ctx)
             await self.__authorize_transactions(request)
             txnids = await self.__multisig_service.sign_transactions(request)
             await self._send_success_message(ctx, txnids)

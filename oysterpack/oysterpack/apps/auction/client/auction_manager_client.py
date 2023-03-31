@@ -17,7 +17,7 @@ from oysterpack.algorand.client.transactions import create_lease
 from oysterpack.algorand.client.transactions.note import AppTxnNote
 from oysterpack.algorand.client.transactions.payment import transfer_algo, MicroAlgos
 from oysterpack.apps.auction.client.auction_client import AuctionClient
-from oysterpack.apps.auction.contracts import auction_manager, auction
+from oysterpack.apps.auction.contracts import auction_manager
 from oysterpack.apps.auction.contracts.auction import auction_storage_fees
 from oysterpack.apps.auction.contracts.auction_status import AuctionStatus
 from oysterpack.apps.client import AppClient
@@ -53,9 +53,9 @@ class AuctionManagerClient(AppClient):
         if app_client.app_id == 0:
             raise AssertionError("ApplicationClient.app_id must not be 0")
 
-        if app_client.app.contract.name != auction_manager.app.name:
+        if app_client._app_client.app_spec.contract.name != auction_manager.app.name:
             raise AssertionError(
-                f"contract name does not match: {app_client.app.contract.name} != {auction_manager.app.name}"
+                f"contract name does not match: {app_client._app_client.app_spec.contract.name} != {auction_manager.app.name}"
             )
 
         super().__init__(app_client)
@@ -106,9 +106,7 @@ class AuctionManagerClient(AppClient):
             note=self.CREATE_AUCTION_NOTE.encode(),
         ).return_value
 
-        return AuctionClient(
-            self._app_client.prepare(app=auction.app_spec, app_id=auction_app_id)
-        )
+        return AuctionClient(self._app_client.prepare(app_id=auction_app_id))
 
     def delete_finalized_auction(self, app_id: AppId) -> ABIResult:
         """
@@ -120,9 +118,7 @@ class AuctionManagerClient(AppClient):
         :param app_id: Auction AppId
         """
 
-        auction_client = AuctionClient(
-            self._app_client.prepare(app=auction.app_spec, app_id=app_id)
-        )
+        auction_client = AuctionClient(self._app_client.prepare(app_id=app_id))
         auction_state = auction_client.get_auction_state()
         if auction_state.status != AuctionStatus.FINALIZED:
             raise AssertionError("auction is not finalized")

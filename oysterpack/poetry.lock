@@ -21,6 +21,21 @@ typing-extensions = ">=4"
 tz = ["python-dateutil"]
 
 [[package]]
+name = "algokit-utils"
+version = "1.0.1"
+description = "Utilities for Algorand development for use by AlgoKit"
+category = "main"
+optional = false
+python-versions = ">=3.10,<4.0"
+files = [
+    {file = "algokit_utils-1.0.1-py3-none-any.whl", hash = "sha256:26521f407907739d866bd71ae8ac559950137fd9a7f1ed6e0f4f86ba65e8ba48"},
+]
+
+[package.dependencies]
+py-algorand-sdk = ">=2.0.0,<3.0.0"
+pyteal = ">=0.23.0,<0.24.0"
+
+[[package]]
 name = "astroid"
 version = "2.15.1"
 description = "An abstract syntax tree for Python with inference support."
@@ -38,16 +53,17 @@ wrapt = {version = ">=1.14,<2", markers = "python_version >= \"3.11\""}
 
 [[package]]
 name = "beaker-pyteal"
-version = "1.0.0b2"
+version = "1.0.0"
 description = "A Framework for building PyTeal Applications"
 category = "main"
 optional = false
 python-versions = ">=3.10,<4.0"
 files = [
-    {file = "beaker_pyteal-1.0.0b2-py3-none-any.whl", hash = "sha256:adb297bf3db3756a84bc9e17ef18f41f99e53ce7ae1f8bf040bc722871da5831"},
+    {file = "beaker_pyteal-1.0.0-py3-none-any.whl", hash = "sha256:7e49a3bd026fc52f6637a859bb605fd6f214bcd1e6b5a3a8947cc5a574f85810"},
 ]
 
 [package.dependencies]
+algokit-utils = ">=1.0.0,<2.0.0"
 py-algorand-sdk = ">=2.0.0"
 pyteal = ">=0.23.0,<0.24.0"
 
@@ -870,14 +886,14 @@ tests = ["hypothesis (>=3.27.0)", "pytest (>=3.2.1,!=3.3.0)"]
 
 [[package]]
 name = "pyright"
-version = "1.1.300"
+version = "1.1.301"
 description = "Command line wrapper for pyright"
 category = "dev"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "pyright-1.1.300-py3-none-any.whl", hash = "sha256:2ff0a21337d1d369e930143f1eed61ba4f225f59ae949631f512722bc9e61e4e"},
-    {file = "pyright-1.1.300.tar.gz", hash = "sha256:1874009c372bb2338e0696d99d915a152977e4ecbef02d3e4a3fd700da699993"},
+    {file = "pyright-1.1.301-py3-none-any.whl", hash = "sha256:ecc3752ba8c866a8041c90becf6be79bd52f4c51f98472e4776cae6d55e12826"},
+    {file = "pyright-1.1.301.tar.gz", hash = "sha256:6ac4afc0004dca3a977a4a04a8ba25b5b5aa55f8289550697bfc20e11be0d5f2"},
 ]
 
 [package.dependencies]
@@ -949,14 +965,14 @@ doc = ["Sphinx", "sphinx-rtd-theme"]
 
 [[package]]
 name = "setuptools"
-version = "67.6.0"
+version = "67.6.1"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 category = "dev"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "setuptools-67.6.0-py3-none-any.whl", hash = "sha256:b78aaa36f6b90a074c1fa651168723acbf45d14cb1196b6f02c0fd07f17623b2"},
-    {file = "setuptools-67.6.0.tar.gz", hash = "sha256:2ee892cd5f29f3373097f5a814697e397cf3ce313616df0af11231e2ad118077"},
+    {file = "setuptools-67.6.1-py3-none-any.whl", hash = "sha256:e728ca814a823bf7bf60162daf9db95b93d532948c4c0bea762ce62f60189078"},
+    {file = "setuptools-67.6.1.tar.gz", hash = "sha256:257de92a9d50a60b8e22abfcbb771571fde0dbf3ec234463212027a4eeecbe9a"},
 ]
 
 [package.extras]

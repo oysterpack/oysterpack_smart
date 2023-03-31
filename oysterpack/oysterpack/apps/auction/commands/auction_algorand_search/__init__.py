@@ -3,9 +3,9 @@ Provides Algorand search support
 """
 from typing import Any, cast
 
+from algokit_utils.application_client import _decode_state
 from algosdk.logic import get_application_address
 from algosdk.v2client.algod import AlgodClient
-from beaker.client.state_decode import decode_state
 
 from oysterpack.algorand.client.model import AppId, AssetId, AssetHolding
 from oysterpack.apps.auction.client.auction_client import to_auction_state
@@ -41,7 +41,7 @@ def to_auction(
     state = to_auction_state(
         cast(
             dict[bytes | str, bytes | str | int],
-            decode_state(app["params"]["global-state"]),
+            _decode_state(app["params"]["global-state"]),
         )
     )
 

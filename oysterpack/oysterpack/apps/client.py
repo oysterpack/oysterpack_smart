@@ -33,6 +33,9 @@ def verify_app(app_client: ApplicationClient):
         approval_program = b64decode(app["params"]["approval-program"])
         clear_state_program = b64decode(app["params"]["clear-state-program"])
 
+        assert app_client.approval
+        assert app_client.clear
+
         if approval_program != app_client.approval.raw_binary:
             raise AssertionError("Invalid app ID - approval program does not match")
 
@@ -81,7 +84,7 @@ class AppClient:
     def __init__(self, app_client: ApplicationClient):
         # create a new instance to clear the internal client state
         self._app_client = ApplicationClient(
-            app=app_client.app,
+            app=app_client._app_client.app_spec,
             app_id=app_client.app_id,
             signer=app_client.signer,
             sender=app_client.sender,

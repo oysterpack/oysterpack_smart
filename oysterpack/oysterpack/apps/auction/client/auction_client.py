@@ -140,9 +140,9 @@ class _AuctionClient(AppClient):
             raise AssertionError("ApplicationClient.app_id must not be 0")
 
         # TODO: is there a more robust way
-        if app_client.app.contract.name != auction.app.name:
+        if app_client._app_client.app_spec.contract.name != auction.app.name:
             raise AssertionError(
-                f"contract name does not match: {app_client.app.contract.name} != {auction.app.name}"
+                f"contract name does not match: {app_client._app_client.app_spec.contract.name} != {auction.app.name}"
             )
 
         super().__init__(app_client)
@@ -275,9 +275,9 @@ class AuctionBidder(_AuctionClientSupport):
             raise AssertionError("ApplicationClient.app_id must not be 0")
 
         # TODO: is there a more robust way
-        if app_client.app.contract.name != auction.APP_NAME:
+        if app_client._app_client.app_spec.contract.name != auction.APP_NAME:
             raise AssertionError(
-                f"contract name does not match: {app_client.app.contract.name} != {auction.app.name}"
+                f"contract name does not match: {app_client._app_client.app_spec.contract.name} != {auction.app.name}"
             )
 
         super().__init__(app_client)

@@ -12,8 +12,8 @@ When the auction is finalized, the ALGO paid for storage costs will be closed ou
 
 from typing import Final, Any
 
+from algokit_utils import ApplicationSpecification
 from beaker.application import Application
-from beaker.application_specification import ApplicationSpecification
 from beaker.consts import algo
 from beaker.decorators import Authorize
 from beaker.state import GlobalStateValue

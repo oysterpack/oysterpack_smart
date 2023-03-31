@@ -219,7 +219,7 @@ class SignTransactionsMessageHandlerTestCase(
                     private_key=self.sender_private_key,
                     executor=self.executor,
                 ).context() as client:
-                    for i in range(1,11):
+                    for i in range(1, 11):
                         start = time.perf_counter_ns()
                         await client.send(
                             request,

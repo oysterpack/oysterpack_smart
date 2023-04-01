@@ -235,11 +235,14 @@ class AuthorizeTransactionsErrCode(StrEnum):
 
     # app is not registered
     AppNotRegistered = auto()
-    # signer is not registered
-    AuthorizerNotRegistered = auto()
-
-    UnknownAuthorizer = auto()
-    AuthorizerSubscriptionExpired = auto()
+    # account is not opted in with the wallet connect service
+    AccountNotRegistered = auto()
+    # account has not opted into the app
+    AccountNotOptedIntoApp = auto()
+    # account is opted in with the wallet connect service, but its subscription has expired
+    AccountSubscriptionExpired = auto()
+    # wallet is not connected to the app
+    WalletConnectAppDisconnected = auto()
 
     InvalidAppActivityId = auto()
     InvalidTxnActivityId = auto()
@@ -250,7 +253,7 @@ class AuthorizeTransactionsErrCode(StrEnum):
     # transaction was rejected
     Rejected = auto()
     # signer client is not connected
-    AuthorizerNotConnected = auto()
+    WalletNotConnected = auto()
 
     # invalid signature
     InvalidSignature = auto()

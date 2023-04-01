@@ -21,6 +21,10 @@ from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions im
 )
 from oysterpack.apps.multisig_wallet_connect.protocols.wallet_connect_service import (
     WalletConnectService,
+    AppNotRegistered,
+    AccountSubscriptionExpired,
+    AccountNotRegistered,
+    AccountNotOptedIntoApp,
 )
 from oysterpack.core.message import MessageType
 
@@ -153,41 +157,35 @@ class AuthorizeTransactionsHandler(MessageHandler):
     async def __validate_request(
         self, request: AuthorizeTransactionsRequest
     ) -> AuthorizeTransactionsRequest:
-        async def check_app_registration(app_id: AppId):
-            """
-            Check that the app is registered with the service, i.e., opted in the service
-            """
-            if not await self.__wallet_connect.app_registered(app_id):
+        async def check_wallet_app_connection(account: Address, app_id: AppId):
+            try:
+                if not await self.__wallet_connect.wallet_connected(
+                    account=account,
+                    app_id=app_id,
+                ):
+                    raise AuthorizeTransactionsError(
+                        code=AuthorizeTransactionsErrCode.WalletConnectAppDisconnected,
+                        message="wallet is not currently connected to the app",
+                    )
+            except AppNotRegistered:
                 raise AuthorizeTransactionsError(
                     code=AuthorizeTransactionsErrCode.AppNotRegistered,
                     message="app is not registered",
                 )
-
-        async def check_authorizer_registration(account: Address, app_id: AppId):
-            """ "
-            Check that the authorizer is opted into the app
-            """
-            if not await self.__wallet_connect.account_registered(
-                account=account,
-                app_id=app_id,
-            ):
+            except AccountNotRegistered:
                 raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.AuthorizerNotRegistered,
-                    message="authorizer is not registered",
+                    code=AuthorizeTransactionsErrCode.AccountNotRegistered,
+                    message="account is not registered",
                 )
-
-        async def check_authorizer_subscription(account: Address):
-            subscription = await self.__wallet_connect.get_account_subscription(account)
-            if subscription is None:
+            except AccountNotOptedIntoApp:
                 raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.UnknownAuthorizer,
-                    message="unknown authorizer",
+                    code=AuthorizeTransactionsErrCode.AccountNotOptedIntoApp,
+                    message="account is not opted into the app",
                 )
-
-            if subscription.expired:
+            except AccountSubscriptionExpired:
                 raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.AuthorizerSubscriptionExpired,
-                    message="authorizer subscription is expired",
+                    code=AuthorizeTransactionsErrCode.AccountSubscriptionExpired,
+                    message="account subscription is expired",
                 )
 
         async def check_activity(request: AuthorizeTransactionsRequest) -> None:
@@ -239,22 +237,10 @@ class AuthorizeTransactionsHandler(MessageHandler):
                     message=f"invalid app activity: {request.app_activity_id} : {err}",
                 )
 
-        try:
-            async with TaskGroup() as tg:
-                tg.create_task(check_app_registration(request.app_id))
-                tg.create_task(
-                    check_authorizer_registration(
-                        account=request.authorizer,
-                        app_id=request.app_id,
-                    )
-                )
-                tg.create_task(
-                    check_authorizer_subscription(account=request.authorizer)
-                )
-        except ExceptionGroup as err:
-            self.__logger.error(err)
-            raise err.exceptions[0]
-
+        await check_wallet_app_connection(
+            account=request.authorizer,
+            app_id=request.app_id,
+        )
         await check_activity(request)
 
         return request

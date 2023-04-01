@@ -49,13 +49,37 @@ class AccountSubscription:
 
 class WalletConnectServiceError(Exception):
     """
-    MultisigService base exception
+    WalletConnectService base exception
     """
 
 
-class AuthorizerOffline(WalletConnectServiceError):
+class WalletOffline(WalletConnectServiceError):
     """
-    Authorizer is currently offline
+    Wallet is currently offline
+    """
+
+
+class AppNotRegistered(WalletConnectServiceError):
+    """
+    App is not registered
+    """
+
+
+class AccountNotRegistered(WalletConnectServiceError):
+    """
+    Account is unknown, i.e., it is not subscribed with the wallet connect service
+    """
+
+
+class AccountSubscriptionExpired(WalletConnectServiceError):
+    """
+    Account has not subscribed to the service
+    """
+
+
+class AccountNotOptedIntoApp(WalletConnectServiceError):
+    """
+    Account has not opted into the app
     """
 
 
@@ -71,20 +95,6 @@ class WalletConnectService(Protocol):
         """
         ...
 
-    async def account_registered(self, account: Address, app_id: AppId) -> bool:
-        """
-        In order for an account to receive transactions through the multisig service, the account must be opted into
-        the multisig service and the app.
-
-        If an account opts out of the multisig service, then the account effectively disables the multisig service.
-        Even though the account may still be opted into apps, they will stop receiving transactions.
-
-        :param account: Address
-        :param app_id: AppId
-        :return: True if the account has opted into the multisig service and the app
-        """
-        ...
-
     async def get_account_subscription(
         self, account: Address
     ) -> AccountSubscription | None:
@@ -94,6 +104,26 @@ class WalletConnectService(Protocol):
         Even if the account has a subscription, it may have expired.
 
         :return: None if the account has no subscription.
+        """
+        ...
+
+    async def account_opted_in_app(self, account: Address, app_id: AppId) -> bool:
+        """
+        :param account: Address
+        :param app_id: AppId
+        :return: True if the account has opted into the app
+        """
+
+    async def wallet_connected(self, account: Address, app_id: AppId) -> bool:
+        """
+        :param account: Address
+        :param app_id: AppId
+        :return: True if the wallet is connected to the app
+
+        :raises AppNotRegistered: if the app is not registered with the service
+        :raises AccountNotRegistered: if the account is not currently subscribed
+        :raises AccountNotOptedIntoApp: if the account has not opted into the app
+        :raises AccountSubscriptionExpired: if the account subscription is expired
         """
         ...
 

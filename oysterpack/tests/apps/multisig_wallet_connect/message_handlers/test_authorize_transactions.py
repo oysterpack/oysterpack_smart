@@ -39,6 +39,10 @@ from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions im
 from oysterpack.apps.multisig_wallet_connect.protocols.wallet_connect_service import (
     WalletConnectService,
     AccountSubscription,
+    AccountSubscriptionExpired,
+    AppNotRegistered,
+    AccountNotRegistered,
+    AccountNotOptedIntoApp,
 )
 from tests.algorand.messaging import server_ssl_context, client_ssl_context
 from tests.algorand.test_support import AlgorandTestCase
@@ -93,6 +97,7 @@ class WalletConnectServiceMock(WalletConnectService):
 
     app_registered_: bool = True
     account_registered_: bool = True
+    account_opted_in_app_: bool = True
     app_activity_registered_: bool = True
     app_activity_spec: Callable[[AppActivityId], AppActivitySpec] | None = None
     txn_activity_spec: Callable[[TxnActivityId], TxnActivitySpec] | None = None
@@ -102,12 +107,29 @@ class WalletConnectServiceMock(WalletConnectService):
         await asyncio.sleep(0)
         return self.app_registered_
 
-    async def account_registered(self, account: Address, app_id: AppId) -> bool:
+    async def account_opted_in_app(self, account: Address, app_id: AppId) -> bool:
         await asyncio.sleep(0)
+        return self.account_opted_in_app_
+
+    async def wallet_connected(self, account: Address, app_id: AppId) -> bool:
+        await asyncio.sleep(0)
+        if not await self.app_registered(app_id):
+            raise AppNotRegistered()
+
+        subscription = await self.get_account_subscription(account)
+        if subscription is None:
+            raise AccountNotRegistered()
+        if subscription.expired:
+            raise AccountSubscriptionExpired()
+
+        if not self.account_opted_in_app_:
+            raise AccountNotOptedIntoApp()
+
         return self.account_registered_
 
     async def get_account_subscription(
-        self, account: Address
+        self,
+        account: Address,
     ) -> AccountSubscription | None:
         await asyncio.sleep(0)
         if not self.account_has_subscription:
@@ -322,26 +344,39 @@ class SignTransactionsMessageHandlerTestCase(
                                 await asyncio.sleep(0)
 
         await run_test(
+            name="app is not registered",
+            multisig_service=WalletConnectServiceMock(
+                app_registered_=False,
+            ),
+            expected_err_code=AuthorizeTransactionsErrCode.AppNotRegistered,
+        )
+        await run_test(
+            name="account not opted into app",
+            multisig_service=WalletConnectServiceMock(
+                account_opted_in_app_=False,
+            ),
+            expected_err_code=AuthorizeTransactionsErrCode.AccountNotOptedIntoApp,
+        )
+        await run_test(
             name="signer not subscribed",
             multisig_service=WalletConnectServiceMock(
                 account_has_subscription=False,
             ),
-            expected_err_code=AuthorizeTransactionsErrCode.UnknownAuthorizer,
+            expected_err_code=AuthorizeTransactionsErrCode.AccountNotRegistered,
         )
-
         await run_test(
             name="signer subscription expired",
             multisig_service=WalletConnectServiceMock(
                 account_subscription_expired=True,
             ),
-            expected_err_code=AuthorizeTransactionsErrCode.AuthorizerSubscriptionExpired,
+            expected_err_code=AuthorizeTransactionsErrCode.AccountSubscriptionExpired,
         )
         await run_test(
             name="account has no subscription",
             multisig_service=WalletConnectServiceMock(
                 account_has_subscription=False,
             ),
-            expected_err_code=AuthorizeTransactionsErrCode.UnknownAuthorizer,
+            expected_err_code=AuthorizeTransactionsErrCode.AccountNotRegistered,
         )
         await run_test(
             name="app activity not registered",

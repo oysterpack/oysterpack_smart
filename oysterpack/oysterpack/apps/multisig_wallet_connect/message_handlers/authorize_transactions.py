@@ -19,8 +19,8 @@ from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions im
     AuthorizeTransactionsError,
     AuthorizeTransactionsSuccess,
 )
-from oysterpack.apps.multisig_wallet_connect.protocols.multisig_service import (
-    MultisigService,
+from oysterpack.apps.multisig_wallet_connect.protocols.wallet_connect_service import (
+    WalletConnectService,
 )
 from oysterpack.core.message import MessageType
 
@@ -61,9 +61,9 @@ class AuthorizeTransactionsHandler(MessageHandler):
 
     def __init__(
         self,
-        multisig_service: MultisigService,
+        wallet_connect: WalletConnectService,
     ):
-        self.__multisig_service = multisig_service
+        self.__wallet_connect = wallet_connect
 
         self.__tasks: set[Task] = set()
         self.__logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ class AuthorizeTransactionsHandler(MessageHandler):
             await self.__validate_request(request)
             await self._request_accepted(ctx)
             await self.__authorize_transactions(request)
-            txnids = await self.__multisig_service.sign_transactions(request)
+            txnids = await self.__wallet_connect.sign_transactions(request)
             await self._send_success_message(ctx, txnids)
         except AuthorizeTransactionsError as err:
             self._create_task(
@@ -157,7 +157,7 @@ class AuthorizeTransactionsHandler(MessageHandler):
             """
             Check that the app is registered with the service, i.e., opted in the service
             """
-            if not await self.__multisig_service.app_registered(app_id):
+            if not await self.__wallet_connect.app_registered(app_id):
                 raise AuthorizeTransactionsError(
                     code=AuthorizeTransactionsErrCode.AppNotRegistered,
                     message="app is not registered",
@@ -167,7 +167,7 @@ class AuthorizeTransactionsHandler(MessageHandler):
             """ "
             Check that the authorizer is opted into the app
             """
-            if not await self.__multisig_service.account_registered(
+            if not await self.__wallet_connect.account_registered(
                 account=account,
                 app_id=app_id,
             ):
@@ -177,9 +177,7 @@ class AuthorizeTransactionsHandler(MessageHandler):
                 )
 
         async def check_authorizer_subscription(account: Address):
-            subscription = await self.__multisig_service.get_account_subscription(
-                account
-            )
+            subscription = await self.__wallet_connect.get_account_subscription(account)
             if subscription is None:
                 raise AuthorizeTransactionsError(
                     code=AuthorizeTransactionsErrCode.UnknownAuthorizer,
@@ -193,7 +191,7 @@ class AuthorizeTransactionsHandler(MessageHandler):
                 )
 
         async def check_activity(request: AuthorizeTransactionsRequest) -> None:
-            app_activity_spec = self.__multisig_service.get_app_activity_spec(
+            app_activity_spec = self.__wallet_connect.get_app_activity_spec(
                 request.app_activity_id
             )
             if app_activity_spec is None:
@@ -201,7 +199,7 @@ class AuthorizeTransactionsHandler(MessageHandler):
                     code=AuthorizeTransactionsErrCode.InvalidAppActivityId,
                     message="invalid app activity ID",
                 )
-            if not await self.__multisig_service.app_activity_registered(
+            if not await self.__wallet_connect.app_activity_registered(
                 app_id=request.app_id,
                 app_activity_id=request.app_activity_id,
             ):
@@ -214,8 +212,8 @@ class AuthorizeTransactionsHandler(MessageHandler):
                 # validate individual transactions
                 async with TaskGroup() as tg:
                     for (txn, activity_id) in request.transactions:
-                        txn_activity_spec = (
-                            self.__multisig_service.get_txn_activity_spec(activity_id)
+                        txn_activity_spec = self.__wallet_connect.get_txn_activity_spec(
+                            activity_id
                         )
                         if txn_activity_spec is None:
                             raise AuthorizeTransactionsError(
@@ -262,7 +260,7 @@ class AuthorizeTransactionsHandler(MessageHandler):
         return request
 
     async def __authorize_transactions(self, request: AuthorizeTransactionsRequest):
-        approved = await self.__multisig_service.authorize_transactions(request)
+        approved = await self.__wallet_connect.authorize_transactions(request)
 
         if not approved:
             raise AuthorizeTransactionsError(

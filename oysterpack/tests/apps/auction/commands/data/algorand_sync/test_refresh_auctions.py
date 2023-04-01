@@ -30,7 +30,6 @@ from tests.algorand.test_support import AlgorandTestCase
 from tests.apps.auction.commands.data import register_auction_manager
 
 
-@unittest.skip(reason="beaker upgrade broke the contracts")
 class ImportAuctionTestCase(AlgorandTestCase):
     def setUp(self) -> None:
         self.setup_database()

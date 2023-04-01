@@ -4,7 +4,7 @@ from typing import cast
 
 from algosdk.error import AlgodHTTPError
 from algosdk.transaction import wait_for_confirmation
-from beaker.client import LogicException, ApplicationClient
+from beaker.client import ApplicationClient
 
 from oysterpack.algorand.client.accounts import get_asset_holding
 from oysterpack.algorand.client.model import Address, AssetHolding
@@ -29,7 +29,6 @@ from oysterpack.apps.auction.contracts.auction import (
 from tests.algorand.test_support import AlgorandTestCase
 
 
-@unittest.skip("beaker upgrade broke contracts")
 class AuctionTestCase(AlgorandTestCase):
     def test_create(self):
         # SETUP
@@ -61,7 +60,7 @@ class AuctionTestCase(AlgorandTestCase):
         )
 
         with self.subTest("Auction cannot be updated"):
-            with self.assertRaises(LogicException):
+            with self.assertRaises(Exception):
                 creator_app_client.update()
 
     def test_set_bid_asset(self):

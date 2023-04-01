@@ -12,7 +12,6 @@ from oysterpack.apps.auction.commands.auction_algorand_search.search_auctions im
 from tests.algorand.test_support import AlgorandTestCase
 
 
-@unittest.skip(reason="beaker upgrade broke the contracts")
 class SearchAuctionsTestCase(AlgorandTestCase):
     def test_search_auctions(self):
         # SETUP

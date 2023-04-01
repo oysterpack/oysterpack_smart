@@ -36,7 +36,7 @@ from oysterpack.algorand.application.transactions.application import execute_del
 from oysterpack.apps.auction.contracts import auction as auction_contract
 from oysterpack.apps.auction.contracts.auction import auction_storage_fees
 
-APP_NAME: Final[str] = "oysterpack.AuctionManager"
+APP_NAME: Final[str] = "oysterpack.auction_manager"
 
 app = Application(APP_NAME)
 

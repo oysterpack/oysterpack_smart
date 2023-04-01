@@ -4,7 +4,7 @@ Auction application client
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from enum import StrEnum
-from typing import cast, Final, Any
+from typing import cast, Final, Any, Self
 
 from algosdk.atomic_transaction_composer import (
     TransactionSigner,
@@ -15,6 +15,7 @@ from algosdk.atomic_transaction_composer import (
 from algosdk.constants import ZERO_ADDRESS
 from algosdk.encoding import encode_address
 from algosdk.error import AlgodHTTPError
+from algosdk.v2client.algod import AlgodClient
 from beaker.client.application_client import ApplicationClient
 
 from oysterpack.algorand.client.assets.asset_config import AssetConfig
@@ -24,6 +25,7 @@ from oysterpack.algorand.client.model import (
     AssetHolding,
     MicroAlgos,
     TxnId,
+    AppId,
 )
 from oysterpack.algorand.client.transactions import create_lease, asset
 from oysterpack.algorand.client.transactions.asset import opt_in
@@ -371,6 +373,24 @@ class AuctionClient(_AuctionClient, _AuctionClientSupport):
     """
     Auction application client
     """
+
+    @classmethod
+    def create(
+        cls,
+        client: AlgodClient,
+        app_id: AppId = AppId(0),
+        signer: TransactionSigner | None = None,
+        sender: str | None = None,
+    ) -> Self:
+        return cls(
+            ApplicationClient(
+                client=client,
+                app=auction.app,
+                app_id=app_id,
+                signer=signer,
+                sender=sender,
+            )
+        )
 
     SET_BID_ASSET_NOTE: Final[AppTxnNote] = AppTxnNote(
         app=auction.APP_NAME,

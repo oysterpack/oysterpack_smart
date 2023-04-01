@@ -47,19 +47,19 @@ class AccountSubscription:
         return self.expiration < self.blockchain_timestamp
 
 
-class MultisigServiceError(Exception):
+class WalletConnectServiceError(Exception):
     """
     MultisigService base exception
     """
 
 
-class AuthorizerOffline(MultisigServiceError):
+class AuthorizerOffline(WalletConnectServiceError):
     """
     Authorizer is currently offline
     """
 
 
-class MultisigService(Protocol):
+class WalletConnectService(Protocol):
     """
     MultisigService
     """

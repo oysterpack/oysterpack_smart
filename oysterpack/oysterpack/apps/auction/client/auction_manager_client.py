@@ -106,7 +106,12 @@ class AuctionManagerClient(AppClient):
             note=self.CREATE_AUCTION_NOTE.encode(),
         ).return_value
 
-        return AuctionClient(self._app_client.prepare(app_id=auction_app_id))
+        return AuctionClient.create(
+            app_id=auction_app_id,
+            signer=self._app_client.signer,
+            sender=self._app_client.sender,
+            client=self._app_client.client,
+        )
 
     def delete_finalized_auction(self, app_id: AppId) -> ABIResult:
         """
@@ -118,7 +123,13 @@ class AuctionManagerClient(AppClient):
         :param app_id: Auction AppId
         """
 
-        auction_client = AuctionClient(self._app_client.prepare(app_id=app_id))
+        auction_client = AuctionClient.create(
+            app_id=app_id,
+            signer=self._app_client.signer,
+            sender=self._app_client.sender,
+            client=self._app_client.client,
+        )
+
         auction_state = auction_client.get_auction_state()
         if auction_state.status != AuctionStatus.FINALIZED:
             raise AssertionError("auction is not finalized")

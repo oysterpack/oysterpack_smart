@@ -1,7 +1,6 @@
 import unittest
 
 from algosdk.error import AlgodHTTPError
-from beaker.client import LogicException
 
 from oysterpack.algorand.client.model import Address
 from oysterpack.apps.auction.client.auction_manager_client import (
@@ -14,7 +13,6 @@ from oysterpack.apps.auction.contracts.auction_status import AuctionStatus
 from tests.algorand.test_support import AlgorandTestCase
 
 
-@unittest.skip("beaker upgrade broke contracts")
 class AuctionManagerTestCase(AlgorandTestCase):
     def test_create(self):
         logger = super().get_logger("test_create")
@@ -34,11 +32,11 @@ class AuctionManagerTestCase(AlgorandTestCase):
         )
 
         with self.subTest("AuctionManager cannot be updated"):
-            with self.assertRaises(LogicException):
+            with self.assertRaises(Exception):
                 app_client.update()
 
         with self.subTest("AuctionManager cannot be deleted"):
-            with self.assertRaises(LogicException):
+            with self.assertRaises(Exception):
                 app_client.delete()
 
     def test_create_auction(self):

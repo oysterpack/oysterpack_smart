@@ -36,8 +36,8 @@ from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions im
     AuthorizeTransactionsErrCode,
     AuthorizeTransactionsSuccess,
 )
-from oysterpack.apps.multisig_wallet_connect.protocols.multisig_service import (
-    MultisigService,
+from oysterpack.apps.multisig_wallet_connect.protocols.wallet_connect_service import (
+    WalletConnectService,
     AccountSubscription,
 )
 from tests.algorand.messaging import server_ssl_context, client_ssl_context
@@ -87,7 +87,7 @@ class TxnActivitySpecMock(TxnActivitySpec):
 
 
 @dataclass(slots=True)
-class MultisigServiceMock(MultisigService):
+class WalletConnectServiceMock(WalletConnectService):
     account_has_subscription: bool = True
     account_subscription_expired: bool = False
 
@@ -185,7 +185,7 @@ class SignTransactionsMessageHandlerTestCase(
             private_key=self.recipient_private_key,
             message_handlers=[
                 AuthorizeTransactionsHandler(
-                    multisig_service=MultisigServiceMock(),
+                    wallet_connect=WalletConnectServiceMock(),
                 )
             ],
             executor=self.executor,
@@ -279,13 +279,13 @@ class SignTransactionsMessageHandlerTestCase(
 
         async def run_test(
             name: str,
-            multisig_service: MultisigService,
+            multisig_service: WalletConnectService,
             expected_err_code: AuthorizeTransactionsErrCode,
         ):
             secure_message_handler = SecureMessageHandler(
                 private_key=self.recipient_private_key,
                 message_handlers=[
-                    AuthorizeTransactionsHandler(multisig_service=multisig_service)
+                    AuthorizeTransactionsHandler(wallet_connect=multisig_service)
                 ],
                 executor=self.executor,
             )
@@ -323,7 +323,7 @@ class SignTransactionsMessageHandlerTestCase(
 
         await run_test(
             name="signer not subscribed",
-            multisig_service=MultisigServiceMock(
+            multisig_service=WalletConnectServiceMock(
                 account_has_subscription=False,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.UnknownAuthorizer,
@@ -331,28 +331,28 @@ class SignTransactionsMessageHandlerTestCase(
 
         await run_test(
             name="signer subscription expired",
-            multisig_service=MultisigServiceMock(
+            multisig_service=WalletConnectServiceMock(
                 account_subscription_expired=True,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.AuthorizerSubscriptionExpired,
         )
         await run_test(
             name="account has no subscription",
-            multisig_service=MultisigServiceMock(
+            multisig_service=WalletConnectServiceMock(
                 account_has_subscription=False,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.UnknownAuthorizer,
         )
         await run_test(
             name="app activity not registered",
-            multisig_service=MultisigServiceMock(
+            multisig_service=WalletConnectServiceMock(
                 app_activity_registered_=False,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.AppActivityNotRegistered,
         )
         await run_test(
             name="app activity validation failed",
-            multisig_service=MultisigServiceMock(
+            multisig_service=WalletConnectServiceMock(
                 app_activity_spec=lambda app_activity_id: AppActivitySpecMock(
                     activity_id=app_activity_id,
                     name="name",

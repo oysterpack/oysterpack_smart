@@ -46,7 +46,6 @@ from oysterpack.apps.auction.domain.auction import AuctionManagerAppId
 from tests.algorand.test_support import AlgorandTestCase
 
 
-@unittest.skip("beaker upgrade broke contracts")
 class DeleteFinalizedAuctionsTestCase(AlgorandTestCase):
     def setUp(self) -> None:
         self.engine = create_engine("sqlite:///:memory:", echo=False)

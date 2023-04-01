@@ -12,7 +12,7 @@ from algosdk.transaction import Transaction
 
 from oysterpack.algorand.client.accounts.private_key import SigningAddress
 from oysterpack.algorand.client.model import AppId, TxnId
-from oysterpack.apps.multisig_wallet_connect.domain.activity import (
+from oysterpack.apps.wallet_connect.domain.activity import (
     TxnActivityId,
     AppActivityId,
 )

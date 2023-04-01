@@ -11,7 +11,7 @@ from oysterpack.algorand.messaging.secure_message_handler import (
     MessageContext,
     MessageHandler,
 )
-from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions import (
+from oysterpack.apps.wallet_connect.messsages.authorize_transactions import (
     AuthorizeTransactionsRequest,
     AuthorizeTransactionsFailure,
     AuthorizeTransactionsErrCode,
@@ -19,7 +19,7 @@ from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions im
     AuthorizeTransactionsError,
     AuthorizeTransactionsSuccess,
 )
-from oysterpack.apps.multisig_wallet_connect.protocols.wallet_connect_service import (
+from oysterpack.apps.wallet_connect.protocols.wallet_connect_service import (
     WalletConnectService,
     AppNotRegistered,
     AccountSubscriptionExpired,

@@ -6,12 +6,12 @@ from datetime import datetime
 from typing import Protocol
 
 from oysterpack.algorand.client.model import Address, AppId, TxnId
-from oysterpack.apps.multisig_wallet_connect.domain.activity import (
+from oysterpack.apps.wallet_connect.domain.activity import (
     AppActivityId,
     AppActivitySpec,
     TxnActivitySpec,
 )
-from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions import (
+from oysterpack.apps.wallet_connect.messsages.authorize_transactions import (
     TxnActivityId,
     AuthorizeTransactionsRequest,
 )

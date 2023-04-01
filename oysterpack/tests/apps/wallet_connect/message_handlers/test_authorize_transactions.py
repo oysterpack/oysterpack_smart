@@ -20,23 +20,23 @@ from oysterpack.algorand.messaging.secure_message_handler import (
     SecureMessageHandler,
     SecureMessageWebsocketHandler,
 )
-from oysterpack.apps.multisig_wallet_connect.domain.activity import (
+from oysterpack.apps.wallet_connect.domain.activity import (
     TxnActivityId,
     AppActivityId,
     AppActivitySpec,
     TxnActivitySpec,
 )
-from oysterpack.apps.multisig_wallet_connect.message_handlers.authorize_transactions import (
+from oysterpack.apps.wallet_connect.message_handlers.authorize_transactions import (
     AuthorizeTransactionsHandler,
 )
-from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions import (
+from oysterpack.apps.wallet_connect.messsages.authorize_transactions import (
     AuthorizeTransactionsRequest,
     AuthorizeTransactionsRequestAccepted,
     AuthorizeTransactionsFailure,
     AuthorizeTransactionsErrCode,
     AuthorizeTransactionsSuccess,
 )
-from oysterpack.apps.multisig_wallet_connect.protocols.wallet_connect_service import (
+from oysterpack.apps.wallet_connect.protocols.wallet_connect_service import (
     WalletConnectService,
     AccountSubscription,
     AccountSubscriptionExpired,

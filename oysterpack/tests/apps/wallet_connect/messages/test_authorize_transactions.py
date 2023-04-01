@@ -8,11 +8,11 @@ from ulid import ULID
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import AppId, MicroAlgos, TxnId
 from oysterpack.algorand.client.transactions.payment import transfer_algo
-from oysterpack.apps.multisig_wallet_connect.domain.activity import (
+from oysterpack.apps.wallet_connect.domain.activity import (
     TxnActivityId,
     AppActivityId,
 )
-from oysterpack.apps.multisig_wallet_connect.messsages.authorize_transactions import (
+from oysterpack.apps.wallet_connect.messsages.authorize_transactions import (
     AuthorizeTransactionsRequest,
     AuthorizeTransactionsSuccess,
     AuthorizeTransactionsError,

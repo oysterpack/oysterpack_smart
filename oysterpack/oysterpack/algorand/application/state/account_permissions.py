@@ -46,11 +46,15 @@ class AccountPermissions(AccountBitSet):  # pylint: disable=too-many-ancestors
         asv._acct = acct
         return asv
 
+
 def account_permissions_blueprint(app: Application, is_admin: AuthCallable):
     """
     Applies the account permissions blueprint to the app.
-
     Enables the contract to manage account permissions.
+
+    Notes
+    -----
+    - application state must contain an AccountPermissions field named: `account_permissions`
     """
 
     @app.external(authorize=is_admin)
@@ -68,10 +72,9 @@ def account_permissions_blueprint(app: Application, is_admin: AuthCallable):
             output.set(account_permissions.get()),
         )
 
-
     @app.external(authorize=is_admin)
     def revoke_permissions(
-        account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
+            account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
     ) -> Expr:
         """
         Revoke the specified permissions for the specified account
@@ -86,7 +89,6 @@ def account_permissions_blueprint(app: Application, is_admin: AuthCallable):
             output.set(account_permissions.get()),
         )
 
-
     @app.external(authorize=is_admin)
     def revoke_all_permissions(account: abi.Account) -> Expr:
         """
@@ -96,10 +98,9 @@ def account_permissions_blueprint(app: Application, is_admin: AuthCallable):
         """
         return app.state.account_permissions[account.address()].revoke_all()
 
-
     @app.external(read_only=True)
     def contains_permissions(
-        account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
+            account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
     ) -> Expr:
         """
         Checks if the account has the specified permissions.

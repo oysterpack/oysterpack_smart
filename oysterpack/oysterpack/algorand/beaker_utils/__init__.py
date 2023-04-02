@@ -1,3 +1,5 @@
+from algokit_utils import ApplicationSpecification
+from algosdk.abi import Method
 from algosdk.encoding import encode_address
 
 from oysterpack.algorand.client.model import Address
@@ -16,3 +18,10 @@ def to_address(hex_encoded_address_bytes: str) -> Address:
     :return:
     """
     return Address(encode_address(bytes.fromhex(hex_encoded_address_bytes)))
+
+
+def get_app_method(app_spec: ApplicationSpecification ,name: str) -> Method:
+    for method in app_spec.contract.methods:
+        if method.name == name:
+            return method
+    raise ValueError(f"invalid method name: {name}")

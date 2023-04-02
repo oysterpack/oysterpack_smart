@@ -9,7 +9,7 @@ from beaker.lib.storage import BoxMapping
 from pyteal import Expr, TealType, Seq, Txn, If, Subroutine
 from pyteal.ast import abi
 
-from oysterpack.algorand.application.state.account_permissions import AccountPermissions
+from oysterpack.algorand.application.state.account_permissions import AccountPermissions, account_permissions_blueprint
 
 
 class AppState:
@@ -66,8 +66,15 @@ class Permissions(IntEnum):
     EnableApp = 1 << 3
     DisableApp = 1 << 4
 
+@Subroutine(TealType.uint64)
+def is_admin(account: Expr):
+    return Seq(
+        (admin_perm := abi.Uint64()).set(Permissions.Admin.value),
+        app.state.account_permissions[account].contains(admin_perm),
+    )
 
 app = Application("WalletConnectApp", state=AppState())
+app.apply(account_permissions_blueprint, is_admin=is_admin)
 
 
 @app.create
@@ -99,9 +106,13 @@ def optin() -> Expr:
         )
     )
 
+
 @Subroutine(return_type=TealType.none)
 def grant_admin_permission(account: Expr):
     return Seq(
         (admin_perm := abi.Uint64()).set(Permissions.Admin.value),
         app.state.account_permissions[account].grant(admin_perm),
     )
+
+
+

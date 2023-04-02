@@ -4,7 +4,9 @@ Provides support to manage account permissions.
 
 from copy import copy
 
-from pyteal import Expr
+from beaker import Application
+from beaker.decorators import AuthCallable
+from pyteal import Expr, Seq, If, App, Global, Int
 from pyteal.ast import abi
 
 from oysterpack.algorand.application.state.bitset import AccountBitSet
@@ -43,3 +45,74 @@ class AccountPermissions(AccountBitSet):  # pylint: disable=too-many-ancestors
         asv = copy(self)
         asv._acct = acct
         return asv
+
+def account_permissions_blueprint(app: Application, is_admin: AuthCallable):
+    """
+    Applies the account permissions blueprint to the app.
+
+    Enables the contract to manage account permissions.
+    """
+
+    @app.external(authorize=is_admin)
+    def grant_permissions(account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64) -> Expr:
+        """
+        Grants the specified permissions to the specified account.
+
+        :param account: that will be granted permissions
+        :param permissions: permission bitmask used to grant permissions
+        :returns: account's updated permissions
+        """
+        account_permissions = app.state.account_permissions[account.address()]
+        return Seq(
+            account_permissions.grant(permissions),
+            output.set(account_permissions.get()),
+        )
+
+
+    @app.external(authorize=is_admin)
+    def revoke_permissions(
+        account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
+    ) -> Expr:
+        """
+        Revoke the specified permissions for the specified account
+
+        :param account: that will be revoked permissions
+        :param permissions: permission bitmask used to revoke permissions
+        :returns: account's updated permissions
+        """
+        account_permissions = app.state.account_permissions[account.address()]
+        return Seq(
+            account_permissions.revoke(permissions),
+            output.set(account_permissions.get()),
+        )
+
+
+    @app.external(authorize=is_admin)
+    def revoke_all_permissions(account: abi.Account) -> Expr:
+        """
+        Revokes all permissions from the specified account.
+
+        :param account: all permissions will be revoked from this account
+        """
+        return app.state.account_permissions[account.address()].revoke_all()
+
+
+    @app.external(read_only=True)
+    def contains_permissions(
+        account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
+    ) -> Expr:
+        """
+        Checks if the account has the specified permissions.
+        If the account is not opted in, then False is returned.
+
+        :param account: account to check
+        :param permissions: permission bit mask
+        :returns: True if the account contains the set of permissions
+        """
+        return output.set(
+            If(
+                App.optedIn(account.address(), Global.current_application_id()),
+                app.state.account_permissions[account.address()].contains(permissions),
+                Int(0),
+            )
+        )

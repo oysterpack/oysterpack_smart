@@ -6,6 +6,10 @@ import logging
 from asyncio import Task, TaskGroup
 from typing import Coroutine, Any, TypeVar
 
+from oysterpack.algorand.client.accounts.private_key import (
+    SigningAddress,
+    EncryptionAddress,
+)
 from oysterpack.algorand.client.model import AppId, Address, TxnId
 from oysterpack.algorand.messaging.secure_message_handler import (
     MessageContext,
@@ -78,6 +82,11 @@ class AuthorizeTransactionsHandler(MessageHandler):
     async def __call__(self, ctx: MessageContext):
         try:
             request = await self.__unpack_request(ctx)
+            await self.__check_app_keys(
+                app_id=request.app_id,
+                signing_address=ctx.client_signing_address,
+                encryption_address=ctx.client_encryption_address,
+            )
             await self.__validate_request(request)
             await self._request_accepted(ctx)
             await self.__authorize_transactions(request)
@@ -154,8 +163,25 @@ class AuthorizeTransactionsHandler(MessageHandler):
             ctx.executor, AuthorizeTransactionsRequest.unpack, ctx.msg_data
         )
 
+    async def __check_app_keys(
+        self,
+        app_id: AppId,
+        signing_address: SigningAddress,
+        encryption_address: EncryptionAddress,
+    ):
+        if not await self.__wallet_connect.app_keys_registered(
+            app_id=app_id,
+            signing_address=signing_address,
+            encryption_address=encryption_address,
+        ):
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.UnauthorizedMessage,
+                message="keys used to sign and encrypt the message are not registered with the app",
+            )
+
     async def __validate_request(
-        self, request: AuthorizeTransactionsRequest
+        self,
+        request: AuthorizeTransactionsRequest,
     ) -> AuthorizeTransactionsRequest:
         async def check_wallet_app_connection(account: Address, app_id: AppId):
             try:

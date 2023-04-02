@@ -229,6 +229,8 @@ class AuthorizeTransactionsErrCode(StrEnum):
     Error codes
     """
 
+    # Indicates a message was received using unregistered keys
+    UnauthorizedMessage = auto()
     InvalidMessage = auto()
     # indicates account has insufficient ALGO funds to pay for service and transaction fees
     InsufficientAlgoBalance = auto()

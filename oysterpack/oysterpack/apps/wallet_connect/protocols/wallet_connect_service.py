@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
+from oysterpack.algorand.client.accounts.private_key import (
+    SigningAddress,
+    EncryptionAddress,
+)
 from oysterpack.algorand.client.model import Address, AppId, TxnId
 from oysterpack.apps.wallet_connect.domain.activity import (
     AppActivityId,
@@ -88,6 +92,17 @@ class WalletConnectService(Protocol):
     MultisigService
     """
 
+    async def app_keys_registered(
+        self,
+        app_id: AppId,
+        signing_address: SigningAddress,
+        encryption_address: EncryptionAddress,
+    ) -> bool:
+        """
+        :return: True if the signing and encrptuion addresses are registered with the service
+        """
+        ...
+
     async def app_registered(self, app_id: AppId) -> bool:
         """
         :param app_id: AppId
@@ -113,6 +128,7 @@ class WalletConnectService(Protocol):
         :param app_id: AppId
         :return: True if the account has opted into the app
         """
+        ...
 
     async def wallet_connected(self, account: Address, app_id: AppId) -> bool:
         """

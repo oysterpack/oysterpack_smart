@@ -12,7 +12,11 @@ from beaker.consts import algo
 from black import Tuple
 from websockets.legacy.client import connect
 
-from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
+from oysterpack.algorand.client.accounts.private_key import (
+    AlgoPrivateKey,
+    SigningAddress,
+    EncryptionAddress,
+)
 from oysterpack.algorand.client.model import MicroAlgos, AppId, Address
 from oysterpack.algorand.client.transactions.payment import transfer_algo
 from oysterpack.algorand.messaging.secure_message_client import SecureMessageClient
@@ -95,6 +99,7 @@ class WalletConnectServiceMock(WalletConnectService):
     account_has_subscription: bool = True
     account_subscription_expired: bool = False
 
+    app_keys_registered_: bool = True
     app_registered_: bool = True
     account_registered_: bool = True
     account_opted_in_app_: bool = True
@@ -102,6 +107,15 @@ class WalletConnectServiceMock(WalletConnectService):
     app_activity_spec: Callable[[AppActivityId], AppActivitySpec] | None = None
     txn_activity_spec: Callable[[TxnActivityId], TxnActivitySpec] | None = None
     authorize_transactions_: bool = True
+
+    async def app_keys_registered(
+        self,
+        app_id: AppId,
+        signing_address: SigningAddress,
+        encryption_address: EncryptionAddress,
+    ) -> bool:
+        await asyncio.sleep(0)
+        return self.app_keys_registered_
 
     async def app_registered(self, app_id: AppId) -> bool:
         await asyncio.sleep(0)

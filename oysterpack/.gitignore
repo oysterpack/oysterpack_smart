@@ -3,3 +3,5 @@ temp
 **/*.sqlite
 /.idea/sqldialects.xml
 /.idea/dataSources.xml
+tests/*.teal
+tests/*.json

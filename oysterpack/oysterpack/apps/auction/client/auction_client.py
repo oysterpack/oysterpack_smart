@@ -13,11 +13,11 @@ from algosdk.atomic_transaction_composer import (
     ABIResult,
 )
 from algosdk.constants import ZERO_ADDRESS
-from algosdk.encoding import encode_address
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
 from beaker.client.application_client import ApplicationClient
 
+from oysterpack.algorand import beaker_utils
 from oysterpack.algorand.client.assets.asset_config import AssetConfig
 from oysterpack.algorand.client.model import (
     Address,
@@ -53,20 +53,6 @@ def to_auction_state(state: dict[bytes | str, bytes | str | int]) -> AuctionStat
     maps raw global state data to an AuctionState
     """
 
-    def to_address(hex_encoded_address_bytes: str) -> Address:
-        """
-        Helper function to encode an address stored in the app's global state as a standard Algorand address.
-
-        Notes
-        -----
-        - seller address is stored as bytes in the contract
-        - beaker's ApplicationClient will return the bytes as a hex encoded string
-
-        :param hex_encoded_address_bytes:
-        :return:
-        """
-        return Address(encode_address(bytes.fromhex(hex_encoded_address_bytes)))
-
     def status() -> AuctionStatus:
         match state[ContractAuctionState.status.str_key()]:
             case AuctionStatus.NEW.value:
@@ -83,7 +69,7 @@ def to_auction_state(state: dict[bytes | str, bytes | str | int]) -> AuctionStat
                 raise ValueError(state[ContractAuctionState.status.str_key()])
 
     def seller_address() -> Address:
-        return to_address(
+        return beaker_utils.to_address(
             cast(str, state[ContractAuctionState.seller_address.str_key()])
         )
 
@@ -104,7 +90,7 @@ def to_auction_state(state: dict[bytes | str, bytes | str | int]) -> AuctionStat
             value = cast(
                 str, state[ContractAuctionState.highest_bidder_address.str_key()]
             )
-            return to_address(value) if value else None
+            return beaker_utils.to_address(value) if value else None
         return None
 
     def highest_bid() -> int:

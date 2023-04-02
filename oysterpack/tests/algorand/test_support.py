@@ -47,6 +47,9 @@ def sort_accounts_by_algo_balance(accounts: list[Address]) -> list[Address]:
 
 
 def get_sandbox_accounts() -> list[SandboxAccount]:
+    """
+    :return: sandnox accounts sorted by ALGO balance from lowest to highest
+    """
     def key(account: SandboxAccount) -> int:
         return get_algo_balance(Address(account.address), sandbox.get_algod_client())
 

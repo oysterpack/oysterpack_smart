@@ -20,7 +20,7 @@ def to_address(hex_encoded_address_bytes: str) -> Address:
     return Address(encode_address(bytes.fromhex(hex_encoded_address_bytes)))
 
 
-def get_app_method(app_spec: ApplicationSpecification ,name: str) -> Method:
+def get_app_method(app_spec: ApplicationSpecification, name: str) -> Method:
     for method in app_spec.contract.methods:
         if method.name == name:
             return method

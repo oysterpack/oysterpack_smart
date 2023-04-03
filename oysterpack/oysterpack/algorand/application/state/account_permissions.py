@@ -6,7 +6,17 @@ from copy import copy
 
 from beaker import Application
 from beaker.decorators import AuthCallable
-from pyteal import Expr, Seq, If, App, Global, Int
+from pyteal import (
+    Expr,
+    Seq,
+    If,
+    App,
+    Global,
+    Int,
+    Subroutine,
+    TealType,
+    SubroutineFnWrapper,
+)
 from pyteal.ast import abi
 
 from oysterpack.algorand.application.state.bitset import AccountBitSet
@@ -58,7 +68,9 @@ def account_permissions_blueprint(app: Application, is_admin: AuthCallable):
     """
 
     @app.external(authorize=is_admin)
-    def grant_permissions(account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64) -> Expr:
+    def grant_permissions(
+        account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
+    ) -> Expr:
         """
         Grants the specified permissions to the specified account.
 
@@ -74,7 +86,7 @@ def account_permissions_blueprint(app: Application, is_admin: AuthCallable):
 
     @app.external(authorize=is_admin)
     def revoke_permissions(
-            account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
+        account: abi.Account, permissions: abi.Uint64, *, output: abi.Uint64
     ) -> Expr:
         """
         Revoke the specified permissions for the specified account
@@ -100,7 +112,7 @@ def account_permissions_blueprint(app: Application, is_admin: AuthCallable):
 
     @app.external(read_only=True)
     def contains_permissions(
-            account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
+        account: abi.Account, permissions: abi.Uint64, *, output: abi.Bool
     ) -> Expr:
         """
         Checks if the account has the specified permissions.
@@ -117,3 +129,25 @@ def account_permissions_blueprint(app: Application, is_admin: AuthCallable):
                 Int(0),
             )
         )
+
+
+def account_contains_permissions(app: Application) -> SubroutineFnWrapper:
+    """
+    :returns: subroutine with the following signature
+
+    @Subroutine(TealType.uint64)
+    def _account_contains_permissions(account: abi.Address, permissions: abi.Uint64) -> Expr:
+        ...
+    """
+
+    @Subroutine(TealType.uint64)
+    def _account_contains_permissions(
+        account: abi.Address, permissions: abi.Uint64
+    ) -> Expr:
+        return If(
+            App.optedIn(account.get(), Global.current_application_id()),
+            app.state.account_permissions[account.get()].contains(permissions),
+            Int(0),
+        )
+
+    return _account_contains_permissions

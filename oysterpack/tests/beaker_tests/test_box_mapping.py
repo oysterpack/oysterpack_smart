@@ -21,15 +21,16 @@ app.apply(unconditional_create_approval, initialize_global_state=True)
 def set_box_element(key: abi.String, value: abi.Uint64) -> Expr:
     return Seq(
         Assert(Not(app.state.data[key.get()].exists())),
-        app.state.data[key.get()].set(value)
+        app.state.data[key.get()].set(value),
     )
+
 
 @app.external
 def set_box_element_2(key: abi.String, value: abi.Uint64) -> Expr:
     return Seq(
         length := App.box_length(key.get()),
         Assert(Not(length.hasValue())),
-        App.box_put(key.get(), Itob(value.get()))
+        App.box_put(key.get(), Itob(value.get())),
     )
 
 
@@ -47,10 +48,7 @@ class BoxMappingTestCase(unittest.TestCase):
         client.fund(1 * algo)
 
         client.call(
-            set_box_element.method_signature(),
-            boxes=[(0, b"foo")],
-            key="foo",
-            value=1
+            set_box_element.method_signature(), boxes=[(0, b"foo")], key="foo", value=1
         )
 
     def test_box(self):
@@ -69,9 +67,9 @@ class BoxMappingTestCase(unittest.TestCase):
             set_box_element_2.method_signature(),
             boxes=[(0, b"foo")],
             key="foo",
-            value=1
+            value=1,
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

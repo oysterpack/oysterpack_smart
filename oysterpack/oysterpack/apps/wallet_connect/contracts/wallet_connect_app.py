@@ -6,10 +6,14 @@ from typing import Final
 
 from beaker import Application, GlobalStateValue
 from beaker.lib.storage import BoxMapping
-from pyteal import Expr, TealType, Seq, Txn, If, Subroutine
+from pyteal import Expr, TealType, Seq, Txn, If, Subroutine, Int
 from pyteal.ast import abi
 
-from oysterpack.algorand.application.state.account_permissions import AccountPermissions, account_permissions_blueprint
+from oysterpack.algorand.application.state import account_permissions
+from oysterpack.algorand.application.state.account_permissions import (
+    AccountPermissions,
+    account_permissions_blueprint,
+)
 
 
 class AppState:
@@ -66,23 +70,29 @@ class Permissions(IntEnum):
     EnableApp = 1 << 3
     DisableApp = 1 << 4
 
+
+app = Application("WalletConnectApp", state=AppState())
+account_contains_permissions = account_permissions.account_contains_permissions(app)
+
+
 @Subroutine(TealType.uint64)
 def is_admin(account: Expr):
     return Seq(
-        (admin_perm := abi.Uint64()).set(Permissions.Admin.value),
-        app.state.account_permissions[account].contains(admin_perm),
+        (address := abi.Address()).set(account),
+        (perm := abi.Uint64()).set(Int(Permissions.Admin.value)),
+        account_contains_permissions(address, perm),
     )
 
-app = Application("WalletConnectApp", state=AppState())
+
 app.apply(account_permissions_blueprint, is_admin=is_admin)
 
 
 @app.create
 def create(
-        name: abi.String,
-        url: abi.String,
-        enabled: abi.Bool,
-        admin: abi.Account,
+    name: abi.String,
+    url: abi.String,
+    enabled: abi.Bool,
+    admin: abi.Account,
 ) -> Expr:
     """
     Initializes application state.
@@ -92,7 +102,7 @@ def create(
         app.state.name.set(name.get()),
         app.state.url.set(url.get()),
         app.state.enabled.set(enabled.get()),
-        app.state.global_admin.set(admin.address())
+        app.state.global_admin.set(admin.address()),
     )
 
 
@@ -103,7 +113,7 @@ def optin() -> Expr:
         If(
             Txn.sender() == app.state.global_admin.get(),
             grant_admin_permission(Txn.sender()),
-        )
+        ),
     )
 
 
@@ -113,6 +123,3 @@ def grant_admin_permission(account: Expr):
         (admin_perm := abi.Uint64()).set(Permissions.Admin.value),
         app.state.account_permissions[account].grant(admin_perm),
     )
-
-
-

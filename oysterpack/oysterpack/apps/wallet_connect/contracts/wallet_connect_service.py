@@ -31,16 +31,19 @@ from oysterpack.algorand.application.state.account_permissions import (
 )
 from oysterpack.apps.wallet_connect.contracts import wallet_connect_app
 
+WalletConnectAppName = abi.String
+WalletConnectAppId = abi.Uint64
+
 
 class WalletConnectServiceState:
     # registered apps
     # app name -> app ID (WalletConnectApp)
-    apps: Final[BoxMapping] = BoxMapping(abi.String, abi.Uint64)
+    apps: Final[BoxMapping] = BoxMapping(WalletConnectAppName, WalletConnectAppId)
 
     account_permissions: Final[AccountPermissions] = AccountPermissions()
 
 
-class Permissions(IntEnum):
+class Permission(IntEnum):
     """
     Permissions
     """
@@ -61,7 +64,7 @@ account_contains_permissions = account_permissions.account_contains_permissions(
 def is_admin(account: Expr):
     return Seq(
         (address := abi.Address()).set(account),
-        (perm := abi.Uint64()).set(Int(Permissions.Admin.value)),
+        (perm := abi.Uint64()).set(Int(Permission.Admin.value)),
         account_contains_permissions(address, perm),
     )
 
@@ -70,7 +73,7 @@ def is_admin(account: Expr):
 def contains_create_app_perm(account: Expr):
     return Seq(
         (address := abi.Address()).set(account),
-        (perm := abi.Uint64()).set(Int(Permissions.CreateApp.value)),
+        (perm := abi.Uint64()).set(Int(Permission.CreateApp.value)),
         account_contains_permissions(address, perm),
     )
 
@@ -82,7 +85,7 @@ app.apply(unconditional_create_approval)
 @Subroutine(return_type=TealType.none)
 def grant_admin_permission(account: Expr):
     return Seq(
-        (admin_perm := abi.Uint64()).set(Permissions.Admin.value),
+        (admin_perm := abi.Uint64()).set(Permission.Admin.value),
         app.state.account_permissions[account].grant(admin_perm),
     )
 

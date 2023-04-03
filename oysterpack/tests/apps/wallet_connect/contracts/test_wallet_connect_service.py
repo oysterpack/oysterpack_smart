@@ -10,7 +10,7 @@ from oysterpack.apps.wallet_connect.contracts import (
     wallet_connect_service,
     wallet_connect_app,
 )
-from oysterpack.apps.wallet_connect.contracts.wallet_connect_service import Permissions
+from oysterpack.apps.wallet_connect.contracts.wallet_connect_service import Permission
 from tests.algorand.test_support import AlgorandTestCase
 
 
@@ -40,7 +40,7 @@ class WalletConnectAppTestCase(AlgorandTestCase):
         wallet_connect_service_client.call(
             get_app_method(app_spec, "grant_permissions"),
             account=creator.address,
-            permissions=Permissions.CreateApp.value,
+            permissions=Permission.CreateApp.value,
         )
 
         result = wallet_connect_service_client.call(
@@ -48,7 +48,7 @@ class WalletConnectAppTestCase(AlgorandTestCase):
             sender=creator.address,
             signer=creator.signer,
             account=creator.address,
-            permissions=Permissions.Admin.value | Permissions.CreateApp.value,
+            permissions=Permission.Admin.value | Permission.CreateApp.value,
         )
         self.assertTrue(result.return_value)
 
@@ -85,7 +85,7 @@ class WalletConnectAppTestCase(AlgorandTestCase):
             sender=creator.address,
             signer=creator.signer,
             account=admin.address,
-            permissions=Permissions.Admin.value,
+            permissions=Permission.Admin.value,
         )
         self.assertFalse(result.return_value)
 

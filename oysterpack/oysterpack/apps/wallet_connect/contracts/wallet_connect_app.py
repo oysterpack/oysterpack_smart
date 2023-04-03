@@ -54,17 +54,17 @@ class AppState:
     keys: Final[BoxMapping] = BoxMapping(abi.Address, abi.Address)
 
 
-class Permissions(IntEnum):
+class Permission(IntEnum):
     """
-    Permissions
+    Permission
     """
 
     # Admin manages permissions for other accounts
     Admin = 1 << 0
 
     # Permissions for managing keys
-    AddKey = 1 << 1
-    DeleteKey = 1 << 2
+    RegisterKeys = 1 << 1
+    DeleteKeys = 1 << 2
 
     # Permissions for enabling/disabling the app
     EnableApp = 1 << 3
@@ -75,13 +75,22 @@ app = Application("WalletConnectApp", state=AppState())
 account_contains_permissions = account_permissions.account_contains_permissions(app)
 
 
-@Subroutine(TealType.uint64)
-def is_admin(account: Expr):
+def contains_permission(account: Expr, permission: Permission):
     return Seq(
         (address := abi.Address()).set(account),
-        (perm := abi.Uint64()).set(Int(Permissions.Admin.value)),
+        (perm := abi.Uint64()).set(Int(permission.value)),
         account_contains_permissions(address, perm),
     )
+
+
+@Subroutine(TealType.uint64)
+def is_admin(account: Expr):
+    return contains_permission(account, Permission.Admin)
+
+
+@Subroutine(TealType.uint64)
+def contains_register_key_perm(account: Expr):
+    return contains_permission(account, Permission.RegisterKeys)
 
 
 app.apply(account_permissions_blueprint, is_admin=is_admin)
@@ -120,6 +129,24 @@ def optin() -> Expr:
 @Subroutine(return_type=TealType.none)
 def grant_admin_permission(account: Expr):
     return Seq(
-        (admin_perm := abi.Uint64()).set(Permissions.Admin.value),
+        (admin_perm := abi.Uint64()).set(Permission.Admin.value),
         app.state.account_permissions[account].grant(admin_perm),
     )
+
+
+@app.external(authorize=contains_register_key_perm)
+def register_keys(
+    signing_address: abi.Address,
+    encryption_address: abi.Address,
+) -> Expr:
+    """
+    Notes
+    -----
+    - application account must be prefunded to pay for box storage
+
+
+    :param signing_address:
+    :param encryption_address:
+    :return:
+    """
+    return app.state.keys[signing_address.get()].set(encryption_address.get())

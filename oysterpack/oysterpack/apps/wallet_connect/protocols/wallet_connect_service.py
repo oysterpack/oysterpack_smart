@@ -37,6 +37,8 @@ class App:
     # if a contract exploit was discovered.
     enabled: bool
 
+    admin: Address
+
 
 @dataclass(slots=True, frozen=True)
 class AccountSubscription:
@@ -101,6 +103,13 @@ class WalletConnectService(Protocol):
     MultisigService
     """
 
+    async def app_registered(self, app_id: AppId) -> bool:
+        """
+        :param app_id: AppId
+        :return: True if the app is registered
+        """
+        ...
+
     async def app_keys_registered(
             self,
             app_id: AppId,
@@ -109,6 +118,7 @@ class WalletConnectService(Protocol):
     ) -> bool:
         """
         :return: True if the signing and encrptuion addresses are registered with the service
+        :raises AppNotRegistered: If app is not registered
         """
         ...
 

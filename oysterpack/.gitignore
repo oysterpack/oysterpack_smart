@@ -3,5 +3,8 @@ temp
 **/*.sqlite
 /.idea/sqldialects.xml
 /.idea/dataSources.xml
-tests/*.teal
-tests/*.json
+
+# Algorand beaker contract build artiface
+tests/**/*.teal
+tests/**/application.json
+tests/**/contract.json

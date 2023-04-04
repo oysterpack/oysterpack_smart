@@ -43,7 +43,7 @@ class AppState:
 
     # global admin still needs to opt in to the contract
     # when the global admin account opts in, the account is granted admin permissions
-    global_admin: Final[GlobalStateValue] = GlobalStateValue(
+    admin: Final[GlobalStateValue] = GlobalStateValue(
         stack_type=TealType.bytes,
         descr="global admin account",
     )
@@ -111,7 +111,7 @@ def create(
         app.state.name.set(name.get()),
         app.state.url.set(url.get()),
         app.state.enabled.set(enabled.get()),
-        app.state.global_admin.set(admin.address()),
+        app.state.admin.set(admin.address()),
     )
 
 
@@ -120,7 +120,7 @@ def optin() -> Expr:
     return Seq(
         app.initialize_local_state(Txn.sender()),
         If(
-            Txn.sender() == app.state.global_admin.get(),
+            Txn.sender() == app.state.admin.get(),
             grant_admin_permission(Txn.sender()),
         ),
     )

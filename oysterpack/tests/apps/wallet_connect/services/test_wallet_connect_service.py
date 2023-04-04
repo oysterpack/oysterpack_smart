@@ -9,6 +9,7 @@ from ulid import ULID
 
 from oysterpack.algorand.beaker_utils import get_app_method
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
+from oysterpack.algorand.client.model import AppId
 from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
 from oysterpack.apps.wallet_connect.contracts import (
     wallet_connect_service,
@@ -23,6 +24,7 @@ from oysterpack.apps.wallet_connect.contracts.wallet_connect_service import (
 from oysterpack.apps.wallet_connect.services.wallet_connect_service import (
     OysterPackWalletConnectService,
 )
+from oysterpack.core.ulid import HashableULID
 from tests.algorand.test_support import AlgorandTestCase
 
 
@@ -104,17 +106,23 @@ class WalletConnectServiceTestCase(AlgorandTestCase, IsolatedAsyncioTestCase):
             permissions=WalletConnectAppPermission.RegisterKeys.value,
         )
 
-    async def test_app_registered(self):
+    async def test_lookup_app(self):
         service = OysterPackWalletConnectService(
-            wallet_connect_service_app_id=self.wallet_connect_service_app_id,
+            wallet_connect_service_app_id=AppId(self.wallet_connect_service_app_id),
             executor=self.executor,
             algod_client=self.algod_client,
         )
 
-        self.assertFalse(
-            await service.app_status(self.wallet_connect_service_app_id)
+        self.assertIsNone(
+            await service.lookup_app(AppId(abs(hash(HashableULID()))))
         )
-        self.assertTrue(await service.app_status(self.wallet_connect_app_id))
+
+        self.assertIsNone(
+            await service.lookup_app(AppId(self.wallet_connect_service_app_id))
+        )
+        app = await service.lookup_app(AppId(self.wallet_connect_app_id))
+        self.assertIsNotNone(app)
+        self.assertEqual(self.wallet_connect_app_id, app.app_id)
 
     async def test_app_keys_registered(self):
         service = OysterPackWalletConnectService(

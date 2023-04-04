@@ -24,13 +24,17 @@ from oysterpack.apps.wallet_connect.messsages.authorize_transactions import (
 @dataclass(slots=True, frozen=True)
 class App:
     """
-    App that is registered with the multisig sevice
+    App that is registered with the wallet connect service
     """
 
     app_id: AppId
-    # While the app is disabled the service will not be able to use the multisig service.
-    # This mechanism is put in place to protect accounts. For example, an app may be disabled if a contract exploit was
-    # discovered.
+
+    name: str
+    url: str
+
+    # While the app is disabled the service will not be able to use the wallet connect service.
+    # This mechanism is put in place to protect accounts. For example, an app may be disabled
+    # if a contract exploit was discovered.
     enabled: bool
 
 
@@ -57,15 +61,15 @@ class WalletConnectServiceError(Exception):
     """
 
 
-class WalletOffline(WalletConnectServiceError):
-    """
-    Wallet is currently offline
-    """
-
-
 class AppNotRegistered(WalletConnectServiceError):
     """
     App is not registered
+    """
+
+
+class AppDisabled(WalletConnectServiceError):
+    """
+    App is registered but is disabled
     """
 
 
@@ -87,31 +91,36 @@ class AccountNotOptedIntoApp(WalletConnectServiceError):
     """
 
 
+class WalletOffline(WalletConnectServiceError):
+    """
+    Wallet is currently offline
+    """
+
 class WalletConnectService(Protocol):
     """
     MultisigService
     """
 
     async def app_keys_registered(
-        self,
-        app_id: AppId,
-        signing_address: SigningAddress,
-        encryption_address: EncryptionAddress,
+            self,
+            app_id: AppId,
+            signing_address: SigningAddress,
+            encryption_address: EncryptionAddress,
     ) -> bool:
         """
         :return: True if the signing and encrptuion addresses are registered with the service
         """
         ...
 
-    async def app_registered(self, app_id: AppId) -> bool:
+    async def lookup_app(self, app_id: AppId) -> App | None:
         """
         :param app_id: AppId
-        :return: True if the app is registered with the service
+        :return: None if the app is not registered
         """
         ...
 
     async def get_account_subscription(
-        self, account: Address
+            self, account: Address
     ) -> AccountSubscription | None:
         """
         Note
@@ -144,9 +153,9 @@ class WalletConnectService(Protocol):
         ...
 
     async def app_activity_registered(
-        self,
-        app_id: AppId,
-        app_activity_id: AppActivityId,
+            self,
+            app_id: AppId,
+            app_activity_id: AppActivityId,
     ) -> bool:
         """
         Returns false if the app activity is not registered.
@@ -154,8 +163,8 @@ class WalletConnectService(Protocol):
         ...
 
     def get_app_activity_spec(
-        self,
-        app_activity_id: AppActivityId,
+            self,
+            app_activity_id: AppActivityId,
     ) -> AppActivitySpec | None:
         """
         Looks up the AppActivitySpec for the specified AppActivityId
@@ -163,8 +172,8 @@ class WalletConnectService(Protocol):
         ...
 
     def get_txn_activity_spec(
-        self,
-        txn_activity_id: TxnActivityId,
+            self,
+            txn_activity_id: TxnActivityId,
     ) -> TxnActivitySpec | None:
         """
         Looks up the TxnActivitySpec for the specified TxnActivityId
@@ -172,7 +181,7 @@ class WalletConnectService(Protocol):
         ...
 
     async def authorize_transactions(
-        self, request: AuthorizeTransactionsRequest
+            self, request: AuthorizeTransactionsRequest
     ) -> bool:
         """
         Transactions are sent to the user for authorization, i.e., either approve or reject
@@ -182,7 +191,7 @@ class WalletConnectService(Protocol):
         ...
 
     async def sign_transactions(
-        self, request: AuthorizeTransactionsRequest
+            self, request: AuthorizeTransactionsRequest
     ) -> list[TxnId]:
         """
         Signs the transactions and submits them to Algorand.

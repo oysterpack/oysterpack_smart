@@ -69,7 +69,7 @@ class OysterPackWalletConnectService(WalletConnectService):
             self.__executor, _app_keys_registered
         )
 
-    async def app_registered(self, app_id: AppId) -> bool:
+    async def app_status(self, app_id: AppId) -> bool:
         def _app_registered():
             app_info = self.__algod_client.application_info(app_id)
             return (

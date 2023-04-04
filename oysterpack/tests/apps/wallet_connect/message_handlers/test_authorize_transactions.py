@@ -46,7 +46,7 @@ from oysterpack.apps.wallet_connect.protocols.wallet_connect_service import (
     AccountSubscriptionExpired,
     AppNotRegistered,
     AccountNotRegistered,
-    AccountNotOptedIntoApp,
+    AccountNotOptedIntoApp, App, AppDisabled,
 )
 from tests.algorand.messaging import server_ssl_context, client_ssl_context
 from tests.algorand.test_support import AlgorandTestCase
@@ -101,6 +101,7 @@ class WalletConnectServiceMock(WalletConnectService):
 
     app_keys_registered_: bool = True
     app_registered_: bool = True
+    app_enabled_: bool = True
     account_registered_: bool = True
     account_opted_in_app_: bool = True
     app_activity_registered_: bool = True
@@ -117,9 +118,16 @@ class WalletConnectServiceMock(WalletConnectService):
         await asyncio.sleep(0)
         return self.app_keys_registered_
 
-    async def app_registered(self, app_id: AppId) -> bool:
+    async def lookup_app(self, app_id: AppId) -> App | None:
         await asyncio.sleep(0)
-        return self.app_registered_
+        if not self.app_registered_:
+            return None
+        return App(
+            app_id=app_id,
+            name="Foo",
+            url="https://app.foo.com",
+            enabled=self.app_enabled_
+        )
 
     async def account_opted_in_app(self, account: Address, app_id: AppId) -> bool:
         await asyncio.sleep(0)
@@ -127,8 +135,11 @@ class WalletConnectServiceMock(WalletConnectService):
 
     async def wallet_connected(self, account: Address, app_id: AppId) -> bool:
         await asyncio.sleep(0)
-        if not await self.app_registered(app_id):
+        app = await self.lookup_app(app_id)
+        if app is None :
             raise AppNotRegistered()
+        if not app.enabled:
+            raise AppDisabled()
 
         subscription = await self.get_account_subscription(account)
         if subscription is None:

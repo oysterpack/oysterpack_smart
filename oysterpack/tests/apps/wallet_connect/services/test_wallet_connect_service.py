@@ -112,9 +112,9 @@ class WalletConnectServiceTestCase(AlgorandTestCase, IsolatedAsyncioTestCase):
         )
 
         self.assertFalse(
-            await service.app_registered(self.wallet_connect_service_app_id)
+            await service.app_status(self.wallet_connect_service_app_id)
         )
-        self.assertTrue(await service.app_registered(self.wallet_connect_app_id))
+        self.assertTrue(await service.app_status(self.wallet_connect_app_id))
 
     async def test_app_keys_registered(self):
         service = OysterPackWalletConnectService(

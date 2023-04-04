@@ -169,6 +169,18 @@ class AuthorizeTransactionsHandler(MessageHandler):
         signing_address: SigningAddress,
         encryption_address: EncryptionAddress,
     ):
+        app = await self.__wallet_connect.lookup_app(app_id)
+        if app is None:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.AppNotRegistered,
+                message="app is not registered",
+            )
+        if not app.enabled:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.AppDisabled,
+                message="app is disabled",
+            )
+
         if not await self.__wallet_connect.app_keys_registered(
             app_id=app_id,
             signing_address=signing_address,

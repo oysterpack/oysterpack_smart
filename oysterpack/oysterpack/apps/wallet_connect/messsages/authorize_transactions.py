@@ -237,6 +237,7 @@ class AuthorizeTransactionsErrCode(StrEnum):
 
     # app is not registered
     AppNotRegistered = auto()
+    AppDisabled = auto()
     # account is not opted in with the wallet connect service
     AccountNotRegistered = auto()
     # account has not opted into the app

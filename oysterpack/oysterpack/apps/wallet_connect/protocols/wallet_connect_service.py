@@ -98,6 +98,7 @@ class WalletOffline(WalletConnectServiceError):
     Wallet is currently offline
     """
 
+
 class WalletConnectService(Protocol):
     """
     MultisigService
@@ -111,10 +112,10 @@ class WalletConnectService(Protocol):
         ...
 
     async def app_keys_registered(
-            self,
-            app_id: AppId,
-            signing_address: SigningAddress,
-            encryption_address: EncryptionAddress,
+        self,
+        app_id: AppId,
+        signing_address: SigningAddress,
+        encryption_address: EncryptionAddress,
     ) -> bool:
         """
         :return: True if the signing and encrptuion addresses are registered with the service
@@ -130,7 +131,7 @@ class WalletConnectService(Protocol):
         ...
 
     async def get_account_subscription(
-            self, account: Address
+        self, account: Address
     ) -> AccountSubscription | None:
         """
         Note
@@ -163,9 +164,9 @@ class WalletConnectService(Protocol):
         ...
 
     async def app_activity_registered(
-            self,
-            app_id: AppId,
-            app_activity_id: AppActivityId,
+        self,
+        app_id: AppId,
+        app_activity_id: AppActivityId,
     ) -> bool:
         """
         Returns false if the app activity is not registered.
@@ -173,8 +174,8 @@ class WalletConnectService(Protocol):
         ...
 
     def get_app_activity_spec(
-            self,
-            app_activity_id: AppActivityId,
+        self,
+        app_activity_id: AppActivityId,
     ) -> AppActivitySpec | None:
         """
         Looks up the AppActivitySpec for the specified AppActivityId
@@ -182,8 +183,8 @@ class WalletConnectService(Protocol):
         ...
 
     def get_txn_activity_spec(
-            self,
-            txn_activity_id: TxnActivityId,
+        self,
+        txn_activity_id: TxnActivityId,
     ) -> TxnActivitySpec | None:
         """
         Looks up the TxnActivitySpec for the specified TxnActivityId
@@ -191,7 +192,7 @@ class WalletConnectService(Protocol):
         ...
 
     async def authorize_transactions(
-            self, request: AuthorizeTransactionsRequest
+        self, request: AuthorizeTransactionsRequest
     ) -> bool:
         """
         Transactions are sent to the user for authorization, i.e., either approve or reject
@@ -201,7 +202,7 @@ class WalletConnectService(Protocol):
         ...
 
     async def sign_transactions(
-            self, request: AuthorizeTransactionsRequest
+        self, request: AuthorizeTransactionsRequest
     ) -> list[TxnId]:
         """
         Signs the transactions and submits them to Algorand.

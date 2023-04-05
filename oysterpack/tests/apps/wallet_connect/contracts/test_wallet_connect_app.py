@@ -49,7 +49,7 @@ class WalletConnectAppTestCase(AlgorandTestCase):
         self.assertEqual(url, app_state["url"])
         self.assertTrue(app_state["enabled"])
         self.assertEqual(
-            admin.address, beaker_utils.to_address(app_state["global_admin"])
+            admin.address, beaker_utils.to_address(app_state["admin"])
         )
 
         with self.subTest(

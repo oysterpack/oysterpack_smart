@@ -33,12 +33,7 @@ class AppState:
     )
     enabled: Final[GlobalStateValue] = GlobalStateValue(
         stack_type=TealType.uint64,
-        descr="""
-        when disabled, app messages sent to the WalletConnectServices will be rejected
-        
-        disabled=0
-        enabled=1        
-        """,
+        descr="when disabled, app messages sent to the WalletConnectServices will be rejected: disabled=0, enabled=1",
     )
 
     # global admin still needs to opt in to the contract

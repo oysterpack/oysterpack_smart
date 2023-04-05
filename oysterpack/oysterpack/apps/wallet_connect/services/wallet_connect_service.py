@@ -14,6 +14,7 @@ from beaker.client import ApplicationClient
 from oysterpack.algorand.client.accounts.private_key import (
     SigningAddress,
     EncryptionAddress,
+    AlgoPublicKeys,
 )
 from oysterpack.algorand.client.model import AppId, Address, TxnId
 from oysterpack.apps.wallet_connect.contracts import wallet_connect_app
@@ -98,7 +99,7 @@ class OysterPackWalletConnectService(WalletConnectService):
             self.__executor, _app_registered
         )
 
-    async def lookup_app(self, app_id: AppId) -> App | None:
+    async def app(self, app_id: AppId) -> App | None:
         if not await self.app_registered(app_id):
             return None
 
@@ -127,7 +128,7 @@ class OysterPackWalletConnectService(WalletConnectService):
             self.__executor, _lookup_app
         )
 
-    async def get_account_subscription(
+    async def account_subscription(
         self, account: Address
     ) -> AccountSubscription | None:
         raise NotImplementedError
@@ -135,7 +136,12 @@ class OysterPackWalletConnectService(WalletConnectService):
     async def account_opted_in_app(self, account: Address, app_id: AppId) -> bool:
         raise NotImplementedError
 
-    async def wallet_connected(self, account: Address, app_id: AppId) -> bool:
+    async def wallet_connected(
+        self,
+        account: Address,
+        app_id: AppId,
+        wallet_public_keys: AlgoPublicKeys,
+    ) -> bool:
         raise NotImplementedError
 
     async def app_activity_registered(
@@ -145,13 +151,13 @@ class OysterPackWalletConnectService(WalletConnectService):
     ) -> bool:
         raise NotImplementedError
 
-    def get_app_activity_spec(
+    def app_activity_spec(
         self,
         app_activity_id: AppActivityId,
     ) -> AppActivitySpec | None:
         raise NotImplementedError
 
-    def get_txn_activity_spec(
+    def txn_activity_spec(
         self,
         txn_activity_id: TxnActivityId,
     ) -> TxnActivitySpec | None:

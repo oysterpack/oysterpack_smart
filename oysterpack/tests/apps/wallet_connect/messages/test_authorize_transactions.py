@@ -27,6 +27,7 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
         logger = self.get_logger("test_request_pack_unpack")
         sender = AlgoPrivateKey()
         receiver = AlgoPrivateKey()
+        wallet = AlgoPrivateKey()
 
         with self.subTest("single transaction"):
             txn1 = transfer_algo(
@@ -39,6 +40,7 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
             request = AuthorizeTransactionsRequest(
                 app_id=AppId(100),
                 authorizer=sender.signing_address,
+                wallet_public_keys=wallet.public_keys,
                 transactions=[(txn1, TxnActivityId())],
                 app_activity_id=AppActivityId(),
             )
@@ -59,6 +61,7 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     AuthorizeTransactionsRequest(
                         app_id=AppId(100),
                         authorizer=sender.signing_address,
+                        wallet_public_keys=wallet.public_keys,
                         transactions=[(txn1, TxnActivityId()), (txn2, TxnActivityId())],
                         app_activity_id=AppActivityId(),
                     )
@@ -85,6 +88,7 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     AuthorizeTransactionsRequest(
                         app_id=AppId(100),
                         authorizer=sender.signing_address,
+                        wallet_public_keys=wallet.public_keys,
                         transactions=[
                             (txn1, TxnActivityId()),
                             (txn2, TxnActivityId()),
@@ -116,6 +120,7 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     AuthorizeTransactionsRequest(
                         app_id=AppId(100),
                         authorizer=sender.signing_address,
+                        wallet_public_keys=wallet.public_keys,
                         transactions=[
                             (txn1, TxnActivityId()),
                             (txn2, TxnActivityId()),
@@ -145,6 +150,7 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
             AuthorizeTransactionsRequest(
                 app_id=AppId(100),
                 authorizer=sender.signing_address,
+                wallet_public_keys=wallet.public_keys,
                 transactions=txns,
                 app_activity_id=AppActivityId(),
             )
@@ -152,6 +158,7 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
     def test_post_create_validations(self):
         sender = AlgoPrivateKey()
         receiver = AlgoPrivateKey()
+        wallet = AlgoPrivateKey()
 
         txn = transfer_algo(
             sender=sender.signing_address,
@@ -163,12 +170,15 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
         request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
             authorizer=sender.signing_address,
+            wallet_public_keys=wallet.public_keys,
             transactions=[(txn, TxnActivityId())],
             app_activity_id=AppActivityId(),
         )
         (
             app_id,
-            signer,
+            authorizer,
+            wallet_signing_address,
+            wallet_encrption_address,
             txns,
             app_activity_id,
         ) = msgpack.unpackb(request.pack())
@@ -177,7 +187,9 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                 msgpack.packb(
                     (
                         None,
-                        signer,
+                        authorizer,
+                        wallet_signing_address,
+                        wallet_encrption_address,
                         txns,
                         app_activity_id,
                     )
@@ -192,6 +204,8 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     (
                         app_id,
                         None,
+                        wallet_signing_address,
+                        wallet_encrption_address,
                         txns,
                         app_activity_id,
                     )
@@ -205,7 +219,9 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                 msgpack.packb(
                     (
                         app_id,
-                        signer,
+                        authorizer,
+                        wallet_signing_address,
+                        wallet_encrption_address,
                         [],
                         app_activity_id,
                     )
@@ -219,7 +235,9 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                 msgpack.packb(
                     (
                         app_id,
-                        signer,
+                        authorizer,
+                        wallet_signing_address,
+                        wallet_encrption_address,
                         txns,
                         None,
                     )
@@ -234,6 +252,8 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     (
                         app_id,
                         "invalid_address",
+                        wallet_signing_address,
+                        wallet_encrption_address,
                         txns,
                         app_activity_id,
                     )

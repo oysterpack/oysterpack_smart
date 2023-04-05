@@ -8,6 +8,7 @@ from typing import Protocol
 from oysterpack.algorand.client.accounts.private_key import (
     SigningAddress,
     EncryptionAddress,
+    AlgoPublicKeys,
 )
 from oysterpack.algorand.client.model import Address, AppId, TxnId
 from oysterpack.apps.wallet_connect.domain.activity import (
@@ -93,6 +94,12 @@ class AccountNotOptedIntoApp(WalletConnectServiceError):
     """
 
 
+class InvalidWalletPublickeys(WalletConnectServiceError):
+    """
+    Wallet public keys are not registered with the specified account
+    """
+
+
 class WalletOffline(WalletConnectServiceError):
     """
     Wallet is currently offline
@@ -123,14 +130,14 @@ class WalletConnectService(Protocol):
         """
         ...
 
-    async def lookup_app(self, app_id: AppId) -> App | None:
+    async def app(self, app_id: AppId) -> App | None:
         """
         :param app_id: AppId
         :return: None if the app is not registered
         """
         ...
 
-    async def get_account_subscription(
+    async def account_subscription(
         self, account: Address
     ) -> AccountSubscription | None:
         """
@@ -150,16 +157,19 @@ class WalletConnectService(Protocol):
         """
         ...
 
-    async def wallet_connected(self, account: Address, app_id: AppId) -> bool:
+    async def wallet_connected(
+        self, account: Address, app_id: AppId, wallet_public_keys: AlgoPublicKeys
+    ) -> bool:
         """
         :param account: Address
         :param app_id: AppId
-        :return: True if the wallet is connected to the app
+        :return: True if the wallet is connected to the app using the specified wallet public keys
 
         :raises AppNotRegistered: if the app is not registered with the service
         :raises AccountNotRegistered: if the account is not currently subscribed
         :raises AccountNotOptedIntoApp: if the account has not opted into the app
         :raises AccountSubscriptionExpired: if the account subscription is expired
+        :raises InvalidWalletPublickeys: If wallet public keys are not registered with the specified account
         """
         ...
 
@@ -173,7 +183,7 @@ class WalletConnectService(Protocol):
         """
         ...
 
-    def get_app_activity_spec(
+    def app_activity_spec(
         self,
         app_activity_id: AppActivityId,
     ) -> AppActivitySpec | None:
@@ -182,7 +192,7 @@ class WalletConnectService(Protocol):
         """
         ...
 
-    def get_txn_activity_spec(
+    def txn_activity_spec(
         self,
         txn_activity_id: TxnActivityId,
     ) -> TxnActivitySpec | None:

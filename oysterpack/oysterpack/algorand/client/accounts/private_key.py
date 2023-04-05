@@ -8,6 +8,7 @@ https://doc.libsodium.org/public-key_cryptography/authenticated_encryption
 """
 
 import base64
+from dataclasses import dataclass
 from typing import NewType
 
 from algosdk import constants, mnemonic
@@ -25,6 +26,12 @@ EncryptionAddress = NewType("EncryptionAddress", Address)
 # public signing key encoded as a base32 address
 # standard Algorand address
 SigningAddress = NewType("SigningAddress", Address)
+
+
+@dataclass(slots=True)
+class AlgoPublicKeys:
+    signing_address: SigningAddress
+    encryption_address: EncryptionAddress
 
 
 class AlgoPrivateKey(PrivateKey):
@@ -73,6 +80,13 @@ class AlgoPrivateKey(PrivateKey):
         """
         return Mnemonic.from_word_list(
             mnemonic.from_private_key(base64.b64encode(bytes(self)).decode())
+        )
+
+    @property
+    def public_keys(self) -> AlgoPublicKeys:
+        return AlgoPublicKeys(
+            signing_address=self.signing_address,
+            encryption_address=self.encryption_address,
         )
 
     @property

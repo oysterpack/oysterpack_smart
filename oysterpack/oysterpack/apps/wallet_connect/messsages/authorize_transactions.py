@@ -10,7 +10,10 @@ from algosdk import transaction, constants
 from algosdk.encoding import is_valid_address
 from algosdk.transaction import Transaction
 
-from oysterpack.algorand.client.accounts.private_key import SigningAddress
+from oysterpack.algorand.client.accounts.private_key import (
+    SigningAddress,
+    AlgoPublicKeys,
+)
 from oysterpack.algorand.client.model import AppId, TxnId
 from oysterpack.apps.wallet_connect.domain.activity import (
     TxnActivityId,
@@ -34,6 +37,7 @@ class AuthorizeTransactionsRequest(Serializable):
 
     # account that is being requested to authorize the transactions
     authorizer: SigningAddress
+    wallet_public_keys: AlgoPublicKeys
 
     # list of transactions to be signed
     # - each transaction is linked to an ActivityId
@@ -61,6 +65,15 @@ class AuthorizeTransactionsRequest(Serializable):
             required_fields = (
                 (self.app_id, "app_id"),
                 (self.authorizer, "authorizer"),
+                (self.wallet_public_keys, "wallet_public_keys"),
+                (
+                    self.wallet_public_keys.signing_address,
+                    "wallet_public_keys.signing_address",
+                ),
+                (
+                    self.wallet_public_keys.encryption_address,
+                    "wallet_public_keys.encryption_address",
+                ),
                 (self.app_activity_id, "app_activity_id"),
             )
             for required_field, name in required_fields:
@@ -70,11 +83,24 @@ class AuthorizeTransactionsRequest(Serializable):
                         message=f"{name} is required",
                     )
 
-        def check_signer_address():
+        def check_authorizer_address():
             if not is_valid_address(self.authorizer):
                 raise AuthorizeTransactionsError(
                     code=AuthorizeTransactionsErrCode.InvalidMessage,
                     message="signer address is invalid",
+                )
+
+        def check_wallet_public_keys():
+            if not is_valid_address(self.wallet_public_keys.signing_address):
+                raise AuthorizeTransactionsError(
+                    code=AuthorizeTransactionsErrCode.InvalidMessage,
+                    message="wallet signer address is invalid",
+                )
+
+            if not is_valid_address(self.wallet_public_keys.encryption_address):
+                raise AuthorizeTransactionsError(
+                    code=AuthorizeTransactionsErrCode.InvalidMessage,
+                    message="wallet encryption address is invalid",
                 )
 
         def check_transaction_count():
@@ -118,7 +144,8 @@ class AuthorizeTransactionsRequest(Serializable):
                 txn.group = group_id
 
         check_required_fields()
-        check_signer_address()
+        check_authorizer_address()
+        check_wallet_public_keys()
         check_transaction_count()
         check_transaction_group_id()
 
@@ -133,7 +160,9 @@ class AuthorizeTransactionsRequest(Serializable):
         """
         (
             app_id,
-            signer,
+            authorizer,
+            wallet_signing_address,
+            wallet_encryption_address,
             txns,
             app_activity_id,
         ) = msgpack.unpackb(packed)
@@ -141,7 +170,11 @@ class AuthorizeTransactionsRequest(Serializable):
         try:
             return cls(
                 app_id=app_id,
-                authorizer=signer,
+                authorizer=authorizer,
+                wallet_public_keys=AlgoPublicKeys(
+                    signing_address=wallet_signing_address,
+                    encryption_address=wallet_encryption_address,
+                ),
                 transactions=[
                     (
                         Transaction.undictify(txn),
@@ -162,6 +195,8 @@ class AuthorizeTransactionsRequest(Serializable):
             (
                 self.app_id,
                 self.authorizer,
+                self.wallet_public_keys.signing_address,
+                self.wallet_public_keys.encryption_address,
                 [
                     (txn.dictify(), txn_activity_id.bytes)
                     for (txn, txn_activity_id) in self.transactions
@@ -246,6 +281,7 @@ class AuthorizeTransactionsErrCode(StrEnum):
     AccountSubscriptionExpired = auto()
     # wallet is not connected to the app
     WalletConnectAppDisconnected = auto()
+    InvalidWalletPublicKeys = auto()
 
     InvalidAppActivityId = auto()
     InvalidTxnActivityId = auto()
@@ -255,9 +291,8 @@ class AuthorizeTransactionsErrCode(StrEnum):
 
     # transaction was rejected
     Rejected = auto()
-    # signer client is not connected
-    WalletNotConnected = auto()
 
+    WalletConnectionError = auto()
     # invalid signature
     InvalidSignature = auto()
 

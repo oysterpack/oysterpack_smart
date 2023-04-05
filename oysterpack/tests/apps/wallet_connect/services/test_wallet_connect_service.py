@@ -113,12 +113,10 @@ class WalletConnectServiceTestCase(AlgorandTestCase, IsolatedAsyncioTestCase):
             algod_client=self.algod_client,
         )
 
-        self.assertIsNone(await service.lookup_app(AppId(abs(hash(HashableULID())))))
+        self.assertIsNone(await service.app(AppId(abs(hash(HashableULID())))))
 
-        self.assertIsNone(
-            await service.lookup_app(AppId(self.wallet_connect_service_app_id))
-        )
-        app = await service.lookup_app(AppId(self.wallet_connect_app_id))
+        self.assertIsNone(await service.app(AppId(self.wallet_connect_service_app_id)))
+        app = await service.app(AppId(self.wallet_connect_app_id))
         self.assertIsNotNone(app)
         self.assertEqual(self.wallet_connect_app_id, app.app_id)
 

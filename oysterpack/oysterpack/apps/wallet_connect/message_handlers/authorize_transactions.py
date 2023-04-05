@@ -6,11 +6,7 @@ import logging
 from asyncio import Task, TaskGroup
 from typing import Coroutine, Any, TypeVar
 
-from oysterpack.algorand.client.accounts.private_key import (
-    SigningAddress,
-    EncryptionAddress,
-)
-from oysterpack.algorand.client.model import AppId, Address, TxnId
+from oysterpack.algorand.client.model import TxnId
 from oysterpack.algorand.messaging.secure_message_handler import (
     MessageContext,
     MessageHandler,
@@ -29,6 +25,7 @@ from oysterpack.apps.wallet_connect.protocols.wallet_connect_service import (
     AccountSubscriptionExpired,
     AccountNotRegistered,
     AccountNotOptedIntoApp,
+    InvalidWalletPublickeys,
 )
 from oysterpack.core.message import MessageType
 
@@ -82,12 +79,14 @@ class AuthorizeTransactionsHandler(MessageHandler):
     async def __call__(self, ctx: MessageContext):
         try:
             request = await self.__unpack_request(ctx)
-            await self.__check_app_keys(
-                app_id=request.app_id,
-                signing_address=ctx.client_signing_address,
-                encryption_address=ctx.client_encryption_address,
-            )
-            await self.__validate_request(request)
+            try:
+                async with TaskGroup() as tg:
+                    tg.create_task(self.__check_app_keys(ctx, request))
+                    tg.create_task(self.__check_authorizer_subscription(request))
+                    tg.create_task(self.__check_wallet_app_connection(request))
+                    tg.create_task(self.__validate_transactions(request))
+            except ExceptionGroup as err:
+                raise err.exceptions[0]
             await self._request_accepted(ctx)
             await self.__authorize_transactions(request)
             txnids = await self.__wallet_connect.sign_transactions(request)
@@ -165,11 +164,13 @@ class AuthorizeTransactionsHandler(MessageHandler):
 
     async def __check_app_keys(
         self,
-        app_id: AppId,
-        signing_address: SigningAddress,
-        encryption_address: EncryptionAddress,
+        ctx: MessageContext,
+        request: AuthorizeTransactionsRequest,
     ):
-        app = await self.__wallet_connect.lookup_app(app_id)
+        app_id = request.app_id
+        signing_address = ctx.client_signing_address
+        encryption_address = ctx.client_encryption_address
+        app = await self.__wallet_connect.app(app_id)
         if app is None:
             raise AuthorizeTransactionsError(
                 code=AuthorizeTransactionsErrCode.AppNotRegistered,
@@ -191,97 +192,115 @@ class AuthorizeTransactionsHandler(MessageHandler):
                 message="keys used to sign and encrypt the message are not registered with the app",
             )
 
-    async def __validate_request(
+    async def __check_authorizer_subscription(
+        self, request: AuthorizeTransactionsRequest
+    ):
+        subscription = await self.__wallet_connect.account_subscription(
+            request.authorizer
+        )
+        if subscription is None:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.AccountNotRegistered,
+                message="account is not registered",
+            )
+
+        if subscription.expired:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.AccountSubscriptionExpired,
+                message="account subscription is expired",
+            )
+
+    async def __check_wallet_app_connection(
         self,
         request: AuthorizeTransactionsRequest,
-    ) -> AuthorizeTransactionsRequest:
-        async def check_wallet_app_connection(account: Address, app_id: AppId):
-            try:
-                if not await self.__wallet_connect.wallet_connected(
-                    account=account,
-                    app_id=app_id,
-                ):
-                    raise AuthorizeTransactionsError(
-                        code=AuthorizeTransactionsErrCode.WalletConnectAppDisconnected,
-                        message="wallet is not currently connected to the app",
-                    )
-            except AppNotRegistered:
-                raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.AppNotRegistered,
-                    message="app is not registered",
-                )
-            except AccountNotRegistered:
-                raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.AccountNotRegistered,
-                    message="account is not registered",
-                )
-            except AccountNotOptedIntoApp:
-                raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.AccountNotOptedIntoApp,
-                    message="account is not opted into the app",
-                )
-            except AccountSubscriptionExpired:
-                raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.AccountSubscriptionExpired,
-                    message="account subscription is expired",
-                )
-
-        async def check_activity(request: AuthorizeTransactionsRequest) -> None:
-            app_activity_spec = self.__wallet_connect.get_app_activity_spec(
-                request.app_activity_id
-            )
-            if app_activity_spec is None:
-                raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.InvalidAppActivityId,
-                    message="invalid app activity ID",
-                )
-            if not await self.__wallet_connect.app_activity_registered(
+    ):
+        try:
+            if not await self.__wallet_connect.wallet_connected(
+                account=request.authorizer,
                 app_id=request.app_id,
-                app_activity_id=request.app_activity_id,
+                wallet_public_keys=request.wallet_public_keys,
             ):
                 raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.AppActivityNotRegistered,
-                    message="activity is not registered for the app",
+                    code=AuthorizeTransactionsErrCode.WalletConnectAppDisconnected,
+                    message="wallet is not currently connected to the app",
                 )
+        except AppNotRegistered:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.AppNotRegistered,
+                message="app is not registered",
+            )
+        except AccountNotRegistered:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.AccountNotRegistered,
+                message="account is not registered",
+            )
+        except AccountNotOptedIntoApp:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.AccountNotOptedIntoApp,
+                message="account is not opted into the app",
+            )
+        except AccountSubscriptionExpired:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.AccountSubscriptionExpired,
+                message="account subscription is expired",
+            )
+        except InvalidWalletPublickeys:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.InvalidWalletPublicKeys,
+                message="invalid wallet public keys",
+            )
 
-            try:
-                # validate individual transactions
-                async with TaskGroup() as tg:
-                    for (txn, activity_id) in request.transactions:
-                        txn_activity_spec = self.__wallet_connect.get_txn_activity_spec(
-                            activity_id
-                        )
-                        if txn_activity_spec is None:
-                            raise AuthorizeTransactionsError(
-                                code=AuthorizeTransactionsErrCode.InvalidTxnActivityId,
-                                message=f"invalid transaction activity ID: {activity_id}",
-                            )
-                        tg.create_task(txn_activity_spec.validate(txn))
-            except ExceptionGroup as err:
-                self.__logger.error(f"invalid transaction: {err}")
-                exception = err.exceptions[0]
-                if isinstance(exception, AuthorizeTransactionsError):
-                    raise exception
-                raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.InvalidTxnActivity,
-                    message=str(exception),
-                )
-
-            try:
-                await app_activity_spec.validate(request.transactions)
-            except Exception as err:
-                raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.InvalidAppActivity,
-                    message=f"invalid app activity: {request.app_activity_id} : {err}",
-                )
-
-        await check_wallet_app_connection(
-            account=request.authorizer,
-            app_id=request.app_id,
+    async def __validate_transactions(
+        self,
+        request: AuthorizeTransactionsRequest,
+    ):
+        app_activity_spec = self.__wallet_connect.app_activity_spec(
+            request.app_activity_id
         )
-        await check_activity(request)
+        if app_activity_spec is None:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.InvalidAppActivityId,
+                message="invalid app activity ID",
+            )
+        if not await self.__wallet_connect.app_activity_registered(
+            app_id=request.app_id,
+            app_activity_id=request.app_activity_id,
+        ):
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.AppActivityNotRegistered,
+                message="activity is not registered for the app",
+            )
 
-        return request
+        try:
+            # validate individual transactions
+            async with TaskGroup() as tg:
+                for (txn, activity_id) in request.transactions:
+                    txn_activity_spec = self.__wallet_connect.txn_activity_spec(
+                        activity_id
+                    )
+                    if txn_activity_spec is None:
+                        raise AuthorizeTransactionsError(
+                            code=AuthorizeTransactionsErrCode.InvalidTxnActivityId,
+                            message=f"invalid transaction activity ID: {activity_id}",
+                        )
+                    tg.create_task(txn_activity_spec.validate(txn))
+        except ExceptionGroup as err:
+            self.__logger.error(f"invalid transaction: {err}")
+            exception = err.exceptions[0]
+            if isinstance(exception, AuthorizeTransactionsError):
+                raise exception
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.InvalidTxnActivity,
+                message=str(exception),
+            )
+
+        try:
+            await app_activity_spec.validate(request.transactions)
+        except Exception as err:
+            raise AuthorizeTransactionsError(
+                code=AuthorizeTransactionsErrCode.InvalidAppActivity,
+                message=f"invalid app activity: {request.app_activity_id} : {err}",
+            )
 
     async def __authorize_transactions(self, request: AuthorizeTransactionsRequest):
         approved = await self.__wallet_connect.authorize_transactions(request)

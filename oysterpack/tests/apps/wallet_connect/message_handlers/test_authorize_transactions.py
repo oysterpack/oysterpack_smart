@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import timedelta, datetime, UTC
 from typing import Callable
 
-from algosdk.account import generate_account
 from algosdk.transaction import Transaction
 from beaker.consts import algo
 from black import Tuple
@@ -16,6 +15,7 @@ from oysterpack.algorand.client.accounts.private_key import (
     AlgoPrivateKey,
     SigningAddress,
     EncryptionAddress,
+    AlgoPublicKeys,
 )
 from oysterpack.algorand.client.model import MicroAlgos, AppId, Address
 from oysterpack.algorand.client.transactions.payment import transfer_algo
@@ -49,6 +49,7 @@ from oysterpack.apps.wallet_connect.protocols.wallet_connect_service import (
     AccountNotOptedIntoApp,
     App,
     AppDisabled,
+    WalletConnectServiceError,
 )
 from tests.algorand.messaging import server_ssl_context, client_ssl_context
 from tests.algorand.test_support import AlgorandTestCase
@@ -101,8 +102,8 @@ app_admin_private_key = AlgoPrivateKey()
 
 @dataclass(slots=True)
 class WalletConnectServiceMock(WalletConnectService):
-    account_has_subscription: bool = True
-    account_subscription_expired: bool = False
+    account_has_subscription_: bool = True
+    account_subscription_expired_: bool = False
 
     app_keys_registered_: bool = True
     app_registered_: bool = True
@@ -112,9 +113,10 @@ class WalletConnectServiceMock(WalletConnectService):
     account_registered_: bool = True
     account_opted_in_app_: bool = True
     app_activity_registered_: bool = True
-    app_activity_spec: Callable[[AppActivityId], AppActivitySpec] | None = None
-    txn_activity_spec: Callable[[TxnActivityId], TxnActivitySpec] | None = None
+    app_activity_spec_: Callable[[AppActivityId], AppActivitySpec] | None = None
+    txn_activity_spec_: Callable[[TxnActivityId], TxnActivitySpec] | None = None
     authorize_transactions_: bool = True
+    wallet_connected_error_: WalletConnectServiceError | None = None
 
     async def app_keys_registered(
         self,
@@ -125,7 +127,7 @@ class WalletConnectServiceMock(WalletConnectService):
         await asyncio.sleep(0)
         return self.app_keys_registered_
 
-    async def lookup_app(self, app_id: AppId) -> App | None:
+    async def app(self, app_id: AppId) -> App | None:
         await asyncio.sleep(0)
         if not self.app_registered_:
             return None
@@ -141,15 +143,20 @@ class WalletConnectServiceMock(WalletConnectService):
         await asyncio.sleep(0)
         return self.account_opted_in_app_
 
-    async def wallet_connected(self, account: Address, app_id: AppId) -> bool:
+    async def wallet_connected(
+        self, account: Address, app_id: AppId, wallet_public_keys: AlgoPublicKeys
+    ) -> bool:
         await asyncio.sleep(0)
-        app = await self.lookup_app(app_id)
+        if self.wallet_connected_error_:
+            raise self.wallet_connected_error_
+
+        app = await self.app(app_id)
         if app is None:
             raise AppNotRegistered()
         if not app.enabled:
             raise AppDisabled()
 
-        subscription = await self.get_account_subscription(account)
+        subscription = await self.account_subscription(account)
         if subscription is None:
             raise AccountNotRegistered()
         if subscription.expired:
@@ -160,15 +167,15 @@ class WalletConnectServiceMock(WalletConnectService):
 
         return self.account_registered_
 
-    async def get_account_subscription(
+    async def account_subscription(
         self,
         account: Address,
     ) -> AccountSubscription | None:
         await asyncio.sleep(0)
-        if not self.account_has_subscription:
+        if not self.account_has_subscription_:
             return None
 
-        if self.account_subscription_expired:
+        if self.account_subscription_expired_:
             return AccountSubscription(
                 account=account,
                 expiration=datetime.now(UTC) - timedelta(days=1),
@@ -186,11 +193,11 @@ class WalletConnectServiceMock(WalletConnectService):
         await asyncio.sleep(0)
         return self.app_activity_registered_
 
-    def get_app_activity_spec(
+    def app_activity_spec(
         self, app_activity_id: AppActivityId
     ) -> AppActivitySpec | None:
-        if self.app_activity_spec:
-            return self.app_activity_spec(app_activity_id)
+        if self.app_activity_spec_:
+            return self.app_activity_spec_(app_activity_id)
 
         return AppActivitySpecMock(
             activity_id=app_activity_id,
@@ -198,10 +205,10 @@ class WalletConnectServiceMock(WalletConnectService):
             description="description",
         )
 
-    def get_txn_activity_spec(
+    def txn_activity_spec(
         self, txn_activity_id: TxnActivityId
     ) -> TxnActivitySpec | None:
-        if self.txn_activity_spec:
+        if self.txn_activity_spec_:
             return self.txn_activity_spec(txn_activity_id)
 
         return TxnActivitySpecMock(
@@ -229,8 +236,9 @@ class SignTransactionsMessageHandlerTestCase(
         cls.executor.shutdown(wait=True)
 
     def setUp(self) -> None:
-        self.sender_private_key = AlgoPrivateKey(generate_account()[0])
-        self.recipient_private_key = AlgoPrivateKey(generate_account()[0])
+        self.sender_private_key = AlgoPrivateKey()
+        self.recipient_private_key = AlgoPrivateKey()
+        self.wallet = AlgoPrivateKey()
 
     async def test_single_transaction(self):
         logger = super().get_logger("test_single_transaction")
@@ -255,6 +263,7 @@ class SignTransactionsMessageHandlerTestCase(
         request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
             authorizer=self.sender_private_key.signing_address,
+            wallet_public_keys=self.wallet.public_keys,
             transactions=[(txn, TxnActivityId())],
             app_activity_id=AppActivityId(),
         )
@@ -328,6 +337,7 @@ class SignTransactionsMessageHandlerTestCase(
         request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
             authorizer=self.sender_private_key.signing_address,
+            wallet_public_keys=self.wallet.public_keys,
             transactions=[(txn, TxnActivityId())],
             app_activity_id=AppActivityId(),
         )
@@ -372,7 +382,9 @@ class SignTransactionsMessageHandlerTestCase(
                                     msg.msg_type,
                                 )
                                 failure = AuthorizeTransactionsFailure.unpack(msg.data)
-                                self.assertEqual(expected_err_code, failure.code)
+                                self.assertEqual(
+                                    expected_err_code, failure.code, failure.message
+                                )
 
                                 await asyncio.sleep(0)
 
@@ -393,21 +405,21 @@ class SignTransactionsMessageHandlerTestCase(
         await run_test(
             name="signer not subscribed",
             multisig_service=WalletConnectServiceMock(
-                account_has_subscription=False,
+                account_has_subscription_=False,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.AccountNotRegistered,
         )
         await run_test(
             name="signer subscription expired",
             multisig_service=WalletConnectServiceMock(
-                account_subscription_expired=True,
+                account_subscription_expired_=True,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.AccountSubscriptionExpired,
         )
         await run_test(
             name="account has no subscription",
             multisig_service=WalletConnectServiceMock(
-                account_has_subscription=False,
+                account_has_subscription_=False,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.AccountNotRegistered,
         )
@@ -421,7 +433,7 @@ class SignTransactionsMessageHandlerTestCase(
         await run_test(
             name="app activity validation failed",
             multisig_service=WalletConnectServiceMock(
-                app_activity_spec=lambda app_activity_id: AppActivitySpecMock(
+                app_activity_spec_=lambda app_activity_id: AppActivitySpecMock(
                     activity_id=app_activity_id,
                     name="name",
                     description="description",

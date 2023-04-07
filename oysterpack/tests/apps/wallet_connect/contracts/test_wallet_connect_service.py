@@ -71,6 +71,10 @@ class WalletConnectAppTestCase(AlgorandTestCase):
             admin=admin.address,
         ).return_value
 
+        app_id_bytes = wallet_connect_service_client.get_box_contents(name.encode())
+        app_id_from_box = int.from_bytes(app_id_bytes)
+        self.assertEqual(app_id, app_id_from_box)
+
         wallet_connect_app_client = ApplicationClient(
             self.algod_client,
             app_id=app_id,

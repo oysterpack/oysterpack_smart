@@ -16,20 +16,20 @@ from oysterpack.algorand.application.state.account_permissions import (
 )
 
 
-class AppState:
+class WalletConnectAppState:
     """
     WalletConnectApp state
     """
 
     name: Final[GlobalStateValue] = GlobalStateValue(
         stack_type=TealType.bytes,
-        descr="application name",
         static=True,
+        descr="application name",
     )
     url: Final[GlobalStateValue] = GlobalStateValue(
         stack_type=TealType.bytes,
-        descr="application URL",
         static=True,
+        descr="application URL",
     )
     enabled: Final[GlobalStateValue] = GlobalStateValue(
         stack_type=TealType.uint64,
@@ -66,7 +66,7 @@ class Permission(IntEnum):
     DisableApp = 1 << 4
 
 
-app = Application("WalletConnectApp", state=AppState())
+app = Application("WalletConnectApp", state=WalletConnectAppState())
 account_contains_permissions = account_permissions.account_contains_permissions(app)
 
 

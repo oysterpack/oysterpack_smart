@@ -1,10 +1,12 @@
 import base64
+import pprint
 import unittest
 
 from algosdk.encoding import decode_address, encode_address
 from algosdk.error import AlgodHTTPError
 from beaker.client import ApplicationClient
 from beaker.consts import algo
+from ulid import ULID
 
 from oysterpack.algorand import beaker_utils
 from oysterpack.algorand.beaker_utils import get_app_method
@@ -45,10 +47,12 @@ class WalletConnectAppTestCase(AlgorandTestCase):
 
         # ASSERT
         app_state = app_client.get_global_state()
+        pprint.pp(app_state)
         self.assertEqual(name, app_state["name"])
         self.assertEqual(url, app_state["url"])
         self.assertTrue(app_state["enabled"])
         self.assertEqual(admin.address, beaker_utils.to_address(app_state["admin"]))
+        self.assertEqual(wallet_connect_app.WalletConnectAppState.APP_TYPE_ULID, ULID.from_bytes(bytes.fromhex(app_state["app_type_ulid"])))
 
         with self.subTest(
             "when admin account is not opted in, then the account has no permissions"

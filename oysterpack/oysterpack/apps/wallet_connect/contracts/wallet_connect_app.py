@@ -6,8 +6,9 @@ from typing import Final
 
 from beaker import Application, GlobalStateValue
 from beaker.lib.storage import BoxMapping
-from pyteal import Expr, TealType, Seq, Txn, If, Subroutine, Int
+from pyteal import Expr, TealType, Seq, Txn, If, Subroutine, Int, Bytes
 from pyteal.ast import abi
+from ulid import ULID
 
 from oysterpack.algorand.application.state import account_permissions
 from oysterpack.algorand.application.state.account_permissions import (
@@ -17,9 +18,17 @@ from oysterpack.algorand.application.state.account_permissions import (
 
 
 class WalletConnectAppState:
+    APP_TYPE_ULID: Final[ULID] = ULID.from_str("01GXDYAH00PTSHDS4FT01TNTPG")
+
     """
     WalletConnectApp state
     """
+    app_type_ulid: Final[GlobalStateValue] = GlobalStateValue(
+        stack_type=TealType.bytes,
+        default=Bytes(APP_TYPE_ULID.bytes),
+        static=True,
+        descr="identifies the app type",
+    )
 
     name: Final[GlobalStateValue] = GlobalStateValue(
         stack_type=TealType.bytes,
@@ -103,6 +112,7 @@ def create(
     """
 
     return Seq(
+        app.initialize_global_state(),
         app.state.name.set(name.get()),
         app.state.url.set(url.get()),
         app.state.enabled.set(enabled.get()),

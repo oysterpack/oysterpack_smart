@@ -1,11 +1,7 @@
 import asyncio
-import pickle
 import unittest
 from asyncio import FIRST_EXCEPTION
 from datetime import timedelta
-from pathlib import PurePath
-
-from ulid import ULID
 
 from tests.algorand.test_support import AlgorandTestCase
 from tests.test_support import OysterPackIsolatedAsyncioTestCase
@@ -54,12 +50,8 @@ class MyTestCase(AlgorandTestCase, OysterPackIsolatedAsyncioTestCase):
             task.cancel()
 
     def test_quick(self):
-        path = PurePath("oysterpack", "wallet", str(ULID()))
-        print(path.as_posix())
+        pass
 
-        path_bytes = pickle.dumps(path)
-        path2 = pickle.loads(path_bytes)
-        self.assertEqual(path, path2)
 
 
 if __name__ == "__main__":

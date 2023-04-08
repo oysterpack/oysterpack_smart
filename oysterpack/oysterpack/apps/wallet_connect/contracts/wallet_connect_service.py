@@ -29,16 +29,23 @@ from oysterpack.algorand.application.state.account_permissions import (
     AccountPermissions,
     account_permissions_blueprint,
 )
-from oysterpack.apps.wallet_connect.contracts import wallet_connect_app
+from oysterpack.apps.wallet_connect.contracts import wallet_connect_app, wallet_connect_account
 
 WalletConnectAppName = abi.String
 WalletConnectAppId = abi.Uint64
+
+WalletConnectAccountAddress = abi.Address
+WalletConnectAccountAppId = abi.Uint64
 
 
 class WalletConnectServiceState:
     # registered apps
     # app name -> app ID (WalletConnectApp)
     apps: Final[BoxMapping] = BoxMapping(WalletConnectAppName, WalletConnectAppId)
+
+    # registered accounts
+    # WalletConnectAccount.account -> app ID (WalletConnectAccount)
+    accounts: Final[BoxMapping] = BoxMapping(WalletConnectAccountAddress, WalletConnectAccountAppId)
 
     account_permissions: Final[AccountPermissions] = AccountPermissions()
 
@@ -55,27 +62,36 @@ class Permission(IntEnum):
     CreateApp = 1 << 1
     DeleteApp = 1 << 2
 
+    # Permissions for managing accounts
+    CreateAccount = 1 << 3
+    UpdateAccount = 1 << 4
+    DeleteAccount = 1 << 5
+
 
 app = Application("WalletConnectService", state=WalletConnectServiceState())
 account_contains_permissions = account_permissions.account_contains_permissions(app)
 
 
+def contains_permission(account: Expr, permission: Permission):
+    return Seq(
+        (address := abi.Address()).set(account),
+        (perm := abi.Uint64()).set(Int(permission.value)),
+        account_contains_permissions(address, perm),
+    )
+
+
 @Subroutine(TealType.uint64)
 def is_admin(account: Expr):
-    return Seq(
-        (address := abi.Address()).set(account),
-        (perm := abi.Uint64()).set(Int(Permission.Admin.value)),
-        account_contains_permissions(address, perm),
-    )
+    return contains_permission(account, Permission.Admin)
 
 
 @Subroutine(TealType.uint64)
-def contains_create_app_perm(account: Expr):
-    return Seq(
-        (address := abi.Address()).set(account),
-        (perm := abi.Uint64()).set(Int(Permission.CreateApp.value)),
-        account_contains_permissions(address, perm),
-    )
+def can_create_app(account: Expr):
+    return contains_permission(account, Permission.CreateApp)
+
+@Subroutine(TealType.uint64)
+def can_create_account(account: Expr):
+    return contains_permission(account, Permission.CreateAccount)
 
 
 app.apply(account_permissions_blueprint, is_admin=is_admin)
@@ -101,14 +117,14 @@ def optin() -> Expr:
     )
 
 
-@app.external(authorize=contains_create_app_perm)
+@app.external(authorize=can_create_app)
 def create_app(
-    name: abi.String,
-    url: abi.String,
-    enabled: abi.Bool,
-    admin: abi.Account,
-    *,
-    output: abi.Uint64,
+        name: abi.String,
+        url: abi.String,
+        enabled: abi.Bool,
+        admin: abi.Account,
+        *,
+        output: abi.Uint64,
 ) -> Expr:
     return Seq(
         Assert(Not(app.state.apps[name.get()].exists())),
@@ -122,9 +138,30 @@ def create_app(
                 admin,
             ],
             extra_fields=precompiled(wallet_connect_app.app).get_create_config()
-            | {TxnField.fee: Int(0)},
+                         | {TxnField.fee: Int(0)},
             # type: ignore
         ),
         app.state.apps[name.get()].set(Itob(InnerTxn.created_application_id())),
+        output.set(InnerTxn.created_application_id()),
+    )
+
+
+@app.external(authorize=can_create_account)
+def create_account(
+        account: abi.Account,
+        *,
+        output: abi.Uint64,
+) -> Expr:
+    return Seq(
+        Assert(Not(app.state.accounts[account.address()].exists())),
+        InnerTxnBuilder.ExecuteMethodCall(
+            app_id=None,
+            method_signature=wallet_connect_account.create.method_signature(),
+            args=[account],
+            extra_fields=precompiled(wallet_connect_account.application).get_create_config()
+                         | {TxnField.fee: Int(0)},
+            # type: ignore
+        ),
+        app.state.apps[account.address()].set(Itob(InnerTxn.created_application_id())),
         output.set(InnerTxn.created_application_id()),
     )

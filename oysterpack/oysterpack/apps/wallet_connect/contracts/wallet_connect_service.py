@@ -72,7 +72,7 @@ app = Application("WalletConnectService", state=WalletConnectServiceState())
 account_contains_permissions = account_permissions.account_contains_permissions(app)
 
 
-def contains_permission(account: Expr, permission: Permission):
+def contains_permission(account: Expr, permission: Permission) -> Expr:
     return Seq(
         (address := abi.Address()).set(account),
         (perm := abi.Uint64()).set(Int(permission.value)),
@@ -81,16 +81,16 @@ def contains_permission(account: Expr, permission: Permission):
 
 
 @Subroutine(TealType.uint64)
-def is_admin(account: Expr):
+def is_admin(account: Expr) -> Expr:
     return contains_permission(account, Permission.Admin)
 
 
 @Subroutine(TealType.uint64)
-def can_create_app(account: Expr):
+def can_create_app(account: Expr)-> Expr:
     return contains_permission(account, Permission.CreateApp)
 
 @Subroutine(TealType.uint64)
-def can_create_account(account: Expr):
+def can_create_account(account: Expr)-> Expr:
     return contains_permission(account, Permission.CreateAccount)
 
 

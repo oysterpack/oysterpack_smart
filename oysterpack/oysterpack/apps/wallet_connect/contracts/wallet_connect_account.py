@@ -3,9 +3,9 @@ Wallet Connect Account
 """
 from typing import Final
 
-from beaker import Application, GlobalStateValue, Authorize
+from beaker import Application, GlobalStateValue
 from beaker.lib.storage import BoxMapping
-from pyteal import TealType, Expr, Itob, Pop, Seq, Int, Assert, Global, App, Bytes
+from pyteal import TealType, Expr, Itob, Pop, Seq, Int, Assert, Global, App, Bytes, Subroutine
 from pyteal.ast import abi
 
 from oysterpack.apps.wallet_connect.contracts.wallet_connect_app import WalletConnectAppState
@@ -22,7 +22,7 @@ class WalletConnectAccountState:
     account: Final[GlobalStateValue] = GlobalStateValue(
         stack_type=TealType.bytes,
         static=True,
-        descr="Algorand account address",
+        descr="Algorand account address that owns this contract",
     )
 
     expiration: Final[GlobalStateValue] = GlobalStateValue(
@@ -42,6 +42,11 @@ class WalletConnectAccountState:
 application = Application("WalletConnectAccount", state=WalletConnectAccountState())
 
 
+@Subroutine(TealType.uint64)
+def is_account_owner(addr: Expr) -> Expr:
+    return application.state.account.get() == addr
+
+
 @application.create
 def create(account: abi.Account) -> Expr:
     return Seq(
@@ -52,6 +57,13 @@ def create(account: abi.Account) -> Expr:
 
 @application.external(read_only=True)
 def wallet_public_keys(app: abi.Application, *, output: WalletPublicKeys) -> Expr:
+    """
+    Fails if the account is not connected to the specified app
+    
+    :param app:
+    :param output:
+    :return:
+    """
     return Seq(
         (keys := WalletPublicKeys()).decode(application.state.apps_conns[Itob(app.application_id())].get()),
         (signing_address := abi.Address()).set(keys.signing_address),
@@ -60,25 +72,25 @@ def wallet_public_keys(app: abi.Application, *, output: WalletPublicKeys) -> Exp
     )
 
 
-@application.external(authorize=Authorize.only_creator())
+@application.external(authorize=is_account_owner)
 def connect_app(app: abi.Application, wallet_public_keys: WalletPublicKeys) -> Expr:
     return Seq(
         # app must be created by the same creator
-        app_creator:=app.params().creator_address(),
+        app_creator := app.params().creator_address(),
         Assert(app_creator.value() == Global.creator_address()),
         # app must be an instance of WalletConnectApp
-        app_type_ulid:=App.globalGetEx(app.application_id(), WalletConnectAppState.app_type_ulid.key),
+        app_type_ulid := App.globalGetEx(app.application_id(), WalletConnectAppState.app_type_ulid.key),
         Assert(app_type_ulid.value() == Bytes(WalletConnectAppState.APP_TYPE_ULID.bytes)),
 
         application.state.apps_conns[Itob(app.application_id())].set(wallet_public_keys),
     )
 
 
-@application.external(authorize=Authorize.only_creator())
+@application.external(authorize=is_account_owner)
 def disconnect_app(app_id: abi.Application) -> Expr:
     return Pop(application.state.apps_conns[Itob(app_id.application_id())].delete())
 
 
-@application.external(authorize=Authorize.only_creator())
+@application.external(authorize=is_account_owner)
 def set_wallet_public_keys(keys: WalletPublicKeys) -> Expr:
     return application.state.wallet_public_keys.set(keys.encode())

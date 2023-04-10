@@ -11,9 +11,11 @@ import base64
 from dataclasses import dataclass
 from typing import NewType
 
-from algosdk import constants, mnemonic
+from algosdk import constants, mnemonic, transaction
 from algosdk.account import generate_account
+from algosdk.atomic_transaction_composer import TransactionSigner
 from algosdk.encoding import encode_address, decode_address
+from algosdk.transaction import GenericSignedTransaction
 from nacl.exceptions import BadSignatureError
 from nacl.public import PrivateKey, Box, PublicKey
 from nacl.signing import SigningKey, SignedMessage, VerifyKey
@@ -34,7 +36,7 @@ class AlgoPublicKeys:
     encryption_address: EncryptionAddress
 
 
-class AlgoPrivateKey(PrivateKey):
+class AlgoPrivateKey(PrivateKey, TransactionSigner):
     """
     Algorand private keys can be used to sign and encrypt messages.
 
@@ -161,6 +163,16 @@ class AlgoPrivateKey(PrivateKey):
         """
         return self.signing_key.sign(msg)
 
+    def sign_transactions(
+            self,
+            txn_group: list[transaction.Transaction],
+            indexes: list[int],
+    ) -> list[GenericSignedTransaction]:
+        stxns = []
+        for i in indexes:
+            stxn = txn_group[i].sign(base64.b64encode(bytes(self)).decode())
+            stxns.append(stxn)
+        return stxns
 
 def encryption_address_to_public_key(address: EncryptionAddress) -> PublicKey:
     """

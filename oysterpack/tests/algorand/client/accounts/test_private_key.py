@@ -1,16 +1,22 @@
 import unittest
 from base64 import b64decode
+from typing import cast
 
 from algosdk.account import generate_account
 from algosdk.encoding import decode_address
+from algosdk.transaction import wait_for_confirmation, SignedTransaction
+from beaker import sandbox
+from beaker.consts import algo
 from nacl.exceptions import CryptoError
 
+from algorand.test_support import get_sandbox_accounts
 from oysterpack.algorand.client.accounts.private_key import (
     AlgoPrivateKey,
     signing_address_to_verify_key,
     encryption_address_to_public_key,
-    verify_message,
-)
+    verify_message, )
+from oysterpack.algorand.client.model import Address, MicroAlgos
+from oysterpack.algorand.client.transactions.payment import transfer_algo
 
 
 class AlgoPrivateKeyTestCase(unittest.TestCase):
@@ -72,11 +78,8 @@ class AlgoPrivateKeyTestCase(unittest.TestCase):
         )
 
     def test_encrypt_decrypt(self):
-        sk, pk = generate_account()
-        sender = AlgoPrivateKey(sk)
-
-        sk, pk = generate_account()
-        recipient = AlgoPrivateKey(sk)
+        sender = AlgoPrivateKey()
+        recipient = AlgoPrivateKey()
 
         msg = b"Algorand is the future of finance"
         with self.subTest("recipient decrypts encrypted message from sender"):
@@ -87,16 +90,14 @@ class AlgoPrivateKeyTestCase(unittest.TestCase):
         with self.subTest(
             "decrypting a message using the wrong recipient address should raise a CryptoError"
         ):
-            sk, _pk = generate_account()
-            wrong_recipient = AlgoPrivateKey(sk)
+            wrong_recipient = AlgoPrivateKey()
             with self.assertRaises(CryptoError):
                 wrong_recipient.decrypt(encrypted_msg, sender.encryption_address)
 
         with self.subTest(
             "decrypting a message using the wrong sender address should raise a CryptoError"
         ):
-            sk, _pk = generate_account()
-            wrong_sender = AlgoPrivateKey(sk)
+            wrong_sender = AlgoPrivateKey()
             with self.assertRaises(CryptoError):
                 recipient.decrypt(encrypted_msg, wrong_sender.encryption_address)
 
@@ -110,21 +111,48 @@ class AlgoPrivateKeyTestCase(unittest.TestCase):
                 recipient.decrypt(encrypted_msg)
 
     def test_sign_verify(self):
-        sk, pk = generate_account()
-        signer = AlgoPrivateKey(sk)
+        signer = AlgoPrivateKey()
 
         msg = b"message"
         signed_msg = signer.sign(msg)
 
-        self.assertTrue(verify_message(signed_msg.message, signed_msg.signature, pk))
+        self.assertTrue(verify_message(signed_msg.message, signed_msg.signature, signer.signing_address))
 
         with self.subTest(
             "verifing a message using wrong signing address should return False"
         ):
-            _sk, pk = generate_account()
+            other_signer = AlgoPrivateKey()
             self.assertFalse(
-                verify_message(signed_msg.message, signed_msg.signature, pk)
+                verify_message(signed_msg.message, signed_msg.signature, other_signer.signing_address)
             )
+
+    def test_transaction_signer(self):
+        funding_account = get_sandbox_accounts().pop()
+        sender = AlgoPrivateKey()
+        receiver = AlgoPrivateKey()
+
+        # fund the sender account
+        algod_client = sandbox.get_algod_client()
+        txn = transfer_algo(
+            sender=Address(funding_account.address),
+            receiver=sender.signing_address,
+            amount=MicroAlgos(1 * algo),
+            suggested_params=algod_client.suggested_params()
+        )
+        signed_txn = cast(SignedTransaction,funding_account.signer.sign_transactions([txn], [0])[0])
+        txid = algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(algod_client,txid)
+
+        # transfer ALGO from sender account to receiver account
+        txn = transfer_algo(
+            sender=sender.signing_address,
+            receiver=receiver.signing_address,
+            amount=MicroAlgos(int(0.1 * algo)),
+            suggested_params=algod_client.suggested_params()
+        )
+        signed_txn = cast(SignedTransaction, sender.sign_transactions([txn], [0])[0])
+        txid = algod_client.send_transaction(signed_txn)
+        wait_for_confirmation(algod_client, txid)
 
 
 if __name__ == "__main__":

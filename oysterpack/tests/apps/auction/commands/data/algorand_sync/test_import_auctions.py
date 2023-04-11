@@ -46,6 +46,7 @@ class ImportAuctionsTestCase(AlgorandTestCase):
         self.creator_auction_manager_client = create_auction_manager(
             algod_client=self.algod_client,
             signer=creator.signer,
+            creator=Address(creator.address),
         )
 
         register_auction_manager(

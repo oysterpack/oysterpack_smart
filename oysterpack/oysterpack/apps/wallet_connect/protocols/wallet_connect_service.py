@@ -2,7 +2,7 @@
 MultisigService Protocol
 """
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Protocol
 
 from oysterpack.algorand.client.accounts.private_key import (
@@ -48,14 +48,14 @@ class AccountSubscription:
     """
 
     account: Address
+    # WalletConnectAccount app ID
+    app_id: AppId
 
-    # blockchain timestamp - which differs from wall clock time
     expiration: datetime
-    blockchain_timestamp: datetime
 
     @property
     def expired(self) -> bool:
-        return self.expiration < self.blockchain_timestamp
+        return self.expiration < datetime.now(UTC)
 
 
 class WalletConnectServiceError(Exception):
@@ -136,6 +136,14 @@ class WalletConnectService(Protocol):
         :return: None if the app is not registered
         """
         ...
+
+    async def account_app_id(self, account: Address) -> AppId | None:
+        """
+        Looks up the WalletConnectAccount app ID for the specified account
+
+        :param account:  Address
+        :return: None if the account is not registered
+        """
 
     async def account_subscription(
         self, account: Address

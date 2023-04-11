@@ -61,6 +61,7 @@ class ImportAuctionTestCase(AlgorandTestCase):
         self.creator_auction_manager_client = create_auction_manager(
             algod_client=self.algod_client,
             signer=creator.signer,
+            creator=Address(creator.address),
         )
 
         register_auction_manager(
@@ -111,9 +112,11 @@ class ImportAuctionTestCase(AlgorandTestCase):
 
         with self.subTest("when AuctionManager is not registered"):
             # create new Auction from unregistered AuctionManager
+            account = self.get_sandbox_accounts().pop()
             auction_manager_client = create_auction_manager(
                 algod_client=self.algod_client,
-                signer=self.get_sandbox_accounts().pop().signer,
+                signer=account.signer,
+                creator=Address(account.address),
             )
             auction_client = auction_manager_client.create_auction()
 

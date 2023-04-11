@@ -29,7 +29,10 @@ from oysterpack.algorand.application.state.account_permissions import (
     AccountPermissions,
     account_permissions_blueprint,
 )
-from oysterpack.apps.wallet_connect.contracts import wallet_connect_app, wallet_connect_account
+from oysterpack.apps.wallet_connect.contracts import (
+    wallet_connect_app,
+    wallet_connect_account,
+)
 
 WalletConnectAppName = abi.String
 WalletConnectAppId = abi.Uint64
@@ -45,7 +48,9 @@ class WalletConnectServiceState:
 
     # registered accounts
     # WalletConnectAccount.account -> app ID (WalletConnectAccount)
-    accounts: Final[BoxMapping] = BoxMapping(WalletConnectAccountAddress, WalletConnectAccountAppId)
+    accounts: Final[BoxMapping] = BoxMapping(
+        WalletConnectAccountAddress, WalletConnectAccountAppId
+    )
 
     account_permissions: Final[AccountPermissions] = AccountPermissions()
 
@@ -69,29 +74,30 @@ class Permission(IntEnum):
 
 
 app = Application("WalletConnectService", state=WalletConnectServiceState())
-account_contains_permissions = account_permissions.account_contains_permissions(app)
+__account_contains_permissions = account_permissions.account_contains_permissions(app)
 
 
-def contains_permission(account: Expr, permission: Permission) -> Expr:
+def __contains_permission(account: Expr, permission: Permission) -> Expr:
     return Seq(
         (address := abi.Address()).set(account),
         (perm := abi.Uint64()).set(Int(permission.value)),
-        account_contains_permissions(address, perm),
+        __account_contains_permissions(address, perm),
     )
 
 
 @Subroutine(TealType.uint64)
 def is_admin(account: Expr) -> Expr:
-    return contains_permission(account, Permission.Admin)
+    return __contains_permission(account, Permission.Admin)
 
 
 @Subroutine(TealType.uint64)
-def can_create_app(account: Expr)-> Expr:
-    return contains_permission(account, Permission.CreateApp)
+def can_create_app(account: Expr) -> Expr:
+    return __contains_permission(account, Permission.CreateApp)
+
 
 @Subroutine(TealType.uint64)
-def can_create_account(account: Expr)-> Expr:
-    return contains_permission(account, Permission.CreateAccount)
+def can_create_account(account: Expr) -> Expr:
+    return __contains_permission(account, Permission.CreateAccount)
 
 
 app.apply(account_permissions_blueprint, is_admin=is_admin)
@@ -119,13 +125,27 @@ def optin() -> Expr:
 
 @app.external(authorize=can_create_app)
 def create_app(
-        name: abi.String,
-        url: abi.String,
-        enabled: abi.Bool,
-        admin: abi.Account,
-        *,
-        output: abi.Uint64,
+    name: abi.String,
+    url: abi.String,
+    enabled: abi.Bool,
+    admin: abi.Account,
+    *,
+    output: abi.Uint64,
 ) -> Expr:
+    """
+
+    Notes
+    -----
+    - transaction fees = 0.002 ALGO
+    - contract must be prefunded to pay for box storage used to map the app name to its app ID
+
+    :param name: App name
+    :param url: App URL
+    :param enabled: specifies if the app is enabled
+    :param admin: Admin account
+    :param output: AppId
+    """
+
     return Seq(
         Assert(Not(app.state.apps[name.get()].exists())),
         InnerTxnBuilder.ExecuteMethodCall(
@@ -138,7 +158,7 @@ def create_app(
                 admin,
             ],
             extra_fields=precompiled(wallet_connect_app.app).get_create_config()
-                         | {TxnField.fee: Int(0)},
+            | {TxnField.fee: Int(0)},
             # type: ignore
         ),
         app.state.apps[name.get()].set(Itob(InnerTxn.created_application_id())),
@@ -148,9 +168,9 @@ def create_app(
 
 @app.external(authorize=can_create_account)
 def create_account(
-        account: abi.Account,
-        *,
-        output: abi.Uint64,
+    account: abi.Account,
+    *,
+    output: abi.Uint64,
 ) -> Expr:
     return Seq(
         Assert(Not(app.state.accounts[account.address()].exists())),
@@ -158,8 +178,10 @@ def create_account(
             app_id=None,
             method_signature=wallet_connect_account.create.method_signature(),
             args=[account],
-            extra_fields=precompiled(wallet_connect_account.application).get_create_config()
-                         | {TxnField.fee: Int(0)},
+            extra_fields=precompiled(
+                wallet_connect_account.application
+            ).get_create_config()
+            | {TxnField.fee: Int(0)},
             # type: ignore
         ),
         app.state.apps[account.address()].set(Itob(InnerTxn.created_application_id())),

@@ -164,15 +164,16 @@ class AlgoPrivateKey(PrivateKey, TransactionSigner):
         return self.signing_key.sign(msg)
 
     def sign_transactions(
-            self,
-            txn_group: list[transaction.Transaction],
-            indexes: list[int],
+        self,
+        txn_group: list[transaction.Transaction],
+        indexes: list[int],
     ) -> list[GenericSignedTransaction]:
         stxns = []
         for i in indexes:
             stxn = txn_group[i].sign(base64.b64encode(bytes(self)).decode())
             stxns.append(stxn)
         return stxns
+
 
 def encryption_address_to_public_key(address: EncryptionAddress) -> PublicKey:
     """

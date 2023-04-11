@@ -3,9 +3,11 @@ OysterPack WalletConnectService
 """
 import asyncio
 import base64
+from base64 import b64decode
 from concurrent.futures.thread import ThreadPoolExecutor
 from typing import cast, Any
 
+import algosdk
 from algosdk.encoding import decode_address, encode_address
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
@@ -128,6 +130,22 @@ class OysterPackWalletConnectService(WalletConnectService):
             self.__executor, _lookup_app
         )
 
+    async def account_app_id(self, account: Address) -> AppId | None:
+        address_type = algosdk.abi.AddressType()
+        try:
+            result = self.__algod_client.application_box_by_name(
+                application_id=self._wallet_connect_service_app_id,
+                box_name=address_type.encode(account),
+            )
+        except AlgodHTTPError as err:
+            if err.code == 404:
+                return None
+            raise WalletConnectServiceError() from err
+
+        box_contents = b64decode(cast(dict[str, Any], result)["value"])
+        uint64_type = algosdk.abi.UintType(64)
+        return AppId(uint64_type.decode(box_contents))
+
     async def account_subscription(
         self, account: Address
     ) -> AccountSubscription | None:
@@ -142,6 +160,7 @@ class OysterPackWalletConnectService(WalletConnectService):
         app_id: AppId,
         wallet_public_keys: AlgoPublicKeys,
     ) -> bool:
+        # uint64_type = algosdk.abi.uint_type.UintType(64)
         raise NotImplementedError
 
     async def app_activity_registered(

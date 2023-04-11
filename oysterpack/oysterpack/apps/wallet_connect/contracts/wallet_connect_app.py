@@ -18,14 +18,14 @@ from oysterpack.algorand.application.state.account_permissions import (
 
 
 class WalletConnectAppState:
-    APP_TYPE_ULID: Final[ULID] = ULID.from_str("01GXDYAH00PTSHDS4FT01TNTPG")
+    APP_TYPE: Final[ULID] = ULID.from_str("01GXDYAH00PTSHDS4FT01TNTPG")
 
     """
     WalletConnectApp state
     """
     app_type_ulid: Final[GlobalStateValue] = GlobalStateValue(
         stack_type=TealType.bytes,
-        default=Bytes(APP_TYPE_ULID.bytes),
+        default=Bytes(APP_TYPE.bytes),
         static=True,
         descr="identifies the app type",
     )
@@ -76,25 +76,25 @@ class Permission(IntEnum):
 
 
 app = Application("WalletConnectApp", state=WalletConnectAppState())
-account_contains_permissions = account_permissions.account_contains_permissions(app)
+__account_contains_permissions = account_permissions.account_contains_permissions(app)
 
 
-def contains_permission(account: Expr, permission: Permission):
+def __contains_permission(account: Expr, permission: Permission):
     return Seq(
         (address := abi.Address()).set(account),
         (perm := abi.Uint64()).set(Int(permission.value)),
-        account_contains_permissions(address, perm),
+        __account_contains_permissions(address, perm),
     )
 
 
 @Subroutine(TealType.uint64)
 def is_admin(account: Expr):
-    return contains_permission(account, Permission.Admin)
+    return __contains_permission(account, Permission.Admin)
 
 
 @Subroutine(TealType.uint64)
 def contains_register_key_perm(account: Expr):
-    return contains_permission(account, Permission.RegisterKeys)
+    return __contains_permission(account, Permission.RegisterKeys)
 
 
 app.apply(account_permissions_blueprint, is_admin=is_admin)

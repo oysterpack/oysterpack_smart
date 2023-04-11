@@ -4,6 +4,7 @@ from time import sleep
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
+from oysterpack.algorand.client.model import Address
 from oysterpack.apps.auction.client.auction_manager_client import (
     create_auction_manager,
 )
@@ -82,6 +83,7 @@ class DeleteFinalizedAuctionsTestCase(AlgorandTestCase):
         auction_manager_client = create_auction_manager(
             algod_client=self.algod_client,
             signer=creator.signer,
+            creator=Address(creator.address),
         )
         auction_manager_app_id = AuctionManagerAppId(auction_manager_client.app_id)
 
@@ -160,6 +162,7 @@ class DeleteFinalizedAuctionsTestCase(AlgorandTestCase):
         auction_manager_client = create_auction_manager(
             algod_client=self.algod_client,
             signer=creator.signer,
+            creator=Address(creator.address),
         )
         auction_manager_app_id = AuctionManagerAppId(auction_manager_client.app_id)
 
@@ -224,6 +227,7 @@ class DeleteFinalizedAuctionsTestCase(AlgorandTestCase):
         auction_manager_client = create_auction_manager(
             algod_client=self.algod_client,
             signer=creator.signer,
+            creator=Address(creator.address),
         )
         auction_manager_app_id = AuctionManagerAppId(auction_manager_client.app_id)
 

@@ -48,6 +48,7 @@ class AuctionManagerTestCase(AlgorandTestCase):
         creator_app_client = create_auction_manager(
             algod_client=self.algod_client,
             signer=creator.signer,
+            creator=Address(creator.address),
         )
         seller_app_client = creator_app_client.copy(signer=seller.signer)
 
@@ -70,6 +71,7 @@ class AuctionManagerTestCase(AlgorandTestCase):
         auction_manager_client = create_auction_manager(
             algod_client=self.algod_client,
             signer=creator.signer,
+            creator=Address(creator.address),
         )
         seller_app_client = auction_manager_client.copy(signer=seller.signer)
 
@@ -162,6 +164,7 @@ class AuctionManagerTestCase(AlgorandTestCase):
         auction_manager_client = create_auction_manager(
             algod_client=self.algod_client,
             signer=creator.signer,
+            creator=Address(creator.address),
         )
         seller_app_client = auction_manager_client.copy(signer=seller.signer)
 

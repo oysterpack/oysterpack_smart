@@ -9,14 +9,15 @@ from beaker import sandbox
 from beaker.consts import algo
 from nacl.exceptions import CryptoError
 
-from algorand.test_support import get_sandbox_accounts
 from oysterpack.algorand.client.accounts.private_key import (
     AlgoPrivateKey,
     signing_address_to_verify_key,
     encryption_address_to_public_key,
-    verify_message, )
+    verify_message,
+)
 from oysterpack.algorand.client.model import Address, MicroAlgos
 from oysterpack.algorand.client.transactions.payment import transfer_algo
+from tests.algorand.test_support import get_sandbox_accounts
 
 
 class AlgoPrivateKeyTestCase(unittest.TestCase):
@@ -116,14 +117,22 @@ class AlgoPrivateKeyTestCase(unittest.TestCase):
         msg = b"message"
         signed_msg = signer.sign(msg)
 
-        self.assertTrue(verify_message(signed_msg.message, signed_msg.signature, signer.signing_address))
+        self.assertTrue(
+            verify_message(
+                signed_msg.message, signed_msg.signature, signer.signing_address
+            )
+        )
 
         with self.subTest(
             "verifing a message using wrong signing address should return False"
         ):
             other_signer = AlgoPrivateKey()
             self.assertFalse(
-                verify_message(signed_msg.message, signed_msg.signature, other_signer.signing_address)
+                verify_message(
+                    signed_msg.message,
+                    signed_msg.signature,
+                    other_signer.signing_address,
+                )
             )
 
     def test_transaction_signer(self):
@@ -137,18 +146,20 @@ class AlgoPrivateKeyTestCase(unittest.TestCase):
             sender=Address(funding_account.address),
             receiver=sender.signing_address,
             amount=MicroAlgos(1 * algo),
-            suggested_params=algod_client.suggested_params()
+            suggested_params=algod_client.suggested_params(),
         )
-        signed_txn = cast(SignedTransaction,funding_account.signer.sign_transactions([txn], [0])[0])
+        signed_txn = cast(
+            SignedTransaction, funding_account.signer.sign_transactions([txn], [0])[0]
+        )
         txid = algod_client.send_transaction(signed_txn)
-        wait_for_confirmation(algod_client,txid)
+        wait_for_confirmation(algod_client, txid)
 
         # transfer ALGO from sender account to receiver account
         txn = transfer_algo(
             sender=sender.signing_address,
             receiver=receiver.signing_address,
             amount=MicroAlgos(int(0.1 * algo)),
-            suggested_params=algod_client.suggested_params()
+            suggested_params=algod_client.suggested_params(),
         )
         signed_txn = cast(SignedTransaction, sender.sign_transactions([txn], [0])[0])
         txid = algod_client.send_transaction(signed_txn)

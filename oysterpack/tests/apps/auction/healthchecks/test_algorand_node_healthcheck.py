@@ -7,7 +7,7 @@ from algosdk.v2client.algod import AlgodClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, close_all_sessions
 
-from oysterpack.algorand.client.model import AppId
+from oysterpack.algorand.client.model import AppId, Address
 from oysterpack.apps.auction.client.auction_manager_client import (
     create_auction_manager,
 )
@@ -52,6 +52,7 @@ class AlgorandNodeHealthCheckTestCase(AlgorandTestCase):
         self.creator_auction_manager_client = create_auction_manager(
             algod_client=self.algod_client,
             signer=creator.signer,
+            creator=Address(creator.address),
         )
         sleep(0.1)  # give the indexer time to index
 

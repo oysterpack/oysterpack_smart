@@ -124,6 +124,7 @@ url="{sandbox.kmd.DEFAULT_KMD_ADDRESS}"
                 receiver,
                 MicroAlgos(100_000),
             )
+            sleep(0.1)
 
             self.assertEqual(
                 receiver_algo_balance + 100_000,

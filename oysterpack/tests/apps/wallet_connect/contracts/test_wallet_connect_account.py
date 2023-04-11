@@ -2,20 +2,26 @@ import pprint
 import unittest
 
 import algosdk.abi
-from algosdk.atomic_transaction_composer import AtomicTransactionComposer, TransactionWithSigner
-from beaker.client import ApplicationClient
+from algosdk.atomic_transaction_composer import (
+    AtomicTransactionComposer,
+    TransactionWithSigner,
+)
+from beaker.client import ApplicationClient, LogicException
 from beaker.consts import algo
 
 from oysterpack.algorand import beaker_utils
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import AppId, Address, MicroAlgos
+from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
 from oysterpack.algorand.client.transactions.payment import transfer_algo
-from oysterpack.apps.wallet_connect.contracts import wallet_connect_account, wallet_connect_app
+from oysterpack.apps.wallet_connect.contracts import (
+    wallet_connect_account,
+    wallet_connect_app,
+)
 from tests.algorand.test_support import AlgorandTestCase
 
 
 class WalletConnectAppTestCase(AlgorandTestCase):
-
     def test_app_build(self):
         app_spec = wallet_connect_account.application.build(self.algod_client)
         app_spec.export(".")
@@ -35,7 +41,9 @@ class WalletConnectAppTestCase(AlgorandTestCase):
         app_client.create(account=user_account.address)
         app_state = app_client.get_global_state()
         pprint.pp(app_state)
-        self.assertEqual(user_account.address, beaker_utils.to_address(app_state["account"]))
+        self.assertEqual(
+            user_account.address, beaker_utils.to_address(app_state["account"])
+        )
         self.assertEqual(0, app_state["expiration"])
 
     def test_connect_app(self):
@@ -49,7 +57,7 @@ class WalletConnectAppTestCase(AlgorandTestCase):
             sender=Address(creator.address),
             receiver=user_account.signing_address,
             amount=MicroAlgos(1 * algo),
-            suggested_params=self.algod_client.suggested_params()
+            suggested_params=self.algod_client.suggested_params(),
         )
         atc = AtomicTransactionComposer()
         atc.add_transaction(TransactionWithSigner(txn, creator.signer))
@@ -68,7 +76,9 @@ class WalletConnectAppTestCase(AlgorandTestCase):
             accounts = self.get_sandbox_accounts()
             admin = accounts.pop()
 
-            app_client = ApplicationClient(self.algod_client, app=wallet_connect_app.app)
+            app_client = ApplicationClient(
+                self.algod_client, app=wallet_connect_app.app
+            )
 
             name = "Foo"
             url = "https://foo.com"
@@ -89,22 +99,52 @@ class WalletConnectAppTestCase(AlgorandTestCase):
         app_id = create_app()
 
         # ACT
-        app_client.call(
-            wallet_connect_account.connect_app.method_signature(),
-            app=app_id,
-            wallet_public_keys=(wallet_public_keys.signing_address, wallet_public_keys.encryption_address),
-            sender=user_account.signing_address,
-            signer=user_account,
-            boxes=[(0, app_id)]
-        )
+        with self.subTest("account has not opted in app"):
+            with self.assertRaises(LogicException) as err:
+                app_client.call(
+                    wallet_connect_account.connect_app.method_signature(),
+                    app=app_id,
+                    wallet_public_keys=(
+                        wallet_public_keys.signing_address,
+                        wallet_public_keys.encryption_address,
+                    ),
+                    sender=user_account.signing_address,
+                    signer=user_account,
+                    boxes=[(0, app_id)],
+                )
+            print(err.exception)
+
+        with self.subTest("account has opted in app"):
+            app_client.call(
+                wallet_connect_account.optin_app.method_signature(),
+                app=app_id,
+                sender=user_account.signing_address,
+                signer=user_account,
+                suggested_params=suggested_params_with_flat_flee(
+                    self.algod_client, txn_count=2
+                ),
+            )
+            app_client.call(
+                wallet_connect_account.connect_app.method_signature(),
+                app=app_id,
+                wallet_public_keys=(
+                    wallet_public_keys.signing_address,
+                    wallet_public_keys.encryption_address,
+                ),
+                sender=user_account.signing_address,
+                signer=user_account,
+                boxes=[(0, app_id)],
+            )
 
         # ASSERT
         uint64_type = algosdk.abi.uint_type.UintType(64)
         box_contents = app_client.get_box_contents(uint64_type.encode(app_id))
-        wallet_public_keys_tuple = algosdk.abi.TupleType([
-            algosdk.abi.address_type.AddressType(),
-            algosdk.abi.address_type.AddressType()
-        ])
+        wallet_public_keys_tuple = algosdk.abi.TupleType(
+            [
+                algosdk.abi.address_type.AddressType(),
+                algosdk.abi.address_type.AddressType(),
+            ]
+        )
         keys = wallet_public_keys_tuple.decode(box_contents)
         self.assertEqual(wallet_public_keys.signing_address, keys[0])
         self.assertEqual(wallet_public_keys.encryption_address, keys[1])

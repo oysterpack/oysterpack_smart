@@ -1,6 +1,7 @@
 """
 Auction Manager application client
 """
+import pprint
 from typing import cast, Final
 
 from algosdk.atomic_transaction_composer import (
@@ -95,6 +96,8 @@ class AuctionManagerClient(AppClient):
             suggested_params=self.suggested_params(),
         )
 
+        pprint.pp(payment_txn.dictify())
+
         auction_app_id = self._app_client.call(
             auction_manager.create_auction,
             storage_fees=TransactionWithSigner(
@@ -181,7 +184,7 @@ class AuctionManagerClient(AppClient):
 def create_auction_manager(
     algod_client: AlgodClient,
     signer: TransactionSigner,
-    creator: Address | None = None,
+    creator: Address,
 ) -> AuctionManagerClient:
     """
     Creates an AuctionManager contract instance.
@@ -190,7 +193,6 @@ def create_auction_manager(
     The AuctionManager contract account must hold ALGO to pay for Auction contract storage, which means
     the AuctionManager contract account itself must hold 0.1 ALGO for its account storage.
 
-    :param creator: defaults to the sender associated with the signer
     :return : AuctionManagerClient for the AuctionManager contract that was created
     """
     app_client = ApplicationClient(

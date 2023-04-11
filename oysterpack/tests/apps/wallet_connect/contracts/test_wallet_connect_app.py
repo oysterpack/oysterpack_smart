@@ -52,7 +52,10 @@ class WalletConnectAppTestCase(AlgorandTestCase):
         self.assertEqual(url, app_state["url"])
         self.assertTrue(app_state["enabled"])
         self.assertEqual(admin.address, beaker_utils.to_address(app_state["admin"]))
-        self.assertEqual(wallet_connect_app.WalletConnectAppState.APP_TYPE_ULID, ULID.from_bytes(bytes.fromhex(app_state["app_type_ulid"])))
+        self.assertEqual(
+            wallet_connect_app.WalletConnectAppState.APP_TYPE,
+            ULID.from_bytes(bytes.fromhex(app_state["app_type_ulid"])),
+        )
 
         with self.subTest(
             "when admin account is not opted in, then the account has no permissions"

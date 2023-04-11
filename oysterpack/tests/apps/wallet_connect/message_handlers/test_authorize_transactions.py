@@ -104,6 +104,7 @@ app_admin_private_key = AlgoPrivateKey()
 class WalletConnectServiceMock(WalletConnectService):
     account_has_subscription_: bool = True
     account_subscription_expired_: bool = False
+    account_subscription_app_id: AppId = AppId(10)
 
     app_keys_registered_: bool = True
     app_registered_: bool = True
@@ -167,6 +168,12 @@ class WalletConnectServiceMock(WalletConnectService):
 
         return self.account_registered_
 
+    async def account_app_id(self, account: Address) -> AppId | None:
+        if not self.account_has_subscription_:
+            return None
+
+        return self.account_subscription_app_id
+
     async def account_subscription(
         self,
         account: Address,
@@ -178,13 +185,13 @@ class WalletConnectServiceMock(WalletConnectService):
         if self.account_subscription_expired_:
             return AccountSubscription(
                 account=account,
+                app_id=self.account_subscription_app_id,
                 expiration=datetime.now(UTC) - timedelta(days=1),
-                blockchain_timestamp=datetime.now(UTC),
             )
         return AccountSubscription(
             account=account,
+            app_id=self.account_subscription_app_id,
             expiration=datetime.now(UTC) + timedelta(days=7),
-            blockchain_timestamp=datetime.now(UTC),
         )
 
     async def app_activity_registered(

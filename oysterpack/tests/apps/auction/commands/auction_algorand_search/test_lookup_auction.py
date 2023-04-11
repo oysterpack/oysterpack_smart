@@ -39,6 +39,7 @@ class LookupTestCase(AlgorandTestCase):
         creator_app_client = create_auction_manager(
             algod_client=self.algod_client,
             signer=creator.signer,
+            creator=Address(creator.address),
         )
 
         seller_auction_manager_client = creator_app_client.copy(
@@ -97,6 +98,7 @@ class LookupTestCase(AlgorandTestCase):
             creator_app_client = create_auction_manager(
                 algod_client=self.algod_client,
                 signer=creator.signer,
+                creator=Address(creator.address),
             )
             seller_auction_manager_client = creator_app_client.copy(
                 sender=Address(seller.address), signer=seller.signer

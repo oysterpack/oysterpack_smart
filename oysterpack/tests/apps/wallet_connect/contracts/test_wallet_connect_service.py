@@ -25,7 +25,6 @@ class WalletConnectAppTestCase(AlgorandTestCase):
         # SETUP
         accounts = self.get_sandbox_accounts()
         creator = accounts.pop()
-        admin = accounts.pop()
 
         app_spec = wallet_connect_service.app.build(self.algod_client)
 
@@ -38,7 +37,9 @@ class WalletConnectAppTestCase(AlgorandTestCase):
 
         wallet_connect_service_client.create()
 
-        with self.subTest("when the creator opts in, he is automatically granted admin permission"):
+        with self.subTest(
+            "when the creator opts in, he is automatically granted admin permission"
+        ):
             wallet_connect_service_client.fund(1 * algo)
             wallet_connect_service_client.opt_in(creator.address)
 
@@ -174,7 +175,9 @@ class WalletConnectAppTestCase(AlgorandTestCase):
             account=user_account.signing_address,
         ).return_value
 
-        app_id_bytes = wallet_connect_service_client.get_box_contents(address_type.encode(user_account.signing_address))
+        app_id_bytes = wallet_connect_service_client.get_box_contents(
+            address_type.encode(user_account.signing_address)
+        )
         app_id_from_box = int.from_bytes(app_id_bytes)
         self.assertEqual(app_id, app_id_from_box)
 

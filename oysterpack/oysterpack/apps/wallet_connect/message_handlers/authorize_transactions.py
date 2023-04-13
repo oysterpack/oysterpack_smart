@@ -84,8 +84,8 @@ class AuthorizeTransactionsHandler(MessageHandler):
                 raise err.exceptions[0]
             await self._request_accepted(ctx)
             await self.__authorize_transactions(request)
-            txnids = await self.__wallet_connect.sign_transactions(request)
-            await self._send_success_message(ctx, txnids)
+            txids = await self.__wallet_connect.sign_transactions(request)
+            await self._send_success_message(ctx, txids)
         except AuthorizeTransactionsError as err:
             self._create_task(
                 self._handle_failure(ctx, err.to_failure()), "handle_failure"

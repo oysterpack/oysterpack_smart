@@ -1,5 +1,7 @@
+import datetime
 import unittest
 from concurrent.futures.thread import ThreadPoolExecutor
+from datetime import datetime, UTC
 from unittest import IsolatedAsyncioTestCase
 
 import algosdk.abi
@@ -257,6 +259,39 @@ class WalletConnectServiceTestCase(AlgorandTestCase, IsolatedAsyncioTestCase):
                     account=account.signing_address,
                     app_id=self.wallet_connect_app_id,
                 )
+            )
+
+    async def test_account_subscription(self):
+        service = OysterPackWalletConnectService(
+            wallet_connect_service_app_id=AppId(self.wallet_connect_service_app_id),
+            executor=self.executor,
+            algod_client=self.algod_client,
+        )
+        account = AlgoPrivateKey()
+
+        with self.subTest("account not subscribed"):
+            self.assertIsNone(
+                await service.account_subscription(account.signing_address)
+            )
+
+        with self.subTest("account is subscribed"):
+            address_type = algosdk.abi.AddressType()
+            account_app_id = self.wallet_connect_service_client.call(
+                wallet_connect_service.create_account.method_signature(),
+                account=account.signing_address,
+                boxes=[(0, address_type.encode(account.signing_address))],
+                suggested_params=suggested_params_with_flat_flee(
+                    self.algod_client, txn_count=2
+                ),
+            ).return_value
+            account_subscription = await service.account_subscription(
+                account.signing_address
+            )
+            self.assertIsNotNone(account_subscription)
+            self.assertEqual(account.signing_address, account_subscription.account)
+            self.assertEqual(account_app_id, account_subscription.app_id)
+            self.assertEqual(
+                datetime.fromtimestamp(0, UTC), account_subscription.expiration
             )
 
 

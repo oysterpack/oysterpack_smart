@@ -60,8 +60,8 @@ class AuthorizeTransactionsHandler(MessageHandler):
     """
 
     def __init__(
-            self,
-            wallet_connect: WalletConnectService,
+        self,
+        wallet_connect: WalletConnectService,
     ):
         self.__wallet_connect = wallet_connect
 
@@ -122,9 +122,9 @@ class AuthorizeTransactionsHandler(MessageHandler):
         await ctx.websocket.send(msg)
 
     async def _handle_failure(
-            self,
-            ctx: MessageContext,
-            err: AuthorizeTransactionsFailure,
+        self,
+        ctx: MessageContext,
+        err: AuthorizeTransactionsFailure,
     ):
         self.__logger.error(err)
         msg = await ctx.pack_secure_message(
@@ -134,9 +134,9 @@ class AuthorizeTransactionsHandler(MessageHandler):
         await ctx.websocket.send(msg)
 
     async def _send_success_message(
-            self,
-            ctx: MessageContext,
-            txnids: list[TxnId],
+        self,
+        ctx: MessageContext,
+        txnids: list[TxnId],
     ):
         msg = await ctx.pack_secure_message(
             ctx.msg_id,  # correlate back to request message
@@ -145,7 +145,7 @@ class AuthorizeTransactionsHandler(MessageHandler):
         await ctx.websocket.send(msg)
 
     async def __unpack_request(
-            self, ctx: MessageContext
+        self, ctx: MessageContext
     ) -> AuthorizeTransactionsRequest:
         # check message type
         if ctx.msg_type != AuthorizeTransactionsRequest.message_type():
@@ -159,9 +159,9 @@ class AuthorizeTransactionsHandler(MessageHandler):
         )
 
     async def __check_app_keys(
-            self,
-            ctx: MessageContext,
-            request: AuthorizeTransactionsRequest,
+        self,
+        ctx: MessageContext,
+        request: AuthorizeTransactionsRequest,
     ):
         app_id = request.app_id
         signing_address = ctx.client_signing_address
@@ -179,9 +179,9 @@ class AuthorizeTransactionsHandler(MessageHandler):
             )
 
         if not await self.__wallet_connect.app_keys_registered(
-                app_id=app_id,
-                signing_address=signing_address,
-                encryption_address=encryption_address,
+            app_id=app_id,
+            signing_address=signing_address,
+            encryption_address=encryption_address,
         ):
             raise AuthorizeTransactionsError(
                 code=AuthorizeTransactionsErrCode.UnauthorizedMessage,
@@ -189,7 +189,7 @@ class AuthorizeTransactionsHandler(MessageHandler):
             )
 
     async def __check_authorizer_subscription(
-            self, request: AuthorizeTransactionsRequest
+        self, request: AuthorizeTransactionsRequest
     ):
         subscription = await self.__wallet_connect.account_subscription(
             request.authorizer
@@ -207,8 +207,8 @@ class AuthorizeTransactionsHandler(MessageHandler):
             )
 
     async def __check_wallet_app_connection(
-            self,
-            request: AuthorizeTransactionsRequest,
+        self,
+        request: AuthorizeTransactionsRequest,
     ):
         keys = await self.__wallet_connect.wallet_app_conn_public_keys(
             account=request.authorizer,
@@ -221,8 +221,8 @@ class AuthorizeTransactionsHandler(MessageHandler):
             )
 
     async def __validate_transactions(
-            self,
-            request: AuthorizeTransactionsRequest,
+        self,
+        request: AuthorizeTransactionsRequest,
     ):
         app_activity_spec = self.__wallet_connect.app_activity_spec(
             request.app_activity_id
@@ -233,8 +233,8 @@ class AuthorizeTransactionsHandler(MessageHandler):
                 message="invalid app activity ID",
             )
         if not await self.__wallet_connect.app_activity_registered(
-                app_id=request.app_id,
-                app_activity_id=request.app_activity_id,
+            app_id=request.app_id,
+            app_activity_id=request.app_activity_id,
         ):
             raise AuthorizeTransactionsError(
                 code=AuthorizeTransactionsErrCode.AppActivityNotRegistered,

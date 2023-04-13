@@ -44,12 +44,16 @@ WalletConnectAccountAppId = abi.Uint64
 class WalletConnectServiceState:
     # registered apps
     # app name -> app ID (WalletConnectApp)
-    apps: Final[BoxMapping] = BoxMapping(WalletConnectAppName, WalletConnectAppId)
+    apps: Final[BoxMapping] = BoxMapping(
+        WalletConnectAppName,
+        WalletConnectAppId,
+    )
 
     # registered accounts
     # WalletConnectAccount.account -> app ID (WalletConnectAccount)
     accounts: Final[BoxMapping] = BoxMapping(
-        WalletConnectAccountAddress, WalletConnectAccountAppId
+        WalletConnectAccountAddress,
+        WalletConnectAccountAppId,
     )
 
     account_permissions: Final[AccountPermissions] = AccountPermissions()
@@ -179,6 +183,8 @@ def create_account(
     - transaction fees = 0.002 ALGO
     - box references: (0, account.address())
     - contract must be prefunded to pay for app optin storage fees
+
+    :param output: AppId for the new WalletConnectAccount contract instance
     """
 
     return Seq(

@@ -5,6 +5,7 @@ import asyncio
 import base64
 from base64 import b64decode
 from concurrent.futures.thread import ThreadPoolExecutor
+from datetime import datetime, UTC
 from typing import cast, Any
 
 import algosdk
@@ -20,7 +21,13 @@ from oysterpack.algorand.client.accounts.private_key import (
     AlgoPublicKeys,
 )
 from oysterpack.algorand.client.model import AppId, Address, TxnId
-from oysterpack.apps.wallet_connect.contracts import wallet_connect_app
+from oysterpack.apps.wallet_connect.contracts import (
+    wallet_connect_app,
+    wallet_connect_account,
+)
+from oysterpack.apps.wallet_connect.contracts.wallet_connect_account import (
+    WalletConnectAccountState,
+)
 from oysterpack.apps.wallet_connect.domain.activity import (
     AppActivityId,
     AppActivitySpec,
@@ -160,7 +167,40 @@ class OysterPackWalletConnectService(WalletConnectService):
         self,
         account: Address,
     ) -> AccountSubscription | None:
-        raise NotImplementedError
+        def _account_subscription() -> AccountSubscription | None:
+            address_type = algosdk.abi.AddressType()
+            try:
+                result = self.__algod_client.application_box_by_name(
+                    self._wallet_connect_service_app_id,
+                    address_type.encode(account),
+                )
+            except AlgodHTTPError as err:
+                if err.code == 404:
+                    return None
+                raise WalletConnectServiceError() from err
+
+            app_id_type = algosdk.abi.UintType(64)
+            box_contents = b64decode(cast(dict[str, Any], result)["value"])
+            app_id = app_id_type.decode(box_contents)
+
+            app_client = ApplicationClient(
+                self.__algod_client,
+                app=wallet_connect_account.application,
+                app_id=app_id,
+            )
+            expiration = app_client.get_global_state()[
+                WalletConnectAccountState.expiration.str_key()
+            ]
+            return AccountSubscription(
+                account=account,
+                app_id=AppId(app_id),
+                expiration=datetime.fromtimestamp(cast(int, expiration), UTC),
+            )
+
+        return await asyncio.get_event_loop().run_in_executor(
+            self.__executor,
+            _account_subscription,
+        )
 
     async def account_opted_in_app(self, account: Address, app_id: AppId) -> bool:
         account_app_id = await self.account_app_id(account)
@@ -177,7 +217,7 @@ class OysterPackWalletConnectService(WalletConnectService):
             except AlgodHTTPError as err:
                 if err.code == 404:
                     return False
-                raise WalletConnectServiceError("algod error") from err
+                raise WalletConnectServiceError() from err
 
         return await asyncio.get_event_loop().run_in_executor(
             self.__executor,
@@ -199,7 +239,7 @@ class OysterPackWalletConnectService(WalletConnectService):
             except AlgodHTTPError as err:
                 if err.code == 404:
                     return None
-                raise WalletConnectServiceError("algod error") from err
+                raise WalletConnectServiceError() from err
 
             box_contents = b64decode(cast(dict[str, Any], result)["value"])
             wallet_public_keys_tuple = algosdk.abi.TupleType(

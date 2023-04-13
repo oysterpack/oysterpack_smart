@@ -43,12 +43,7 @@ from oysterpack.apps.wallet_connect.messsages.authorize_transactions import (
 from oysterpack.apps.wallet_connect.protocols.wallet_connect_service import (
     WalletConnectService,
     AccountSubscription,
-    AccountSubscriptionExpired,
-    AppNotRegistered,
-    AccountNotRegistered,
-    AccountNotOptedIntoApp,
     App,
-    AppDisabled,
     WalletConnectServiceError,
 )
 from tests.algorand.messaging import server_ssl_context, client_ssl_context
@@ -118,6 +113,7 @@ class WalletConnectServiceMock(WalletConnectService):
     txn_activity_spec_: Callable[[TxnActivityId], TxnActivitySpec] | None = None
     authorize_transactions_: bool = True
     wallet_connected_error_: WalletConnectServiceError | None = None
+    wallet_app_conn_public_keys_: AlgoPublicKeys | None = None
 
     async def app_keys_registered(
         self,
@@ -144,29 +140,16 @@ class WalletConnectServiceMock(WalletConnectService):
         await asyncio.sleep(0)
         return self.account_opted_in_app_
 
-    async def wallet_connected(
-        self, account: Address, app_id: AppId, wallet_public_keys: AlgoPublicKeys
-    ) -> bool:
+    async def wallet_app_conn_public_keys(
+        self,
+        account: Address,
+        app_id: AppId,
+    ) -> AlgoPublicKeys | None:
         await asyncio.sleep(0)
         if self.wallet_connected_error_:
             raise self.wallet_connected_error_
 
-        app = await self.app(app_id)
-        if app is None:
-            raise AppNotRegistered()
-        if not app.enabled:
-            raise AppDisabled()
-
-        subscription = await self.account_subscription(account)
-        if subscription is None:
-            raise AccountNotRegistered()
-        if subscription.expired:
-            raise AccountSubscriptionExpired()
-
-        if not self.account_opted_in_app_:
-            raise AccountNotOptedIntoApp()
-
-        return self.account_registered_
+        return self.wallet_app_conn_public_keys_
 
     async def account_app_id(self, account: Address) -> AppId | None:
         if not self.account_has_subscription_:
@@ -255,7 +238,9 @@ class SignTransactionsMessageHandlerTestCase(
             private_key=self.recipient_private_key,
             message_handlers=[
                 AuthorizeTransactionsHandler(
-                    wallet_connect=WalletConnectServiceMock(),
+                    wallet_connect=WalletConnectServiceMock(
+                        wallet_app_conn_public_keys_=self.wallet.public_keys
+                    ),
                 )
             ],
             executor=self.executor,
@@ -270,7 +255,6 @@ class SignTransactionsMessageHandlerTestCase(
         request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
             authorizer=self.sender_private_key.signing_address,
-            wallet_public_keys=self.wallet.public_keys,
             transactions=[(txn, TxnActivityId())],
             app_activity_id=AppActivityId(),
         )
@@ -344,7 +328,6 @@ class SignTransactionsMessageHandlerTestCase(
         request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
             authorizer=self.sender_private_key.signing_address,
-            wallet_public_keys=self.wallet.public_keys,
             transactions=[(txn, TxnActivityId())],
             app_activity_id=AppActivityId(),
         )
@@ -397,22 +380,22 @@ class SignTransactionsMessageHandlerTestCase(
 
         await run_test(
             name="app is not registered",
-            multisig_service=WalletConnectServiceMock(
-                app_registered_=False,
-            ),
-            expected_err_code=AuthorizeTransactionsErrCode.AppNotRegistered,
+            multisig_service=WalletConnectServiceMock(),
+            expected_err_code=AuthorizeTransactionsErrCode.WalletConnectAppDisconnected,
         )
         await run_test(
-            name="account not opted into app",
+            name="app is not registered",
             multisig_service=WalletConnectServiceMock(
-                account_opted_in_app_=False,
+                app_registered_=False,
+                wallet_app_conn_public_keys_=self.wallet.public_keys,
             ),
-            expected_err_code=AuthorizeTransactionsErrCode.AccountNotOptedIntoApp,
+            expected_err_code=AuthorizeTransactionsErrCode.AppNotRegistered,
         )
         await run_test(
             name="signer not subscribed",
             multisig_service=WalletConnectServiceMock(
                 account_has_subscription_=False,
+                wallet_app_conn_public_keys_=self.wallet.public_keys,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.AccountNotRegistered,
         )
@@ -420,6 +403,7 @@ class SignTransactionsMessageHandlerTestCase(
             name="signer subscription expired",
             multisig_service=WalletConnectServiceMock(
                 account_subscription_expired_=True,
+                wallet_app_conn_public_keys_=self.wallet.public_keys,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.AccountSubscriptionExpired,
         )
@@ -427,6 +411,7 @@ class SignTransactionsMessageHandlerTestCase(
             name="account has no subscription",
             multisig_service=WalletConnectServiceMock(
                 account_has_subscription_=False,
+                wallet_app_conn_public_keys_=self.wallet.public_keys,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.AccountNotRegistered,
         )
@@ -434,6 +419,7 @@ class SignTransactionsMessageHandlerTestCase(
             name="app activity not registered",
             multisig_service=WalletConnectServiceMock(
                 app_activity_registered_=False,
+                wallet_app_conn_public_keys_=self.wallet.public_keys,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.AppActivityNotRegistered,
         )
@@ -446,6 +432,7 @@ class SignTransactionsMessageHandlerTestCase(
                     description="description",
                     validation_exception=Exception("app activity validation failed"),
                 ),
+                wallet_app_conn_public_keys_=self.wallet.public_keys,
             ),
             expected_err_code=AuthorizeTransactionsErrCode.InvalidAppActivity,
         )

@@ -137,6 +137,7 @@ def create_app(
     Notes
     -----
     - transaction fees = 0.002 ALGO
+    - box references: (0, name)
     - contract must be prefunded to pay for box storage used to map the app name to its app ID
 
     :param name: App name
@@ -172,6 +173,14 @@ def create_account(
     *,
     output: abi.Uint64,
 ) -> Expr:
+    """
+    Notes
+    -----
+    - transaction fees = 0.002 ALGO
+    - box references: (0, account.address())
+    - contract must be prefunded to pay for app optin storage fees
+    """
+
     return Seq(
         Assert(Not(app.state.accounts[account.address()].exists())),
         InnerTxnBuilder.ExecuteMethodCall(

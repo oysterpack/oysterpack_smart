@@ -40,7 +40,6 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
             request = AuthorizeTransactionsRequest(
                 app_id=AppId(100),
                 authorizer=sender.signing_address,
-                wallet_public_keys=wallet.public_keys,
                 transactions=[(txn1, TxnActivityId())],
                 app_activity_id=AppActivityId(),
             )
@@ -61,7 +60,6 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     AuthorizeTransactionsRequest(
                         app_id=AppId(100),
                         authorizer=sender.signing_address,
-                        wallet_public_keys=wallet.public_keys,
                         transactions=[(txn1, TxnActivityId()), (txn2, TxnActivityId())],
                         app_activity_id=AppActivityId(),
                     )
@@ -88,7 +86,6 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     AuthorizeTransactionsRequest(
                         app_id=AppId(100),
                         authorizer=sender.signing_address,
-                        wallet_public_keys=wallet.public_keys,
                         transactions=[
                             (txn1, TxnActivityId()),
                             (txn2, TxnActivityId()),
@@ -120,7 +117,6 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     AuthorizeTransactionsRequest(
                         app_id=AppId(100),
                         authorizer=sender.signing_address,
-                        wallet_public_keys=wallet.public_keys,
                         transactions=[
                             (txn1, TxnActivityId()),
                             (txn2, TxnActivityId()),
@@ -150,7 +146,6 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
             AuthorizeTransactionsRequest(
                 app_id=AppId(100),
                 authorizer=sender.signing_address,
-                wallet_public_keys=wallet.public_keys,
                 transactions=txns,
                 app_activity_id=AppActivityId(),
             )
@@ -170,15 +165,12 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
         request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
             authorizer=sender.signing_address,
-            wallet_public_keys=wallet.public_keys,
             transactions=[(txn, TxnActivityId())],
             app_activity_id=AppActivityId(),
         )
         (
             app_id,
             authorizer,
-            wallet_signing_address,
-            wallet_encrption_address,
             txns,
             app_activity_id,
         ) = msgpack.unpackb(request.pack())
@@ -188,8 +180,6 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     (
                         None,
                         authorizer,
-                        wallet_signing_address,
-                        wallet_encrption_address,
                         txns,
                         app_activity_id,
                     )
@@ -204,8 +194,6 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     (
                         app_id,
                         None,
-                        wallet_signing_address,
-                        wallet_encrption_address,
                         txns,
                         app_activity_id,
                     )
@@ -220,8 +208,6 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     (
                         app_id,
                         authorizer,
-                        wallet_signing_address,
-                        wallet_encrption_address,
                         [],
                         app_activity_id,
                     )
@@ -236,8 +222,6 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     (
                         app_id,
                         authorizer,
-                        wallet_signing_address,
-                        wallet_encrption_address,
                         txns,
                         None,
                     )
@@ -252,8 +236,6 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     (
                         app_id,
                         "invalid_address",
-                        wallet_signing_address,
-                        wallet_encrption_address,
                         txns,
                         app_activity_id,
                     )

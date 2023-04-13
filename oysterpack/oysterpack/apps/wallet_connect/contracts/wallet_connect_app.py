@@ -6,7 +6,7 @@ from typing import Final
 
 from beaker import Application, GlobalStateValue
 from beaker.lib.storage import BoxMapping
-from pyteal import Expr, TealType, Seq, Txn, If, Subroutine, Int, Bytes
+from pyteal import Expr, TealType, Seq, Txn, If, Subroutine, Int, Bytes, Approve
 from pyteal.ast import abi
 from ulid import ULID
 
@@ -129,6 +129,11 @@ def optin() -> Expr:
             grant_admin_permission(Txn.sender()),
         ),
     )
+
+
+@app.close_out(bare=True)
+def close_out() -> Expr:
+    return Approve()
 
 
 @Subroutine(return_type=TealType.none)

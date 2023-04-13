@@ -2,6 +2,7 @@ import unittest
 from pprint import pprint
 from typing import Final
 
+from algosdk.error import AlgodHTTPError
 from beaker import (
     LocalStateValue,
     Application,
@@ -10,10 +11,13 @@ from beaker import (
 )
 from beaker.client import ApplicationClient
 from beaker.consts import algo
-from pyteal import TealType, Int, Seq, If, Not, App, Global
+from pyteal import TealType, Int, Seq, If, Not, App, Global, Approve, Expr
 from pyteal.ast import abi
 
-from oysterpack.algorand.application.transactions.application import execute_optin_app
+from oysterpack.algorand.application.transactions.application import (
+    execute_optin_app,
+    execute_close_out_app,
+)
 from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
 from tests.algorand.test_support import AlgorandTestCase
 
@@ -28,6 +32,12 @@ foo = Application("Foo", state=FooState())
 foo.apply(unconditional_create_approval)
 foo.apply(unconditional_opt_in_approval, initialize_local_state=True)
 
+
+@foo.close_out(bare=True)
+def close_out() -> Expr:
+    return Approve()
+
+
 bar = Application("Bar")
 
 
@@ -39,6 +49,16 @@ def optin_app(app: abi.Application):
                 App.optedIn(Global.current_application_address(), app.application_id())
             ),
             execute_optin_app(app.application_id()),
+        )
+    )
+
+
+@bar.external
+def closeout_app(app: abi.Application):
+    return Seq(
+        If(
+            App.optedIn(Global.current_application_address(), app.application_id()),
+            execute_close_out_app(app.application_id()),
         )
     )
 
@@ -70,6 +90,47 @@ class OptinTestCase(AlgorandTestCase):
             ),
         )
         pprint(self.algod_client.account_application_info(bar_app_addr, foo_app_id))
+
+    def test_closeout(self):
+        account = self.get_sandbox_accounts().pop()
+        foo_client = ApplicationClient(
+            self.algod_client,
+            app=foo,
+            sender=account.address,
+            signer=account.signer,
+        )
+        foo_app_id, _foo_app_addr, _txid = foo_client.create()
+
+        bar_client = ApplicationClient(
+            self.algod_client,
+            app=bar,
+            sender=account.address,
+            signer=account.signer,
+        )
+        _bar_app_id, bar_app_addr, _txid = bar_client.create()
+        bar_client.fund(1 * algo)
+        bar_client.call(
+            optin_app.method_signature(),
+            app=foo_app_id,
+            suggested_params=suggested_params_with_flat_flee(
+                self.algod_client,
+                txn_count=2,
+            ),
+        )
+
+        # ACT
+        bar_client.call(
+            closeout_app.method_signature(),
+            app=foo_app_id,
+            suggested_params=suggested_params_with_flat_flee(
+                self.algod_client,
+                txn_count=2,
+            ),
+        )
+        # ASSERT
+        with self.assertRaises(AlgodHTTPError) as err:
+            self.algod_client.account_application_info(bar_app_addr, foo_app_id)
+        self.assertEqual(404, err.exception.code)
 
 
 if __name__ == "__main__":

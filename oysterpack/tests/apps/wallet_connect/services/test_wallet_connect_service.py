@@ -3,6 +3,10 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from unittest import IsolatedAsyncioTestCase
 
 import algosdk.abi
+from algosdk.atomic_transaction_composer import (
+    AtomicTransactionComposer,
+    TransactionWithSigner,
+)
 from algosdk.encoding import decode_address
 from beaker.client import ApplicationClient
 from beaker.consts import algo
@@ -10,11 +14,13 @@ from ulid import ULID
 
 from oysterpack.algorand.beaker_utils import get_app_method
 from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
-from oysterpack.algorand.client.model import AppId
+from oysterpack.algorand.client.model import AppId, Address, MicroAlgos
 from oysterpack.algorand.client.transactions import suggested_params_with_flat_flee
+from oysterpack.algorand.client.transactions.payment import transfer_algo
 from oysterpack.apps.wallet_connect.contracts import (
     wallet_connect_service,
     wallet_connect_app,
+    wallet_connect_account,
 )
 from oysterpack.apps.wallet_connect.contracts.wallet_connect_app import (
     Permission as WalletConnectAppPermission,
@@ -37,8 +43,8 @@ class WalletConnectServiceTestCase(AlgorandTestCase, IsolatedAsyncioTestCase):
         self.wallet_connect_service_creator = accounts.pop()
         self.wallet_connect_app_admin = accounts.pop()
 
+        # create WalletConnectService contract instance
         app_spec = wallet_connect_service.app.build(self.algod_client)
-
         self.wallet_connect_service_client = ApplicationClient(
             self.algod_client,
             app=wallet_connect_service.app,
@@ -61,7 +67,7 @@ class WalletConnectServiceTestCase(AlgorandTestCase, IsolatedAsyncioTestCase):
             permissions=WalletConnectServicePermissions.CreateApp.value,
         )
 
-        # create WalletConnectApp
+        # create WalletConnectApp contract instance
         name = str(ULID())
         url = f"https://{name}.com"
         enabled = True
@@ -110,6 +116,7 @@ class WalletConnectServiceTestCase(AlgorandTestCase, IsolatedAsyncioTestCase):
             permissions=WalletConnectAppPermission.RegisterKeys.value,
         )
 
+        # WalletConnectService creator is granted permissions to create accounts
         self.wallet_connect_service_client.call(
             get_app_method(app_spec, "grant_permissions"),
             sender=self.wallet_connect_service_creator.address,
@@ -192,6 +199,65 @@ class WalletConnectServiceTestCase(AlgorandTestCase, IsolatedAsyncioTestCase):
             unregistered_account = AlgoPrivateKey()
             app_id = await service.account_app_id(unregistered_account.signing_address)
             self.assertIsNone(app_id)
+
+    async def test_account_opted_in_app(self):
+        service = OysterPackWalletConnectService(
+            wallet_connect_service_app_id=AppId(self.wallet_connect_service_app_id),
+            executor=self.executor,
+            algod_client=self.algod_client,
+        )
+
+        with self.subTest("account is not opted in"):
+            account = AlgoPrivateKey()
+            self.assertFalse(
+                await service.account_opted_in_app(
+                    account=account.signing_address,
+                    app_id=self.wallet_connect_app_id,
+                )
+            )
+
+        with self.subTest("account is opted in"):
+            txn = transfer_algo(
+                sender=Address(self.wallet_connect_service_creator.address),
+                receiver=account.signing_address,
+                amount=MicroAlgos(2 * algo),
+                suggested_params=self.algod_client.suggested_params(),
+            )
+            atc = AtomicTransactionComposer()
+            atc.add_transaction(
+                TransactionWithSigner(txn, self.wallet_connect_service_creator.signer)
+            )
+            atc.execute(self.algod_client, 4)
+
+            account_app_id = self.wallet_connect_service_client.call(
+                wallet_connect_service.create_account.method_signature(),
+                account=account.signing_address,
+                boxes=[(0, algosdk.abi.AddressType().encode(account.signing_address))],
+                suggested_params=suggested_params_with_flat_flee(
+                    self.algod_client, txn_count=2
+                ),
+            ).return_value
+            account_app_client = ApplicationClient(
+                self.algod_client,
+                app=wallet_connect_account.application,
+                app_id=account_app_id,
+                sender=account.signing_address,
+                signer=account,
+            )
+            account_app_client.fund(1 * algo)
+            account_app_client.call(
+                wallet_connect_account.optin_app.method_signature(),
+                app=self.wallet_connect_app_id,
+                suggested_params=suggested_params_with_flat_flee(
+                    self.algod_client, txn_count=2
+                ),
+            )
+            self.assertTrue(
+                await service.account_opted_in_app(
+                    account=account.signing_address,
+                    app_id=self.wallet_connect_app_id,
+                )
+            )
 
 
 if __name__ == "__main__":

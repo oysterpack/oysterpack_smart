@@ -165,19 +165,12 @@ class WalletConnectService(Protocol):
         """
         ...
 
-    async def wallet_connected(
-        self, account: Address, app_id: AppId, wallet_public_keys: AlgoPublicKeys
-    ) -> bool:
+    async def wallet_app_conn_public_keys(
+        self, account: Address, app_id: AppId
+    ) -> AlgoPublicKeys | None:
         """
-        :param account: Address
         :param app_id: AppId
-        :return: True if the wallet is connected to the app using the specified wallet public keys
-
-        :raises AppNotRegistered: if the app is not registered with the service
-        :raises AccountNotRegistered: if the account is not currently subscribed
-        :raises AccountNotOptedIntoApp: if the account has not opted into the app
-        :raises AccountSubscriptionExpired: if the account subscription is expired
-        :raises InvalidWalletPublickeys: If wallet public keys are not registered with the specified account
+        :return: None if the wallet is not connected to the app
         """
         ...
 

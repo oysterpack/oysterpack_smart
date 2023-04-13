@@ -25,6 +25,9 @@ from pyteal import (
 )
 from pyteal.ast import abi
 
+from oysterpack.algorand.application.transactions.application import (
+    execute_close_out_app,
+)
 from oysterpack.apps.wallet_connect.contracts import wallet_connect_app
 from oysterpack.apps.wallet_connect.contracts.wallet_connect_app import (
     WalletConnectAppState,
@@ -75,25 +78,6 @@ def create(account: abi.Account) -> Expr:
     )
 
 
-@application.external(read_only=True)
-def wallet_public_keys(app: abi.Application, *, output: WalletPublicKeys) -> Expr:
-    """
-    Fails if the account is not connected to the specified app
-
-    :param app:
-    :param output:
-    :return:
-    """
-    return Seq(
-        (keys := WalletPublicKeys()).decode(
-            application.state.apps_conns[Itob(app.application_id())].get()
-        ),
-        (signing_address := abi.Address()).set(keys.signing_address),
-        (encryption_address := abi.Address()).set(keys.encryption_address),
-        output.set(signing_address, encryption_address),
-    )
-
-
 @application.external(authorize=is_account_owner)
 def optin_app(app: abi.Application) -> Expr:
     def _optin_app() -> Expr:
@@ -130,6 +114,22 @@ def optin_app(app: abi.Application) -> Expr:
 
 
 @application.external(authorize=is_account_owner)
+def close_out_app(app: abi.Application) -> Expr:
+    def _close_out_app() -> Expr:
+        return Seq(
+            execute_close_out_app(app.application_id()),
+            Pop(application.state.apps_conns[Itob(app.application_id())].delete()),
+        )
+
+    return Seq(
+        If(
+            App.optedIn(Global.current_application_address(), app.application_id()),
+            _close_out_app(),
+        )
+    )
+
+
+@application.external(authorize=is_account_owner)
 def connect_app(app: abi.Application, wallet_public_keys: WalletPublicKeys) -> Expr:
     return Seq(
         Assert(App.optedIn(Global.current_application_address(), app.application_id())),
@@ -140,10 +140,29 @@ def connect_app(app: abi.Application, wallet_public_keys: WalletPublicKeys) -> E
 
 
 @application.external(authorize=is_account_owner)
-def disconnect_app(app_id: abi.Application) -> Expr:
-    return Pop(application.state.apps_conns[Itob(app_id.application_id())].delete())
+def disconnect_app(app: abi.Application) -> Expr:
+    return Pop(application.state.apps_conns[Itob(app.application_id())].delete())
 
 
 @application.external(authorize=is_account_owner)
 def set_wallet_public_keys(keys: WalletPublicKeys) -> Expr:
     return application.state.wallet_public_keys.set(keys.encode())
+
+
+@application.external(read_only=True)
+def wallet_public_keys(app: abi.Application, *, output: WalletPublicKeys) -> Expr:
+    """
+    Fails if the account is not connected to the specified app
+
+    :param app:
+    :param output:
+    :return:
+    """
+    return Seq(
+        (keys := WalletPublicKeys()).decode(
+            application.state.apps_conns[Itob(app.application_id())].get()
+        ),
+        (signing_address := abi.Address()).set(keys.signing_address),
+        (encryption_address := abi.Address()).set(keys.encryption_address),
+        output.set(signing_address, encryption_address),
+    )

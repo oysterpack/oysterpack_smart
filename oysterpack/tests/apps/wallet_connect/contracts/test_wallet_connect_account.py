@@ -6,6 +6,7 @@ from algosdk.atomic_transaction_composer import (
     AtomicTransactionComposer,
     TransactionWithSigner,
 )
+from algosdk.error import AlgodHTTPError
 from beaker.client import ApplicationClient, LogicException
 from beaker.consts import algo
 
@@ -121,7 +122,8 @@ class WalletConnectAppTestCase(AlgorandTestCase):
                 sender=user_account.signing_address,
                 signer=user_account,
                 suggested_params=suggested_params_with_flat_flee(
-                    self.algod_client, txn_count=2
+                    self.algod_client,
+                    txn_count=2,
                 ),
             )
             app_client.call(
@@ -158,7 +160,7 @@ class WalletConnectAppTestCase(AlgorandTestCase):
         self.assertEqual(wallet_public_keys.signing_address, keys[0])
         self.assertEqual(wallet_public_keys.encryption_address, keys[1])
 
-        # TODO: try the simulate API
+        # use simulate API
         atc = AtomicTransactionComposer()
         atc.add_method_call(
             sender=user_account.signing_address,
@@ -169,8 +171,80 @@ class WalletConnectAppTestCase(AlgorandTestCase):
             method_args=[app_id],
             boxes=[(0, uint64_type.encode(app_id))],
         )
-        result = atc.execute(self.algod_client, wait_rounds=4)
-        pprint.pp(result.abi_results[0].return_value)
+        result = atc.simulate(self.algod_client)
+        pprint.pp(("simulate result", result.abi_results[0].return_value))
+        keys = result.abi_results[0].return_value
+        self.assertEqual(wallet_public_keys.signing_address, keys[0])
+        self.assertEqual(wallet_public_keys.encryption_address, keys[1])
+
+        with self.subTest("disconnect app"):
+            app_client.call(
+                wallet_connect_account.disconnect_app.method_signature(),
+                app=app_id,
+                sender=user_account.signing_address,
+                signer=user_account,
+                boxes=[(0, app_id)],
+            )
+            # verify that the box has been deleted
+            with self.assertRaises(AlgodHTTPError) as err:
+                app_client.get_box_contents(uint64_type.encode(app_id))
+            self.assertEqual(404, err.exception.code)
+
+        with self.subTest("disconnect app when already disconnected"):
+            app_client.call(
+                wallet_connect_account.disconnect_app.method_signature(),
+                app=app_id,
+                sender=user_account.signing_address,
+                signer=user_account,
+                boxes=[(0, app_id)],
+            )
+
+        with self.subTest("close out the app while connected"):
+            app_client.call(
+                wallet_connect_account.connect_app.method_signature(),
+                app=app_id,
+                wallet_public_keys=(
+                    wallet_public_keys.signing_address,
+                    wallet_public_keys.encryption_address,
+                ),
+                sender=user_account.signing_address,
+                signer=user_account,
+                boxes=[(0, app_id)],
+            )
+            app_client.call(
+                wallet_connect_account.close_out_app.method_signature(),
+                app=app_id,
+                sender=user_account.signing_address,
+                signer=user_account,
+                boxes=[(0, app_id)],
+                suggested_params=suggested_params_with_flat_flee(
+                    self.algod_client,
+                    txn_count=2,
+                ),
+            )
+            # verify that the account is no longer opted in
+            with self.assertRaises(AlgodHTTPError) as err:
+                self.algod_client.account_application_info(app_client.app_addr, app_id)
+            self.assertEqual(404, err.exception.code)
+            # verify that the box has been deleted
+            with self.assertRaises(AlgodHTTPError) as err:
+                app_client.get_box_contents(uint64_type.encode(app_id))
+            self.assertEqual(404, err.exception.code)
+
+        with self.subTest(
+            "closing out an app that the account has not opted in should be a noop"
+        ):
+            app_client.call(
+                wallet_connect_account.close_out_app.method_signature(),
+                app=app_id,
+                sender=user_account.signing_address,
+                signer=user_account,
+                boxes=[(0, app_id)],
+                suggested_params=suggested_params_with_flat_flee(
+                    self.algod_client,
+                    txn_count=2,
+                ),
+            )
 
 
 if __name__ == "__main__":

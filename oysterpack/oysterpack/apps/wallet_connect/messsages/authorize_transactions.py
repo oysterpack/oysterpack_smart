@@ -12,7 +12,6 @@ from algosdk.transaction import Transaction
 
 from oysterpack.algorand.client.accounts.private_key import (
     SigningAddress,
-    AlgoPublicKeys,
 )
 from oysterpack.algorand.client.model import AppId, TxnId
 from oysterpack.apps.wallet_connect.domain.activity import (
@@ -37,7 +36,6 @@ class AuthorizeTransactionsRequest(Serializable):
 
     # account that is being requested to authorize the transactions
     authorizer: SigningAddress
-    wallet_public_keys: AlgoPublicKeys
 
     # list of transactions to be signed
     # - each transaction is linked to an ActivityId
@@ -65,15 +63,6 @@ class AuthorizeTransactionsRequest(Serializable):
             required_fields = (
                 (self.app_id, "app_id"),
                 (self.authorizer, "authorizer"),
-                (self.wallet_public_keys, "wallet_public_keys"),
-                (
-                    self.wallet_public_keys.signing_address,
-                    "wallet_public_keys.signing_address",
-                ),
-                (
-                    self.wallet_public_keys.encryption_address,
-                    "wallet_public_keys.encryption_address",
-                ),
                 (self.app_activity_id, "app_activity_id"),
             )
             for required_field, name in required_fields:
@@ -88,19 +77,6 @@ class AuthorizeTransactionsRequest(Serializable):
                 raise AuthorizeTransactionsError(
                     code=AuthorizeTransactionsErrCode.InvalidMessage,
                     message="signer address is invalid",
-                )
-
-        def check_wallet_public_keys():
-            if not is_valid_address(self.wallet_public_keys.signing_address):
-                raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.InvalidMessage,
-                    message="wallet signer address is invalid",
-                )
-
-            if not is_valid_address(self.wallet_public_keys.encryption_address):
-                raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.InvalidMessage,
-                    message="wallet encryption address is invalid",
                 )
 
         def check_transaction_count():
@@ -145,7 +121,6 @@ class AuthorizeTransactionsRequest(Serializable):
 
         check_required_fields()
         check_authorizer_address()
-        check_wallet_public_keys()
         check_transaction_count()
         check_transaction_group_id()
 
@@ -161,8 +136,6 @@ class AuthorizeTransactionsRequest(Serializable):
         (
             app_id,
             authorizer,
-            wallet_signing_address,
-            wallet_encryption_address,
             txns,
             app_activity_id,
         ) = msgpack.unpackb(packed)
@@ -171,10 +144,6 @@ class AuthorizeTransactionsRequest(Serializable):
             return cls(
                 app_id=app_id,
                 authorizer=authorizer,
-                wallet_public_keys=AlgoPublicKeys(
-                    signing_address=wallet_signing_address,
-                    encryption_address=wallet_encryption_address,
-                ),
                 transactions=[
                     (
                         Transaction.undictify(txn),
@@ -195,8 +164,6 @@ class AuthorizeTransactionsRequest(Serializable):
             (
                 self.app_id,
                 self.authorizer,
-                self.wallet_public_keys.signing_address,
-                self.wallet_public_keys.encryption_address,
                 [
                     (txn.dictify(), txn_activity_id.bytes)
                     for (txn, txn_activity_id) in self.transactions

@@ -21,11 +21,6 @@ from oysterpack.apps.wallet_connect.messsages.authorize_transactions import (
 )
 from oysterpack.apps.wallet_connect.protocols.wallet_connect_service import (
     WalletConnectService,
-    AppNotRegistered,
-    AccountSubscriptionExpired,
-    AccountNotRegistered,
-    AccountNotOptedIntoApp,
-    InvalidWalletPublickeys,
 )
 from oysterpack.core.message import MessageType
 
@@ -214,40 +209,14 @@ class AuthorizeTransactionsHandler(MessageHandler):
         self,
         request: AuthorizeTransactionsRequest,
     ):
-        try:
-            if not await self.__wallet_connect.wallet_connected(
-                account=request.authorizer,
-                app_id=request.app_id,
-                wallet_public_keys=request.wallet_public_keys,
-            ):
-                raise AuthorizeTransactionsError(
-                    code=AuthorizeTransactionsErrCode.WalletConnectAppDisconnected,
-                    message="wallet is not currently connected to the app",
-                )
-        except AppNotRegistered:
+        keys = await self.__wallet_connect.wallet_app_conn_public_keys(
+            account=request.authorizer,
+            app_id=request.app_id,
+        )
+        if keys is None:
             raise AuthorizeTransactionsError(
-                code=AuthorizeTransactionsErrCode.AppNotRegistered,
-                message="app is not registered",
-            )
-        except AccountNotRegistered:
-            raise AuthorizeTransactionsError(
-                code=AuthorizeTransactionsErrCode.AccountNotRegistered,
-                message="account is not registered",
-            )
-        except AccountNotOptedIntoApp:
-            raise AuthorizeTransactionsError(
-                code=AuthorizeTransactionsErrCode.AccountNotOptedIntoApp,
-                message="account is not opted into the app",
-            )
-        except AccountSubscriptionExpired:
-            raise AuthorizeTransactionsError(
-                code=AuthorizeTransactionsErrCode.AccountSubscriptionExpired,
-                message="account subscription is expired",
-            )
-        except InvalidWalletPublickeys:
-            raise AuthorizeTransactionsError(
-                code=AuthorizeTransactionsErrCode.InvalidWalletPublicKeys,
-                message="invalid wallet public keys",
+                code=AuthorizeTransactionsErrCode.WalletConnectAppDisconnected,
+                message="wallet is not connected to the app",
             )
 
     async def __validate_transactions(

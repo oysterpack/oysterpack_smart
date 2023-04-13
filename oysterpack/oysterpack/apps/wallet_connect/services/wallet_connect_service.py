@@ -10,6 +10,7 @@ from typing import cast, Any
 import algosdk
 from algosdk.encoding import decode_address, encode_address
 from algosdk.error import AlgodHTTPError
+from algosdk.logic import get_application_address
 from algosdk.v2client.algod import AlgodClient
 from beaker.client import ApplicationClient
 
@@ -78,7 +79,8 @@ class OysterPackWalletConnectService(WalletConnectService):
                 raise
 
         return await asyncio.get_event_loop().run_in_executor(
-            self.__executor, _app_keys_registered
+            self.__executor,
+            _app_keys_registered,
         )
 
     async def app_registered(self, app_id: AppId) -> bool:
@@ -98,7 +100,8 @@ class OysterPackWalletConnectService(WalletConnectService):
                 raise WalletConnectServiceError() from err
 
         return await asyncio.get_event_loop().run_in_executor(
-            self.__executor, _app_registered
+            self.__executor,
+            _app_registered,
         )
 
     async def app(self, app_id: AppId) -> App | None:
@@ -127,41 +130,94 @@ class OysterPackWalletConnectService(WalletConnectService):
                 raise WalletConnectServiceError() from err
 
         return await asyncio.get_event_loop().run_in_executor(
-            self.__executor, _lookup_app
+            self.__executor,
+            _lookup_app,
         )
 
     async def account_app_id(self, account: Address) -> AppId | None:
-        address_type = algosdk.abi.AddressType()
-        try:
-            result = self.__algod_client.application_box_by_name(
-                application_id=self._wallet_connect_service_app_id,
-                box_name=address_type.encode(account),
-            )
-        except AlgodHTTPError as err:
-            if err.code == 404:
-                return None
-            raise WalletConnectServiceError() from err
+        def _account_app_id() -> AppId | None:
+            address_type = algosdk.abi.AddressType()
+            try:
+                result = self.__algod_client.application_box_by_name(
+                    application_id=self._wallet_connect_service_app_id,
+                    box_name=address_type.encode(account),
+                )
+            except AlgodHTTPError as err:
+                if err.code == 404:
+                    return None
+                raise WalletConnectServiceError() from err
 
-        box_contents = b64decode(cast(dict[str, Any], result)["value"])
-        uint64_type = algosdk.abi.UintType(64)
-        return AppId(uint64_type.decode(box_contents))
+            box_contents = b64decode(cast(dict[str, Any], result)["value"])
+            uint64_type = algosdk.abi.UintType(64)
+            return AppId(uint64_type.decode(box_contents))
+
+        return await asyncio.get_event_loop().run_in_executor(
+            self.__executor,
+            _account_app_id,
+        )
 
     async def account_subscription(
-        self, account: Address
+        self,
+        account: Address,
     ) -> AccountSubscription | None:
         raise NotImplementedError
 
     async def account_opted_in_app(self, account: Address, app_id: AppId) -> bool:
-        raise NotImplementedError
+        account_app_id = await self.account_app_id(account)
+        if account_app_id is None:
+            return False
 
-    async def wallet_connected(
+        def _account_opted_in_app():
+            try:
+                self.__algod_client.account_application_info(
+                    address=get_application_address(account_app_id),
+                    application_id=app_id,
+                )
+                return True
+            except AlgodHTTPError as err:
+                if err.code == 404:
+                    return False
+                raise WalletConnectServiceError("algod error") from err
+
+        return await asyncio.get_event_loop().run_in_executor(
+            self.__executor,
+            _account_opted_in_app,
+        )
+
+    async def wallet_app_conn_public_keys(
         self,
         account: Address,
         app_id: AppId,
-        wallet_public_keys: AlgoPublicKeys,
-    ) -> bool:
-        # uint64_type = algosdk.abi.uint_type.UintType(64)
-        raise NotImplementedError
+    ) -> AlgoPublicKeys | None:
+        def _wallet_app_conn_public_keys():
+            uint64_type = algosdk.abi.UintType(64)
+            try:
+                result = self.__algod_client.application_box_by_name(
+                    application_id=app_id,
+                    box_name=uint64_type.encode(app_id),
+                )
+            except AlgodHTTPError as err:
+                if err.code == 404:
+                    return None
+                raise WalletConnectServiceError("algod error") from err
+
+            box_contents = b64decode(cast(dict[str, Any], result)["value"])
+            wallet_public_keys_tuple = algosdk.abi.TupleType(
+                [
+                    algosdk.abi.AddressType(),
+                    algosdk.abi.AddressType(),
+                ]
+            )
+            keys = wallet_public_keys_tuple.decode(box_contents)
+            return AlgoPublicKeys(
+                signing_address=keys[0],
+                encryption_address=keys[1],
+            )
+
+        return await asyncio.get_event_loop().run_in_executor(
+            self.__executor,
+            _wallet_app_conn_public_keys,
+        )
 
     async def app_activity_registered(
         self,

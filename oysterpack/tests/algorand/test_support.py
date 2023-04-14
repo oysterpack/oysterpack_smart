@@ -38,6 +38,14 @@ class WalletAccount:
     wallet: Wallet
     account: Address
 
+    def transaction_signer(self, algod_client: AlgodClient) -> TransactionSigner:
+        return WalletTransactionSigner(
+            WalletSession.from_wallet(
+                wallet=self.wallet,
+                get_auth_addr=get_auth_address_callable(algod_client),
+            )
+        )
+
 
 def sort_accounts_by_algo_balance(accounts: list[Address]) -> list[Address]:
     def key(account: Address) -> int:

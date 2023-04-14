@@ -14,10 +14,8 @@ from oysterpack.algorand.client.model import Address, AppId, TxnId
 from oysterpack.apps.wallet_connect.domain.activity import (
     AppActivityId,
     AppActivitySpec,
-    TxnActivitySpec,
 )
 from oysterpack.apps.wallet_connect.messsages.authorize_transactions import (
-    TxnActivityId,
     AuthorizeTransactionsRequest,
 )
 
@@ -146,7 +144,8 @@ class WalletConnectService(Protocol):
         """
 
     async def account_subscription(
-        self, account: Address
+        self,
+        account: Address,
     ) -> AccountSubscription | None:
         """
         Note
@@ -166,7 +165,9 @@ class WalletConnectService(Protocol):
         ...
 
     async def wallet_app_conn_public_keys(
-        self, account: Address, app_id: AppId
+        self,
+        account: Address,
+        app_id: AppId,
     ) -> AlgoPublicKeys | None:
         """
         :param app_id: AppId
@@ -174,36 +175,21 @@ class WalletConnectService(Protocol):
         """
         ...
 
-    async def app_activity_registered(
+    async def app_activity_spec(
         self,
         app_id: AppId,
-        app_activity_id: AppActivityId,
-    ) -> bool:
-        """
-        Returns false if the app activity is not registered.
-        """
-        ...
-
-    def app_activity_spec(
-        self,
         app_activity_id: AppActivityId,
     ) -> AppActivitySpec | None:
         """
         Looks up the AppActivitySpec for the specified AppActivityId
-        """
-        ...
 
-    def txn_activity_spec(
-        self,
-        txn_activity_id: TxnActivityId,
-    ) -> TxnActivitySpec | None:
-        """
-        Looks up the TxnActivitySpec for the specified TxnActivityId
+        :raises ActivityNotRegistered
         """
         ...
 
     async def authorize_transactions(
-        self, request: AuthorizeTransactionsRequest
+        self,
+        request: AuthorizeTransactionsRequest,
     ) -> bool:
         """
         Transactions are sent to the user for authorization, i.e., either approve or reject
@@ -213,7 +199,8 @@ class WalletConnectService(Protocol):
         ...
 
     async def sign_transactions(
-        self, request: AuthorizeTransactionsRequest
+        self,
+        request: AuthorizeTransactionsRequest,
     ) -> list[TxnId]:
         """
         Signs the transactions and submits them to Algorand.

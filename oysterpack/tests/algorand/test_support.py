@@ -60,6 +60,20 @@ def get_sandbox_accounts() -> list[SandboxAccount]:
     )
 
 
+def sort_by_algo_balance(accounts: list[Address]) -> list[Address]:
+    """
+    :return: sandnox accounts sorted by ALGO balance from lowest to highest
+    """
+
+    def key(account: Address) -> int:
+        return get_algo_balance(account, sandbox.get_algod_client())
+
+    return sorted(
+        accounts,
+        key=key,
+    )
+
+
 class AlgorandTestCase(OysterPackTestCase):
     kmd_client: Final[kmd.KMDClient] = sandbox.kmd.get_client()
     algod_client: Final[AlgodClient] = sandbox.get_algod_client()

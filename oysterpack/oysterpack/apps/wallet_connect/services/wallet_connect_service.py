@@ -31,8 +31,6 @@ from oysterpack.apps.wallet_connect.contracts.wallet_connect_account import (
 from oysterpack.apps.wallet_connect.domain.activity import (
     AppActivityId,
     AppActivitySpec,
-    TxnActivityId,
-    TxnActivitySpec,
 )
 from oysterpack.apps.wallet_connect.messsages.authorize_transactions import (
     AuthorizeTransactionsRequest,
@@ -259,23 +257,11 @@ class OysterPackWalletConnectService(WalletConnectService):
             _wallet_app_conn_public_keys,
         )
 
-    async def app_activity_registered(
+    async def app_activity_spec(
         self,
         app_id: AppId,
         app_activity_id: AppActivityId,
-    ) -> bool:
-        raise NotImplementedError
-
-    def app_activity_spec(
-        self,
-        app_activity_id: AppActivityId,
     ) -> AppActivitySpec | None:
-        raise NotImplementedError
-
-    def txn_activity_spec(
-        self,
-        txn_activity_id: TxnActivityId,
-    ) -> TxnActivitySpec | None:
         raise NotImplementedError
 
     async def authorize_transactions(

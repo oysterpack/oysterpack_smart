@@ -8,7 +8,6 @@ from typing import Callable
 
 from algosdk.transaction import Transaction
 from beaker.consts import algo
-from black import Tuple
 from websockets.legacy.client import connect
 
 from oysterpack.algorand.client.accounts.private_key import (
@@ -25,10 +24,8 @@ from oysterpack.algorand.messaging.secure_message_handler import (
     SecureMessageWebsocketHandler,
 )
 from oysterpack.apps.wallet_connect.domain.activity import (
-    TxnActivityId,
     AppActivityId,
     AppActivitySpec,
-    TxnActivitySpec,
 )
 from oysterpack.apps.wallet_connect.message_handlers.authorize_transactions import (
     AuthorizeTransactionsHandler,
@@ -67,27 +64,7 @@ class AppActivitySpecMock(AppActivitySpec):
         )
         self._validation_exception = validation_exception
 
-    async def validate(self, txns: list[Tuple[Transaction, TxnActivityId]]):
-        if self._validation_exception:
-            raise self._validation_exception
-
-
-class TxnActivitySpecMock(TxnActivitySpec):
-    def __init__(
-        self,
-        activity_id: TxnActivityId,
-        name: str,
-        description: str,
-        validation_exception: Exception | None = None,
-    ):
-        super().__init__(
-            activity_id=activity_id,
-            name=name,
-            description=description,
-        )
-        self._validation_exception = validation_exception
-
-    async def validate(self, txn: Transaction):
+    async def validate(self, txns: list[Transaction]):
         if self._validation_exception:
             raise self._validation_exception
 
@@ -110,7 +87,6 @@ class WalletConnectServiceMock(WalletConnectService):
     account_opted_in_app_: bool = True
     app_activity_registered_: bool = True
     app_activity_spec_: Callable[[AppActivityId], AppActivitySpec] | None = None
-    txn_activity_spec_: Callable[[TxnActivityId], TxnActivitySpec] | None = None
     authorize_transactions_: bool = True
     wallet_connected_error_: WalletConnectServiceError | None = None
     wallet_app_conn_public_keys_: AlgoPublicKeys | None = None
@@ -177,32 +153,21 @@ class WalletConnectServiceMock(WalletConnectService):
             expiration=datetime.now(UTC) + timedelta(days=7),
         )
 
-    async def app_activity_registered(
-        self, app_id: AppId, app_activity_id: AppActivityId
-    ) -> bool:
-        await asyncio.sleep(0)
-        return self.app_activity_registered_
-
-    def app_activity_spec(
-        self, app_activity_id: AppActivityId
+    async def app_activity_spec(
+        self,
+        app_id: AppId,
+        app_activity_id: AppActivityId,
     ) -> AppActivitySpec | None:
         if self.app_activity_spec_:
             return self.app_activity_spec_(app_activity_id)
+
+        if not self.app_activity_registered_:
+            return None
 
         return AppActivitySpecMock(
             activity_id=app_activity_id,
             name="name",
             description="description",
-        )
-
-    def txn_activity_spec(
-        self, txn_activity_id: TxnActivityId
-    ) -> TxnActivitySpec | None:
-        if self.txn_activity_spec_:
-            return self.txn_activity_spec(txn_activity_id)
-
-        return TxnActivitySpecMock(
-            activity_id=txn_activity_id, name="name", description="description"
         )
 
     async def authorize_transactions(
@@ -255,8 +220,8 @@ class SignTransactionsMessageHandlerTestCase(
         request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
             authorizer=self.sender_private_key.signing_address,
-            transactions=[(txn, TxnActivityId())],
-            app_activity_id=AppActivityId(),
+            transactions=[txn],
+            app_activity_id=AppActivityId(AppId(10)),
         )
 
         server = create_websocket_server(
@@ -328,8 +293,8 @@ class SignTransactionsMessageHandlerTestCase(
         request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
             authorizer=self.sender_private_key.signing_address,
-            transactions=[(txn, TxnActivityId())],
-            app_activity_id=AppActivityId(),
+            transactions=[txn],
+            app_activity_id=AppActivityId(AppId(10)),
         )
 
         async def run_test(
@@ -421,7 +386,7 @@ class SignTransactionsMessageHandlerTestCase(
                 app_activity_registered_=False,
                 wallet_app_conn_public_keys_=self.wallet.public_keys,
             ),
-            expected_err_code=AuthorizeTransactionsErrCode.AppActivityNotRegistered,
+            expected_err_code=AuthorizeTransactionsErrCode.InvalidAppActivityId,
         )
         await run_test(
             name="app activity validation failed",

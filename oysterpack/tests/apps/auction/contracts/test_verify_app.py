@@ -25,6 +25,7 @@ from pyteal.ast import abi
 
 from oysterpack.apps.client import verify_app
 from tests.algorand.test_support import AlgorandTestCase
+from tests.algorand.test_support import get_sandbox_accounts
 
 
 def close_out_account(close_remainder_to: Expr) -> dict[TxnField, Expr | list[Expr]]:
@@ -93,7 +94,7 @@ def create_bar(
 
 class MyTestCase(AlgorandTestCase):
     def test_create_via_foo(self):
-        account = sandbox.get_accounts().pop()
+        account = get_sandbox_accounts().pop()
         foo_client = ApplicationClient(
             sandbox.get_algod_client(), foo, signer=account.signer
         )

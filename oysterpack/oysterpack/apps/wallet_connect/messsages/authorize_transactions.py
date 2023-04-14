@@ -3,7 +3,7 @@ Messages for signing Algorand transactions
 """
 from dataclasses import dataclass, field
 from enum import auto, StrEnum
-from typing import ClassVar, Self, Tuple
+from typing import ClassVar, Self
 
 import msgpack  # type: ignore
 from algosdk import transaction, constants
@@ -15,7 +15,6 @@ from oysterpack.algorand.client.accounts.private_key import (
 )
 from oysterpack.algorand.client.model import AppId, TxnId
 from oysterpack.apps.wallet_connect.domain.activity import (
-    TxnActivityId,
     AppActivityId,
 )
 from oysterpack.core.message import Serializable, MessageType
@@ -38,12 +37,13 @@ class AuthorizeTransactionsRequest(Serializable):
     authorizer: SigningAddress
 
     # list of transactions to be signed
-    # - each transaction is linked to an ActivityId
-    # - all transactions must be contained with a single atomic transaction group,
-    #   which limits the max number of transactions to 16
-    transactions: list[Tuple[Transaction, TxnActivityId]]
+    # - all transactions must be contained within a single atomic transaction group
+    # - the max transaction group size is 15 - the transaction group validated via a smart contract, which consumes
+    #   1 transaction
+    transactions: list[Transaction]
 
     # Activity that is assigned to the set of transactions
+    # AppActivity is used to validate the transaction group
     app_activity_id: AppActivityId
 
     MSG_TYPE: ClassVar[MessageType] = field(
@@ -91,21 +91,21 @@ class AuthorizeTransactionsRequest(Serializable):
                 # if there is only 1 transaction, then a group ID is not required
                 return
 
-            for tx, _activity_id in self.transactions:
+            for tx in self.transactions:
                 if tx.group is None:
                     raise AuthorizeTransactionsError(
                         code=AuthorizeTransactionsErrCode.InvalidMessage,
                         message="all transactions must have a group ID",
                     )
 
-            group_ids = {txn.group for (txn, _activity_id) in self.transactions}
+            group_ids = {txn.group for txn in self.transactions}
             if len(group_ids) > 1:
                 raise AuthorizeTransactionsError(
                     code=AuthorizeTransactionsErrCode.InvalidMessage,
                     message="all transactions must have the same group ID, i.e., executed atomically",
                 )
 
-            txns = [txn for txn, _ in self.transactions]
+            txns = [txn for txn in self.transactions]
             # strip group ID in order to recalculate it
             for txn in txns:
                 txn.group = None
@@ -144,14 +144,8 @@ class AuthorizeTransactionsRequest(Serializable):
             return cls(
                 app_id=app_id,
                 authorizer=authorizer,
-                transactions=[
-                    (
-                        Transaction.undictify(txn),
-                        TxnActivityId.from_bytes(txn_activity_id),
-                    )
-                    for (txn, txn_activity_id) in txns
-                ],
-                app_activity_id=AppActivityId.from_bytes(app_activity_id),
+                transactions=[Transaction.undictify(txn) for txn in txns],
+                app_activity_id=AppActivityId(app_activity_id),
             )
         except Exception as err:
             raise AuthorizeTransactionsError(
@@ -164,11 +158,8 @@ class AuthorizeTransactionsRequest(Serializable):
             (
                 self.app_id,
                 self.authorizer,
-                [
-                    (txn.dictify(), txn_activity_id.bytes)
-                    for (txn, txn_activity_id) in self.transactions
-                ],
-                self.app_activity_id.bytes,
+                [txn.dictify() for txn in self.transactions],
+                self.app_activity_id,
             )
         )
 
@@ -250,10 +241,10 @@ class AuthorizeTransactionsErrCode(StrEnum):
     WalletConnectAppDisconnected = auto()
     InvalidWalletPublicKeys = auto()
 
+    # Indicates that the AppActivity lookup failed for the specified ID
     InvalidAppActivityId = auto()
-    InvalidTxnActivityId = auto()
-    AppActivityNotRegistered = auto()
-    InvalidTxnActivity = auto()
+
+    # Indicates the application activity failed validation
     InvalidAppActivity = auto()
 
     # transaction was rejected

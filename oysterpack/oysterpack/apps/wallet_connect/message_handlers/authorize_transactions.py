@@ -224,44 +224,14 @@ class AuthorizeTransactionsHandler(MessageHandler):
         self,
         request: AuthorizeTransactionsRequest,
     ):
-        app_activity_spec = self.__wallet_connect.app_activity_spec(
-            request.app_activity_id
+        app_activity_spec = await self.__wallet_connect.app_activity_spec(
+            app_id=request.app_id,
+            app_activity_id=request.app_activity_id,
         )
         if app_activity_spec is None:
             raise AuthorizeTransactionsError(
                 code=AuthorizeTransactionsErrCode.InvalidAppActivityId,
                 message="invalid app activity ID",
-            )
-        if not await self.__wallet_connect.app_activity_registered(
-            app_id=request.app_id,
-            app_activity_id=request.app_activity_id,
-        ):
-            raise AuthorizeTransactionsError(
-                code=AuthorizeTransactionsErrCode.AppActivityNotRegistered,
-                message="activity is not registered for the app",
-            )
-
-        try:
-            # validate individual transactions
-            async with TaskGroup() as tg:
-                for (txn, activity_id) in request.transactions:
-                    txn_activity_spec = self.__wallet_connect.txn_activity_spec(
-                        activity_id
-                    )
-                    if txn_activity_spec is None:
-                        raise AuthorizeTransactionsError(
-                            code=AuthorizeTransactionsErrCode.InvalidTxnActivityId,
-                            message=f"invalid transaction activity ID: {activity_id}",
-                        )
-                    tg.create_task(txn_activity_spec.validate(txn))
-        except ExceptionGroup as err:
-            self.__logger.error(f"invalid transaction: {err}")
-            exception = err.exceptions[0]
-            if isinstance(exception, AuthorizeTransactionsError):
-                raise exception
-            raise AuthorizeTransactionsError(
-                code=AuthorizeTransactionsErrCode.InvalidTxnActivity,
-                message=str(exception),
             )
 
         try:

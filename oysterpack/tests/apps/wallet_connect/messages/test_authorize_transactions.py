@@ -9,7 +9,6 @@ from oysterpack.algorand.client.accounts.private_key import AlgoPrivateKey
 from oysterpack.algorand.client.model import AppId, MicroAlgos, TxnId
 from oysterpack.algorand.client.transactions.payment import transfer_algo
 from oysterpack.apps.wallet_connect.domain.activity import (
-    TxnActivityId,
     AppActivityId,
 )
 from oysterpack.apps.wallet_connect.messsages.authorize_transactions import (
@@ -27,7 +26,6 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
         logger = self.get_logger("test_request_pack_unpack")
         sender = AlgoPrivateKey()
         receiver = AlgoPrivateKey()
-        wallet = AlgoPrivateKey()
 
         with self.subTest("single transaction"):
             txn1 = transfer_algo(
@@ -40,8 +38,8 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
             request = AuthorizeTransactionsRequest(
                 app_id=AppId(100),
                 authorizer=sender.signing_address,
-                transactions=[(txn1, TxnActivityId())],
-                app_activity_id=AppActivityId(),
+                transactions=[txn1],
+                app_activity_id=AppActivityId(AppId(10)),
             )
             packed = request.pack()
             logger.info(f"message length = {len(packed)}")
@@ -60,8 +58,8 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                     AuthorizeTransactionsRequest(
                         app_id=AppId(100),
                         authorizer=sender.signing_address,
-                        transactions=[(txn1, TxnActivityId()), (txn2, TxnActivityId())],
-                        app_activity_id=AppActivityId(),
+                        transactions=[txn1, txn2],
+                        app_activity_id=AppActivityId(AppId(10)),
                     )
                 self.assertEqual(
                     AuthorizeTransactionsErrCode.InvalidMessage, err.exception.code
@@ -87,12 +85,12 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                         app_id=AppId(100),
                         authorizer=sender.signing_address,
                         transactions=[
-                            (txn1, TxnActivityId()),
-                            (txn2, TxnActivityId()),
-                            (txn3, TxnActivityId()),
-                            (txn4, TxnActivityId()),
+                            txn1,
+                            txn2,
+                            txn3,
+                            txn4,
                         ],
-                        app_activity_id=AppActivityId(),
+                        app_activity_id=AppActivityId(AppId(10)),
                     )
                 self.assertEqual(
                     AuthorizeTransactionsErrCode.InvalidMessage, err.exception.code
@@ -118,12 +116,12 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
                         app_id=AppId(100),
                         authorizer=sender.signing_address,
                         transactions=[
-                            (txn1, TxnActivityId()),
-                            (txn2, TxnActivityId()),
-                            (txn3, TxnActivityId()),
-                            (txn4, TxnActivityId()),
+                            txn1,
+                            txn2,
+                            txn3,
+                            txn4,
                         ],
-                        app_activity_id=AppActivityId(),
+                        app_activity_id=AppActivityId(AppId(10)),
                     )
                 self.assertEqual(
                     AuthorizeTransactionsErrCode.InvalidMessage, err.exception.code
@@ -131,29 +129,25 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
 
         with self.subTest("multiple transactions"):
             txns = [
-                (
-                    transfer_algo(
-                        sender=sender.signing_address,
-                        receiver=receiver.signing_address,
-                        amount=MicroAlgos(1 * algo),
-                        suggested_params=self.algod_client.suggested_params(),
-                    ),
-                    TxnActivityId(),
+                transfer_algo(
+                    sender=sender.signing_address,
+                    receiver=receiver.signing_address,
+                    amount=MicroAlgos(1 * algo),
+                    suggested_params=self.algod_client.suggested_params(),
                 )
                 for _ in range(3)
             ]
-            transaction.assign_group_id([txn for txn, _ in txns])
+            transaction.assign_group_id(txns)
             AuthorizeTransactionsRequest(
                 app_id=AppId(100),
                 authorizer=sender.signing_address,
                 transactions=txns,
-                app_activity_id=AppActivityId(),
+                app_activity_id=AppActivityId(AppId(10)),
             )
 
     def test_post_create_validations(self):
         sender = AlgoPrivateKey()
         receiver = AlgoPrivateKey()
-        wallet = AlgoPrivateKey()
 
         txn = transfer_algo(
             sender=sender.signing_address,
@@ -165,8 +159,8 @@ class AuthorizeTransactionsTestCase(AlgorandTestCase):
         request = AuthorizeTransactionsRequest(
             app_id=AppId(100),
             authorizer=sender.signing_address,
-            transactions=[(txn, TxnActivityId())],
-            app_activity_id=AppActivityId(),
+            transactions=[txn],
+            app_activity_id=AppActivityId(AppId(10)),
         )
         (
             app_id,

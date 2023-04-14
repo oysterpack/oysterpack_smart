@@ -16,6 +16,7 @@ from oysterpack.algorand.client.model import MicroAlgos
 from oysterpack.algorand.client.transactions.payment import transfer_algo
 from oysterpack.algorand.client.transactions.rekey import rekey, rekey_back
 from tests.algorand.test_support import AlgorandTestCase
+from tests.algorand.test_support import sort_by_algo_balance
 
 
 class RekeyTestCase(AlgorandTestCase):
@@ -88,7 +89,7 @@ class RekeyTestCase(AlgorandTestCase):
             get_auth_addr=get_auth_address_callable(self.algod_client),
         )
 
-        addresses: list[Address] = wallet_session.list_accounts()
+        addresses: list[Address] = sort_by_algo_balance(wallet_session.list_accounts())
         account_1 = addresses.pop()
         account_2 = addresses.pop()
 

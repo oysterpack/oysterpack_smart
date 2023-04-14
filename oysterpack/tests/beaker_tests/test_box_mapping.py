@@ -8,6 +8,8 @@ from beaker.lib.storage import BoxMapping
 from pyteal import Expr, Seq, Assert, Not, App, Itob
 from pyteal.ast import abi
 
+from tests.algorand.test_support import get_sandbox_accounts
+
 
 class AppState:
     data: Final[BoxMapping] = BoxMapping(abi.String, abi.Uint64)
@@ -36,7 +38,7 @@ def set_box_element_2(key: abi.String, value: abi.Uint64) -> Expr:
 
 class BoxMappingTestCase(unittest.TestCase):
     def test_box_mapping(self):
-        account = sandbox.get_accounts().pop()
+        account = get_sandbox_accounts().pop()
         client = ApplicationClient(
             sandbox.get_algod_client(),
             sender=account.address,
@@ -52,7 +54,7 @@ class BoxMappingTestCase(unittest.TestCase):
         )
 
     def test_box(self):
-        account = sandbox.get_accounts().pop()
+        account = get_sandbox_accounts().pop()
         client = ApplicationClient(
             sandbox.get_algod_client(),
             sender=account.address,

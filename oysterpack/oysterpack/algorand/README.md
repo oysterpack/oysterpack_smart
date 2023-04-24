@@ -35,3 +35,6 @@ sudo -u algorand goal -d $ALGORAND_DATA kmd stop
 
 ## R&D
 - [Runtime Verification Brings Formal Verification to Algorand](https://runtimeverification.com/blog/runtime-verification-brings-formal-verification-to-algorand)
+
+## Algorand Hosted Nodes
+- https://algonode.io/api/#highly-available-algorand-endpoints

@@ -2,7 +2,6 @@ import unittest
 from typing import Final
 from unittest import IsolatedAsyncioTestCase
 
-from Cryptodome.Hash import SHA512
 from algosdk.atomic_transaction_composer import (
     TransactionWithSigner,
     AtomicTransactionComposer,
@@ -47,10 +46,10 @@ app = Application("FooActivity", state=AppState())
 
 @app.create
 def create(
-    asset: abi.Asset,
-    asset_transfer_max_amt: abi.Uint64,
-    payment_max_amt: abi.Uint64,
-    bar_app: abi.Application,
+        asset: abi.Asset,
+        asset_transfer_max_amt: abi.Uint64,
+        payment_max_amt: abi.Uint64,
+        bar_app: abi.Application,
 ) -> Expr:
     return Seq(
         app.state.asset_id.set(asset.asset_id()),
@@ -62,13 +61,10 @@ def create(
 
 @app.external
 def execute(
-    payment: abi.PaymentTransaction,
-    asset_transfer: abi.AssetTransferTransaction,
-    bar_add: abi.ApplicationCallTransaction,
+        payment: abi.PaymentTransaction,
+        asset_transfer: abi.AssetTransferTransaction,
+        bar_add: abi.ApplicationCallTransaction,
 ) -> Expr:
-    m = SHA512.new(truncate="256")
-    m.update(add.method_signature().encode())
-    method_selector = m.digest()[0:4]
     return Seq(
         Assert(
             payment.get().amount() <= app.state.payment_max_amt.get(),
@@ -104,7 +100,7 @@ def execute(
             comment="Invalid bar app ID",
         ),
         Assert(
-            bar_add.get().application_args[0] == Bytes(method_selector),
+            bar_add.get().application_args[0] == Bytes(add.method_spec().get_selector()),
             comment="Invalid bar method selector",
         ),
     )
